@@ -68,6 +68,12 @@ static void mock_wakeup(cl_platform_t *p)
     (void)p;
 }
 
+static void mock_start_text_input(cl_platform_t *p, bool enable)
+{
+    (void)p;
+    (void)enable;
+}
+
 static void mock_destroy(cl_platform_t *p)
 {
     mock_platform_t *m = (mock_platform_t *)p;
@@ -84,6 +90,7 @@ static const cl_platform_ops_t mock_ops = {
     .wait = mock_wait,
     .present = mock_present,
     .wakeup = mock_wakeup,
+    .start_text_input = mock_start_text_input,
     .destroy = mock_destroy,
 };
 

@@ -35,6 +35,11 @@ CL_API void cl_widget_set_margin(cl_widget_t *w, cl_insets_t m);
 CL_API void cl_widget_set_align(cl_widget_t *w, cl_align_t h, cl_align_t v);
 CL_API void cl_widget_set_flex(cl_widget_t *w, float weight);
 
+/* Focus. */
+CL_API void cl_widget_set_focusable(cl_widget_t *w, bool focusable);
+CL_API bool cl_widget_focus(cl_widget_t *w);
+CL_API bool cl_widget_has_focus(cl_widget_t *w);
+
 /* Invalidation. */
 CL_API void cl_widget_invalidate(cl_widget_t *w);
 CL_API void cl_widget_invalidate_layout(cl_widget_t *w);

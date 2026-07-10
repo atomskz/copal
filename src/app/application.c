@@ -97,6 +97,17 @@ static void process_events(cl_application_t *app)
                                            ev.button);
                 break;
 
+            case CL_PEV_KEY_DOWN:
+            case CL_PEV_KEY_UP:
+                if (app->window)
+                    cl_window_handle_key(app->window, ev.kind, ev.key, ev.mods);
+                break;
+
+            case CL_PEV_TEXT_INPUT:
+                if (app->window)
+                    cl_window_handle_text(app->window, ev.text);
+                break;
+
             default:
                 break;
         }

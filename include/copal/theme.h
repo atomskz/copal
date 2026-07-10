@@ -22,6 +22,7 @@ typedef enum cl_color_role {
     CL_COLOR_ACCENT,
     CL_COLOR_BORDER,
     CL_COLOR_FOCUS_RING,
+    CL_COLOR_SELECTION,
     CL_COLOR__COUNT
 } cl_color_role_t;
 

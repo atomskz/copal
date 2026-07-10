@@ -18,7 +18,10 @@ typedef enum cl_platform_event_kind {
     CL_PEV_RESIZE,
     CL_PEV_MOUSE_DOWN,
     CL_PEV_MOUSE_UP,
-    CL_PEV_MOUSE_MOVE
+    CL_PEV_MOUSE_MOVE,
+    CL_PEV_KEY_DOWN,
+    CL_PEV_KEY_UP,
+    CL_PEV_TEXT_INPUT
 } cl_platform_event_kind_t;
 
 typedef struct cl_platform_event {
@@ -26,6 +29,9 @@ typedef struct cl_platform_event {
     cl_size_t size;           /* CL_PEV_RESIZE (logical px) */
     cl_point_t pos;           /* mouse events (logical px) */
     cl_mouse_button_t button; /* mouse button events */
+    cl_key_t key;             /* key events */
+    cl_key_mods_t mods;       /* key events */
+    char text[32];            /* CL_PEV_TEXT_INPUT (NUL-terminated UTF-8) */
 } cl_platform_event_t;
 
 typedef struct cl_platform_ops {
@@ -37,6 +43,7 @@ typedef struct cl_platform_ops {
     void (*wait)(cl_platform_t *p, int timeout_ms);
     void (*present)(cl_platform_t *p);
     void (*wakeup)(cl_platform_t *p);
+    void (*start_text_input)(cl_platform_t *p, bool enable);
     void (*destroy)(cl_platform_t *p);
     /* GL proc loader for the OpenGL renderer; NULL for non-GL backends. */
     void *(*gl_get_proc)(cl_platform_t *p, const char *name);

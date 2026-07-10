@@ -134,7 +134,8 @@ cl_font_metrics_t cl_font_metrics(cl_font_t *font)
     return m;
 }
 
-cl_size_t cl_text_measure(cl_font_t *font, const char *utf8, float max_width)
+cl_size_t cl_text_measure_bytes(cl_font_t *font, const char *utf8, size_t len,
+                                float max_width)
 {
     cl_size_t size = { 0, 0 };
     size_t i = 0;
@@ -148,7 +149,7 @@ cl_size_t cl_text_measure(cl_font_t *font, const char *utf8, float max_width)
     if (!utf8)
         return size;
 
-    while ((n = cl_utf8_next(utf8 + i, &cp)) != 0) {
+    while (i < len && (n = cl_utf8_next_n(utf8 + i, len - i, &cp)) != 0) {
         int advance;
         int lsb;
 
@@ -157,6 +158,13 @@ cl_size_t cl_text_measure(cl_font_t *font, const char *utf8, float max_width)
         size.w += (float)advance * font->scale;
     }
     return size;
+}
+
+cl_size_t cl_text_measure(cl_font_t *font, const char *utf8, float max_width)
+{
+    size_t len = utf8 ? strlen(utf8) : 0;
+
+    return cl_text_measure_bytes(font, utf8, len, max_width);
 }
 
 const stbtt_fontinfo *cl_font_info(cl_font_t *f)

@@ -55,6 +55,7 @@ set(COPAL_SOURCES
     src/layout/vbox.c
     src/widgets/label.c
     src/widgets/button.c
+    src/widgets/textbox.c
     src/app/application.c
     src/app/window.c)
 

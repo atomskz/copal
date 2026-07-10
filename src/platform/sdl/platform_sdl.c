@@ -28,6 +28,44 @@ static cl_mouse_button_t map_button(Uint8 b)
     }
 }
 
+static cl_key_t map_key(SDL_Keycode k)
+{
+    if (k >= SDLK_a && k <= SDLK_z)
+        return (cl_key_t)(CL_KEY_A + (k - SDLK_a));
+
+    switch (k) {
+        case SDLK_LEFT:      return CL_KEY_LEFT;
+        case SDLK_RIGHT:     return CL_KEY_RIGHT;
+        case SDLK_UP:        return CL_KEY_UP;
+        case SDLK_DOWN:      return CL_KEY_DOWN;
+        case SDLK_HOME:      return CL_KEY_HOME;
+        case SDLK_END:       return CL_KEY_END;
+        case SDLK_BACKSPACE: return CL_KEY_BACKSPACE;
+        case SDLK_DELETE:    return CL_KEY_DELETE;
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:  return CL_KEY_ENTER;
+        case SDLK_TAB:       return CL_KEY_TAB;
+        case SDLK_ESCAPE:    return CL_KEY_ESCAPE;
+
+        default:             return CL_KEY_UNKNOWN;
+    }
+}
+
+static cl_key_mods_t map_mods(Uint16 m)
+{
+    unsigned mods = CL_MOD_NONE;
+
+    if (m & KMOD_SHIFT)
+        mods |= CL_MOD_SHIFT;
+    if (m & KMOD_CTRL)
+        mods |= CL_MOD_CTRL;
+    if (m & KMOD_ALT)
+        mods |= CL_MOD_ALT;
+    if (m & KMOD_GUI)
+        mods |= CL_MOD_SUPER;
+    return (cl_key_mods_t)mods;
+}
+
 static cl_result_t sdl_create_window(cl_platform_t *p,
                                      const cl_window_desc_t *desc)
 {
@@ -124,6 +162,20 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                 out->pos.y = (float)e.motion.y;
                 return true;
 
+            case SDL_KEYDOWN:
+            case SDL_KEYUP:
+                out->kind = e.type == SDL_KEYDOWN ? CL_PEV_KEY_DOWN
+                                                  : CL_PEV_KEY_UP;
+                out->key = map_key(e.key.keysym.sym);
+                out->mods = map_mods(e.key.keysym.mod);
+                return true;
+
+            case SDL_TEXTINPUT:
+                out->kind = CL_PEV_TEXT_INPUT;
+                memcpy(out->text, e.text.text, sizeof(out->text));
+                out->text[sizeof(out->text) - 1] = '\0';
+                return true;
+
             default:
                 break;
         }
@@ -162,6 +214,15 @@ static void sdl_wakeup(cl_platform_t *p)
     SDL_PushEvent(&e);
 }
 
+static void sdl_start_text_input(cl_platform_t *p, bool enable)
+{
+    (void)p;
+    if (enable)
+        SDL_StartTextInput();
+    else
+        SDL_StopTextInput();
+}
+
 static void *sdl_gl_get_proc(cl_platform_t *p, const char *name)
 {
     (void)p;
@@ -190,6 +251,7 @@ static const cl_platform_ops_t sdl_ops = {
     .wait = sdl_wait,
     .present = sdl_present,
     .wakeup = sdl_wakeup,
+    .start_text_input = sdl_start_text_input,
     .destroy = sdl_destroy,
     .gl_get_proc = sdl_gl_get_proc,
 };

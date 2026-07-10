@@ -13,8 +13,16 @@ void cl_set_last_error(cl_result_t result);
 /*
  * Decode one UTF-8 codepoint from @s into @cp. Returns the number of bytes
  * consumed, or 0 at the terminating NUL. Invalid sequences yield U+FFFD and
- * consume one byte.
+ * consume one byte. @s must be NUL-terminated.
  */
 size_t cl_utf8_next(const char *s, uint32_t *cp);
+
+/*
+ * Bounded variant: never reads past s[avail-1]. A multibyte sequence whose
+ * continuation bytes would fall outside @avail is treated as invalid (U+FFFD,
+ * one byte consumed). Returns 0 when @avail is 0 or at a NUL. Use for buffers
+ * that are not NUL-terminated.
+ */
+size_t cl_utf8_next_n(const char *s, size_t avail, uint32_t *cp);
 
 #endif /* CL_FOUNDATION_INTERNAL_H */

@@ -32,6 +32,7 @@ cl_theme_t *cl_theme_default(cl_application_t *app)
     t->colors[CL_COLOR_ACCENT] = cl_rgba(60, 120, 220, 255);
     t->colors[CL_COLOR_BORDER] = cl_rgba(205, 208, 214, 255);
     t->colors[CL_COLOR_FOCUS_RING] = cl_rgba(60, 120, 220, 255);
+    t->colors[CL_COLOR_SELECTION] = cl_rgba(180, 205, 245, 255);
     t->radius = 6.0f;
     t->button_pad = (cl_size_t){ 12.0f, 7.0f };
     return t;

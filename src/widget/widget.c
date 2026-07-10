@@ -70,7 +70,19 @@ void cl_widget_invalidate_layout(cl_widget_t *w)
 void cl_widget_set_window(cl_widget_t *w, cl_window_t *win)
 {
     cl_widget_t *c;
+    cl_window_t *old = w->window;
 
+    /*
+     * Detaching from a window: drop any focus/pointer capture the old window
+     * still holds on this node BEFORE the link is torn down, so those weak
+     * pointers can never dangle into detached or freed memory.
+     */
+    if (old && old != win) {
+        if (old->focus == w)
+            cl_window_set_focus(old, NULL);
+        if (old->mouse_target == w)
+            old->mouse_target = NULL;
+    }
     w->window = win;
     for (c = w->first_child; c; c = c->next_sibling)
         cl_widget_set_window(c, win);
@@ -135,6 +147,8 @@ static void widget_destroy_subtree(cl_widget_t *w)
     }
     if (w->window && w->window->mouse_target == w)
         w->window->mouse_target = NULL;
+    if (w->window && w->window->focus == w)
+        w->window->focus = NULL;
 
     a = cl_application_allocator(w->app);
     if (w->cls->vtable && w->cls->vtable->destroy)
@@ -170,10 +184,13 @@ cl_rect_t cl_widget_rect(cl_widget_t *w)
 
 void cl_widget_set_visible(cl_widget_t *w, bool v)
 {
-    if (v)
+    if (v) {
         w->flags |= CL_WF_VISIBLE;
-    else
+    } else {
         w->flags &= ~(uint32_t)CL_WF_VISIBLE;
+        if (w->window && w->window->focus == w)
+            cl_window_set_focus(w->window, NULL);
+    }
     cl_widget_invalidate_layout(w);
 }
 
@@ -184,11 +201,40 @@ bool cl_widget_is_visible(cl_widget_t *w)
 
 void cl_widget_set_enabled(cl_widget_t *w, bool e)
 {
-    if (e)
+    if (e) {
         w->flags |= CL_WF_ENABLED;
-    else
+    } else {
         w->flags &= ~(uint32_t)CL_WF_ENABLED;
+        if (w->window && w->window->focus == w)
+            cl_window_set_focus(w->window, NULL);
+    }
     cl_widget_invalidate(w);
+}
+
+void cl_widget_set_focusable(cl_widget_t *w, bool focusable)
+{
+    if (focusable) {
+        w->flags |= CL_WF_FOCUSABLE;
+    } else {
+        w->flags &= ~(uint32_t)CL_WF_FOCUSABLE;
+        if (w->window && w->window->focus == w)
+            cl_window_set_focus(w->window, NULL);
+    }
+}
+
+bool cl_widget_focus(cl_widget_t *w)
+{
+    const uint32_t need = CL_WF_FOCUSABLE | CL_WF_VISIBLE | CL_WF_ENABLED;
+
+    if (!w || !w->window || (w->flags & need) != need)
+        return false;
+    cl_window_set_focus(w->window, w);
+    return true;
+}
+
+bool cl_widget_has_focus(cl_widget_t *w)
+{
+    return w && w->window && w->window->focus == w;
 }
 
 bool cl_widget_is_enabled(cl_widget_t *w)
@@ -300,6 +346,15 @@ static bool widget_handle(cl_widget_t *w, const cl_event_t *ev)
 
         case CL_EVENT_MOUSE_MOVE:
             return vt->mouse_move ? vt->mouse_move(w, ev) : false;
+
+        case CL_EVENT_KEY_DOWN:
+            return vt->key_down ? vt->key_down(w, ev) : false;
+
+        case CL_EVENT_KEY_UP:
+            return vt->key_up ? vt->key_up(w, ev) : false;
+
+        case CL_EVENT_TEXT_INPUT:
+            return vt->text_input ? vt->text_input(w, ev) : false;
 
         default:
             return false;

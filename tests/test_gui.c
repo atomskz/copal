@@ -7,6 +7,7 @@
 #include <copal/copal.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "platform/mock/platform_mock.h"
@@ -86,6 +87,15 @@ int main(void)
         return SKIP_CODE;
     }
     cl_theme_set_font(cl_application_theme(app), font);
+
+    /* Bounded measure must not read past a non-NUL-terminated buffer. */
+    {
+        char *b = malloc(3);
+
+        memcpy(b, "ab\xC3", 3); /* trailing 2-byte lead with no continuation */
+        CHECK(cl_text_measure_bytes(font, b, 3, CL_UNBOUNDED).w >= 0.0f);
+        free(b);
+    }
 
     wd.title = "test";
     wd.width = 320;

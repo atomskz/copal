@@ -27,6 +27,7 @@ struct cl_window {
     cl_application_t *app;      /* weak */
     cl_widget_t *content;       /* owned */
     cl_widget_t *mouse_target;  /* weak; basic pointer capture */
+    cl_widget_t *focus;         /* weak; keyboard focus */
     cl_size_t size;             /* logical px */
     float scale;
     bool dirty;
@@ -39,6 +40,11 @@ struct cl_window {
 void cl_window_render(cl_window_t *win);
 void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
                             cl_point_t pos, cl_mouse_button_t button);
+void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
+                          cl_key_t key, cl_key_mods_t mods);
+void cl_window_handle_text(cl_window_t *win, const char *utf8);
+void cl_window_set_focus(cl_window_t *win, cl_widget_t *w);
+void cl_window_focus_next(cl_window_t *win, bool forward);
 void cl_window_resize(cl_window_t *win, cl_size_t size);
 void cl_window_mark_dirty(cl_window_t *win);
 void cl_window_mark_layout_dirty(cl_window_t *win);

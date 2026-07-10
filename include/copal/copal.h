@@ -22,5 +22,6 @@
 #include <copal/window.h>
 #include <copal/widgets/label.h>
 #include <copal/widgets/button.h>
+#include <copal/widgets/textbox.h>
 
 #endif /* CL_COPAL_H */

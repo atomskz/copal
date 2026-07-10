@@ -45,6 +45,7 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
     win->dirty = true;
     win->layout_dirty = true;
     app->window = win;
+    app->platform->ops->start_text_input(app->platform, true);
     return win;
 }
 
@@ -163,6 +164,10 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
         ev.type = CL_EVENT_MOUSE_DOWN;
         target = cl_widget_hit(win->content, pos);
         win->mouse_target = target;
+        if (target && (target->flags & CL_WF_FOCUSABLE))
+            cl_window_set_focus(win, target);
+        else
+            cl_window_set_focus(win, NULL);
     } else if (kind == CL_PEV_MOUSE_UP) {
         ev.type = CL_EVENT_MOUSE_UP;
         target = win->mouse_target ? win->mouse_target
@@ -176,4 +181,114 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
 
     if (target)
         cl_widget_dispatch(target, &ev);
+}
+
+void cl_window_set_focus(cl_window_t *win, cl_widget_t *w)
+{
+    cl_widget_t *old = win->focus;
+
+    if (old == w)
+        return;
+    win->focus = w;
+    if (old) {
+        if (old->cls->vtable && old->cls->vtable->focus_lost)
+            old->cls->vtable->focus_lost(old);
+        cl_window_mark_dirty(win);
+    }
+    if (w) {
+        if (w->cls->vtable && w->cls->vtable->focus_gained)
+            w->cls->vtable->focus_gained(w);
+        cl_window_mark_dirty(win);
+    }
+}
+
+void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
+                          cl_key_t key, cl_key_mods_t mods)
+{
+    cl_event_t ev;
+    bool handled = false;
+
+    memset(&ev, 0, sizeof(ev));
+    ev.type = kind == CL_PEV_KEY_DOWN ? CL_EVENT_KEY_DOWN : CL_EVENT_KEY_UP;
+    ev.mods = mods;
+    ev.data.key.key = key;
+
+    if (win->focus)
+        handled = cl_widget_dispatch(win->focus, &ev);
+    if (!handled && kind == CL_PEV_KEY_DOWN && key == CL_KEY_TAB)
+        cl_window_focus_next(win, !(mods & CL_MOD_SHIFT));
+}
+
+void cl_window_handle_text(cl_window_t *win, const char *utf8)
+{
+    cl_event_t ev;
+
+    if (!win->focus || !utf8 || !utf8[0])
+        return;
+    memset(&ev, 0, sizeof(ev));
+    ev.type = CL_EVENT_TEXT_INPUT;
+    ev.data.text.utf8 = utf8;
+    cl_widget_dispatch(win->focus, &ev);
+}
+
+static const uint32_t CL_FOCUS_NEED =
+    CL_WF_FOCUSABLE | CL_WF_VISIBLE | CL_WF_ENABLED;
+
+static int count_focusable(cl_widget_t *w)
+{
+    cl_widget_t *c;
+    int n;
+
+    if (!(w->flags & CL_WF_VISIBLE))
+        return 0;
+    n = (w->flags & CL_FOCUS_NEED) == CL_FOCUS_NEED ? 1 : 0;
+    for (c = w->first_child; c; c = c->next_sibling)
+        n += count_focusable(c);
+    return n;
+}
+
+static void collect_focusable(cl_widget_t *w, cl_widget_t **arr, int *n)
+{
+    cl_widget_t *c;
+
+    if (!(w->flags & CL_WF_VISIBLE))
+        return;
+    if ((w->flags & CL_FOCUS_NEED) == CL_FOCUS_NEED)
+        arr[(*n)++] = w;
+    for (c = w->first_child; c; c = c->next_sibling)
+        collect_focusable(c, arr, n);
+}
+
+void cl_window_focus_next(cl_window_t *win, bool forward)
+{
+    cl_widget_t **arr;
+    int total;
+    int n = 0;
+    int cur = -1;
+    int next;
+    int i;
+
+    if (!win->content)
+        return;
+    total = count_focusable(win->content);
+    if (total == 0)
+        return;
+    arr = cl_alloc(&win->app->alloc, (size_t)total * sizeof(*arr));
+    if (!arr)
+        return;
+    collect_focusable(win->content, arr, &n);
+    for (i = 0; i < n; i++) {
+        if (arr[i] == win->focus) {
+            cur = i;
+            break;
+        }
+    }
+    if (cur < 0)
+        next = forward ? 0 : n - 1;
+    else if (forward)
+        next = (cur + 1) % n;
+    else
+        next = (cur - 1 + n) % n;
+    cl_window_set_focus(win, arr[next]);
+    cl_free(&win->app->alloc, arr);
 }

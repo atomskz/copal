@@ -52,6 +52,13 @@ CL_API cl_font_metrics_t cl_font_metrics(cl_font_t *font);
 CL_API cl_size_t cl_text_measure(cl_font_t *font, const char *utf8,
                                  float max_width);
 
+/**
+ * cl_text_measure_bytes() - measure exactly @len bytes of UTF-8 (not
+ * NUL-terminated). Useful for caret positioning in editable text.
+ */
+CL_API cl_size_t cl_text_measure_bytes(cl_font_t *font, const char *utf8,
+                                       size_t len, float max_width);
+
 #ifdef __cplusplus
 }
 #endif

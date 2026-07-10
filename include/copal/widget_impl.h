@@ -45,6 +45,11 @@ typedef struct cl_widget_vtable {
     bool (*mouse_down)(cl_widget_t *w, const cl_event_t *ev);
     bool (*mouse_up)(cl_widget_t *w, const cl_event_t *ev);
     bool (*mouse_move)(cl_widget_t *w, const cl_event_t *ev);
+    bool (*key_down)(cl_widget_t *w, const cl_event_t *ev);
+    bool (*key_up)(cl_widget_t *w, const cl_event_t *ev);
+    bool (*text_input)(cl_widget_t *w, const cl_event_t *ev);
+    void (*focus_gained)(cl_widget_t *w);
+    void (*focus_lost)(cl_widget_t *w);
 } cl_widget_vtable_t;
 
 struct cl_widget_class {
