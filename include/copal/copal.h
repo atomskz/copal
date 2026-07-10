@@ -6,15 +6,21 @@
  * copal - lightweight cross-platform GUI library in C.
  *
  * Umbrella header for the stable public API.
- *
- * MVP status: only the foundation layer is implemented so far
- * (version, types, error, allocator). The widget / window / layout / renderer /
- * font headers are introduced with the vertical prototype (Stage 6).
  */
 #include <copal/export.h>
 #include <copal/version.h>
 #include <copal/types.h>
 #include <copal/error.h>
 #include <copal/allocator.h>
+#include <copal/event.h>
+#include <copal/font.h>
+#include <copal/theme.h>
+#include <copal/render.h>
+#include <copal/widget.h>
+#include <copal/layout.h>
+#include <copal/application.h>
+#include <copal/window.h>
+#include <copal/widgets/label.h>
+#include <copal/widgets/button.h>
 
 #endif /* CL_COPAL_H */

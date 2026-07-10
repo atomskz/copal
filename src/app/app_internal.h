@@ -1,0 +1,46 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+#ifndef CL_APP_INTERNAL_H
+#define CL_APP_INTERNAL_H
+
+#include <stdbool.h>
+
+#include <copal/application.h>
+#include <copal/window.h>
+#include <copal/allocator.h>
+
+#include "platform/platform.h"
+#include "render/renderer.h"
+
+struct cl_application {
+    cl_allocator_t alloc; /* value copy so &alloc is stable */
+    cl_platform_t *platform;
+    cl_renderer_t *renderer;
+    cl_theme_t *theme;
+    cl_window_t *window; /* single window in MVP */
+    cl_log_fn log_fn;
+    void *log_user;
+    bool quit;
+    int exit_code;
+};
+
+struct cl_window {
+    cl_application_t *app;      /* weak */
+    cl_widget_t *content;       /* owned */
+    cl_widget_t *mouse_target;  /* weak; basic pointer capture */
+    cl_size_t size;             /* logical px */
+    float scale;
+    bool dirty;
+    bool layout_dirty;
+    cl_window_close_fn on_close;
+    void *on_close_user;
+};
+
+/* Window internals (defined in window.c), driven by the application loop. */
+void cl_window_render(cl_window_t *win);
+void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
+                            cl_point_t pos, cl_mouse_button_t button);
+void cl_window_resize(cl_window_t *win, cl_size_t size);
+void cl_window_mark_dirty(cl_window_t *win);
+void cl_window_mark_layout_dirty(cl_window_t *win);
+
+#endif /* CL_APP_INTERNAL_H */

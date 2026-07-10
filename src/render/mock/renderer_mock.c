@@ -1,0 +1,122 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+#include "render/mock/renderer_mock.h"
+
+#include <string.h>
+
+#define CL_MOCK_MAX_COMMANDS 256
+
+typedef struct mock_renderer {
+    cl_renderer_t base;
+    const cl_allocator_t *a;
+    cl_mock_command_t cmds[CL_MOCK_MAX_COMMANDS];
+    size_t count;
+} mock_renderer_t;
+
+static void mock_record(mock_renderer_t *m, const cl_mock_command_t *cmd)
+{
+    if (m->count < CL_MOCK_MAX_COMMANDS)
+        m->cmds[m->count++] = *cmd;
+}
+
+static void mock_begin_frame(cl_renderer_t *r, cl_size_t size, float scale)
+{
+    mock_renderer_t *m = (mock_renderer_t *)r;
+    (void)size;
+    (void)scale;
+    m->count = 0;
+}
+
+static void mock_end_frame(cl_renderer_t *r)
+{
+    (void)r;
+}
+
+static void mock_fill_rect(cl_renderer_t *r, cl_rect_t rect, cl_color_t color)
+{
+    cl_mock_command_t c = { 0 };
+    c.kind = CL_MOCK_FILL_RECT;
+    c.rect = rect;
+    c.color = color;
+    mock_record((mock_renderer_t *)r, &c);
+}
+
+static void mock_fill_round_rect(cl_renderer_t *r, cl_rect_t rect, float radius,
+                                 cl_color_t color)
+{
+    cl_mock_command_t c = { 0 };
+    c.kind = CL_MOCK_FILL_ROUND;
+    c.rect = rect;
+    c.radius = radius;
+    c.color = color;
+    mock_record((mock_renderer_t *)r, &c);
+}
+
+static void mock_stroke_round_rect(cl_renderer_t *r, cl_rect_t rect,
+                                   float radius, float width, cl_color_t color)
+{
+    cl_mock_command_t c = { 0 };
+    c.kind = CL_MOCK_STROKE_ROUND;
+    c.rect = rect;
+    c.radius = radius;
+    c.width = width;
+    c.color = color;
+    mock_record((mock_renderer_t *)r, &c);
+}
+
+static void mock_draw_text(cl_renderer_t *r, cl_font_t *font, const char *utf8,
+                           cl_point_t pos, cl_color_t color)
+{
+    cl_mock_command_t c = { 0 };
+    (void)font;
+    c.kind = CL_MOCK_TEXT;
+    c.pos = pos;
+    c.color = color;
+    if (utf8) {
+        size_t n = strlen(utf8);
+        if (n >= sizeof(c.text))
+            n = sizeof(c.text) - 1;
+        memcpy(c.text, utf8, n);
+        c.text[n] = '\0';
+    }
+    mock_record((mock_renderer_t *)r, &c);
+}
+
+static void mock_destroy(cl_renderer_t *r)
+{
+    mock_renderer_t *m = (mock_renderer_t *)r;
+    cl_free(m->a, m);
+}
+
+static const cl_renderer_ops_t mock_ops = {
+    .begin_frame = mock_begin_frame,
+    .end_frame = mock_end_frame,
+    .fill_rect = mock_fill_rect,
+    .fill_round_rect = mock_fill_round_rect,
+    .stroke_round_rect = mock_stroke_round_rect,
+    .draw_text = mock_draw_text,
+    .destroy = mock_destroy,
+};
+
+cl_renderer_t *cl_renderer_mock_create(const cl_allocator_t *a)
+{
+    mock_renderer_t *m = cl_alloc(a, sizeof(*m));
+
+    if (!m)
+        return NULL;
+    memset(m, 0, sizeof(*m));
+    m->base.ops = &mock_ops;
+    m->a = a;
+    return &m->base;
+}
+
+size_t cl_renderer_mock_count(cl_renderer_t *r)
+{
+    return ((mock_renderer_t *)r)->count;
+}
+
+const cl_mock_command_t *cl_renderer_mock_get(cl_renderer_t *r, size_t i)
+{
+    mock_renderer_t *m = (mock_renderer_t *)r;
+
+    return i < m->count ? &m->cmds[i] : NULL;
+}

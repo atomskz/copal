@@ -37,12 +37,26 @@ else()
     set(COPAL_LIB_TYPE STATIC)
 endif()
 
-# MVP foundation sources. GUI modules (widget/layout/render/text/platform)
-# are added with the vertical prototype in Stage 6.
+# Core sources: foundation + widget/layout/event/theme/text + mock backends.
+# The SDL2 platform and OpenGL renderer backends are added when their options
+# are enabled (they require SDL2/OpenGL).
 set(COPAL_SOURCES
     src/core/foundation/version.c
     src/core/foundation/error.c
-    src/core/foundation/allocator.c)
+    src/core/foundation/allocator.c
+    src/core/foundation/utf8.c
+    src/text/font.c
+    src/text/stb_impl.c
+    src/theme/theme.c
+    src/render/paint_context.c
+    src/render/mock/renderer_mock.c
+    src/platform/mock/platform_mock.c
+    src/widget/widget.c
+    src/layout/vbox.c
+    src/widgets/label.c
+    src/widgets/button.c
+    src/app/application.c
+    src/app/window.c)
 
 add_library(copal ${COPAL_LIB_TYPE} ${COPAL_SOURCES})
 add_library(copal::copal ALIAS copal)
@@ -54,7 +68,19 @@ target_include_directories(copal
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb)
+
+# stb_truetype is third-party: build its implementation TU without our warnings.
+if(NOT MSVC)
+    set_source_files_properties(src/text/stb_impl.c PROPERTIES
+        COMPILE_FLAGS "-w")
+endif()
+
+# stb_truetype uses the C math library.
+if(NOT WIN32)
+    target_link_libraries(copal PRIVATE m)
+endif()
 
 target_compile_definitions(copal PRIVATE COPAL_BUILDING)
 if(COPAL_BUILD_SHARED)

@@ -30,6 +30,19 @@ typedef struct cl_constraints {
 /* Opaque glyph token issued by the renderer (ARCHITECTURE §3.4). */
 typedef struct cl_glyph_handle { uint64_t value; } cl_glyph_handle_t;
 
+/* Alignment along an axis. */
+typedef enum cl_align {
+    CL_ALIGN_START,
+    CL_ALIGN_CENTER,
+    CL_ALIGN_END,
+    CL_ALIGN_STRETCH
+} cl_align_t;
+
+typedef enum cl_orientation {
+    CL_ORIENT_HORIZONTAL,
+    CL_ORIENT_VERTICAL
+} cl_orientation_t;
+
 /* Marker for an unbounded (infinite) constraint; handled explicitly in measure. */
 #define CL_UNBOUNDED (3.4e38f)
 
