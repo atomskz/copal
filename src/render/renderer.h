@@ -18,6 +18,13 @@ typedef struct cl_renderer_ops {
                               float width, cl_color_t color);
     void (*draw_text)(cl_renderer_t *r, cl_font_t *font, const char *utf8,
                       cl_point_t pos, cl_color_t color);
+    /*
+     * Clip stack. push_clip intersects rect with the current clip and makes it
+     * the active scissor; pop_clip restores the previous one. Calls nest and
+     * must be balanced. Coordinates are absolute logical pixels.
+     */
+    void (*push_clip)(cl_renderer_t *r, cl_rect_t rect);
+    void (*pop_clip)(cl_renderer_t *r);
     void (*destroy)(cl_renderer_t *r);
 } cl_renderer_ops_t;
 

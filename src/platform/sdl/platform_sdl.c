@@ -162,6 +162,22 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                 out->pos.y = (float)e.motion.y;
                 return true;
 
+            case SDL_MOUSEWHEEL: {
+                int mx = 0;
+                int my = 0;
+                float dir = e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED
+                                ? -1.0f
+                                : 1.0f;
+
+                SDL_GetMouseState(&mx, &my);
+                out->kind = CL_PEV_MOUSE_WHEEL;
+                out->pos.x = (float)mx;
+                out->pos.y = (float)my;
+                out->wheel_x = (float)e.wheel.x * dir;
+                out->wheel_y = (float)e.wheel.y * dir;
+                return true;
+            }
+
             case SDL_KEYDOWN:
             case SDL_KEYUP:
                 out->kind = e.type == SDL_KEYDOWN ? CL_PEV_KEY_DOWN
@@ -223,6 +239,36 @@ static void sdl_start_text_input(cl_platform_t *p, bool enable)
         SDL_StopTextInput();
 }
 
+static char *sdl_clipboard_get(cl_platform_t *p, const cl_allocator_t *a)
+{
+    char *sdl_text;
+    char *out;
+    size_t n;
+
+    (void)p;
+    if (!SDL_HasClipboardText())
+        return NULL;
+    sdl_text = SDL_GetClipboardText(); /* SDL-allocated, must SDL_free */
+    if (!sdl_text)
+        return NULL;
+    if (sdl_text[0] == '\0') {
+        SDL_free(sdl_text);
+        return NULL;
+    }
+    n = strlen(sdl_text) + 1;
+    out = cl_alloc(a, n);
+    if (out)
+        memcpy(out, sdl_text, n);
+    SDL_free(sdl_text);
+    return out;
+}
+
+static void sdl_clipboard_set(cl_platform_t *p, const char *utf8)
+{
+    (void)p;
+    SDL_SetClipboardText(utf8 ? utf8 : "");
+}
+
 static void *sdl_gl_get_proc(cl_platform_t *p, const char *name)
 {
     (void)p;
@@ -252,6 +298,8 @@ static const cl_platform_ops_t sdl_ops = {
     .present = sdl_present,
     .wakeup = sdl_wakeup,
     .start_text_input = sdl_start_text_input,
+    .clipboard_get = sdl_clipboard_get,
+    .clipboard_set = sdl_clipboard_set,
     .destroy = sdl_destroy,
     .gl_get_proc = sdl_gl_get_proc,
 };

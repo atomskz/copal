@@ -10,6 +10,7 @@
 
 #include "platform/mock/platform_mock.h"
 #include "render/mock/renderer_mock.h"
+#include "app/app_internal.h"
 
 static int failures;
 
@@ -209,6 +210,104 @@ int main(void)
         cl_application_destroy(app3);
     }
 
+    /* Clipboard: copy / cut / paste roundtrip through the mock platform. */
+    {
+        cl_platform_t *p5 = cl_platform_mock_create(a);
+        cl_renderer_t *r5 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad5 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app5;
+        cl_window_t *w5;
+        cl_widget_t *tb5;
+        cl_window_desc_t wd5 = CL_WINDOW_DESC_INIT;
+
+        ad5.platform = p5;
+        ad5.renderer = r5;
+        app5 = cl_application_create(&ad5);
+        wd5.width = 240;
+        wd5.height = 40;
+        w5 = cl_window_create(app5, &wd5);
+        tb5 = cl_textbox_create(
+            app5, &(cl_textbox_desc_t){ CL_TEXTBOX_DESC_INIT_FIELDS });
+        cl_window_set_content(w5, tb5);
+        cl_application_step(app5, false);
+        cl_widget_focus(tb5);
+
+        /* type, select all, copy */
+        type_text(p5, "Hello");
+        press(p5, CL_KEY_HOME, CL_MOD_NONE);
+        press(p5, CL_KEY_END, CL_MOD_SHIFT);
+        press(p5, CL_KEY_C, CL_MOD_CTRL);
+        cl_application_step(app5, false);
+
+        /* cursor to end, paste -> "HelloHello" */
+        press(p5, CL_KEY_END, CL_MOD_NONE);
+        press(p5, CL_KEY_V, CL_MOD_CTRL);
+        cl_application_step(app5, false);
+        CHECK(strcmp(cl_textbox_text(tb5), "HelloHello") == 0);
+
+        /* select all, cut -> empty; clipboard holds "HelloHello" */
+        press(p5, CL_KEY_A, CL_MOD_CTRL);
+        press(p5, CL_KEY_X, CL_MOD_CTRL);
+        cl_application_step(app5, false);
+        CHECK(strlen(cl_textbox_text(tb5)) == 0);
+        press(p5, CL_KEY_V, CL_MOD_CTRL);
+        cl_application_step(app5, false);
+        CHECK(strcmp(cl_textbox_text(tb5), "HelloHello") == 0);
+
+        cl_application_destroy(app5);
+    }
+
+    /* Clipboard: password box must not copy; paste strips line breaks. */
+    {
+        cl_platform_t *p6 = cl_platform_mock_create(a);
+        cl_renderer_t *r6 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad6 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app6;
+        cl_window_t *w6;
+        cl_widget_t *tb6;
+        cl_window_desc_t wd6 = CL_WINDOW_DESC_INIT;
+
+        ad6.platform = p6;
+        ad6.renderer = r6;
+        app6 = cl_application_create(&ad6);
+        wd6.width = 240;
+        wd6.height = 40;
+        w6 = cl_window_create(app6, &wd6);
+
+        /* seed the clipboard with a known value */
+        p6->ops->clipboard_set(p6, "seed");
+
+        tb6 = cl_textbox_create(
+            app6, &(cl_textbox_desc_t){ CL_TEXTBOX_DESC_INIT_FIELDS,
+                                        .password = true });
+        cl_window_set_content(w6, tb6);
+        cl_application_step(app6, false);
+        cl_widget_focus(tb6);
+
+        /* type a secret, select all, Ctrl+C: clipboard must stay "seed" */
+        type_text(p6, "secret");
+        press(p6, CL_KEY_HOME, CL_MOD_NONE);
+        press(p6, CL_KEY_END, CL_MOD_SHIFT);
+        press(p6, CL_KEY_C, CL_MOD_CTRL);
+        cl_application_step(app6, false);
+        {
+            char *cb = cl_app_clipboard_get(app6);
+
+            CHECK(cb && strcmp(cb, "seed") == 0);
+            cl_free(a, cb);
+        }
+
+        /* paste with embedded newlines strips them */
+        press(p6, CL_KEY_A, CL_MOD_CTRL);
+        press(p6, CL_KEY_DELETE, CL_MOD_NONE);
+        p6->ops->clipboard_set(p6, "a\nb\r\nc");
+        press(p6, CL_KEY_V, CL_MOD_CTRL);
+        cl_application_step(app6, false);
+        CHECK(strcmp(cl_textbox_text(tb6), "abc") == 0);
+
+        cl_application_destroy(app6);
+    }
+
     /* Focus lifecycle: removing a focused child clears focus. */
     {
         cl_platform_t *p4 = cl_platform_mock_create(a);
@@ -242,6 +341,45 @@ int main(void)
         cl_application_step(app4, false);
         cl_widget_destroy(tb4);
         cl_application_destroy(app4);
+    }
+
+    /* Paste of a newline-only clipboard over a selection is a no-op and must
+     * not fire on_changed. */
+    {
+        cl_platform_t *p7 = cl_platform_mock_create(a);
+        cl_renderer_t *r7 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad7 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app7;
+        cl_window_t *w7;
+        cl_widget_t *tb7;
+        cl_window_desc_t wd7 = CL_WINDOW_DESC_INIT;
+
+        ad7.platform = p7;
+        ad7.renderer = r7;
+        app7 = cl_application_create(&ad7);
+        wd7.width = 200;
+        wd7.height = 40;
+        w7 = cl_window_create(app7, &wd7);
+        tb7 = cl_textbox_create(
+            app7, &(cl_textbox_desc_t){ CL_TEXTBOX_DESC_INIT_FIELDS });
+        cl_textbox_set_on_changed(tb7, on_changed, NULL);
+        cl_window_set_content(w7, tb7);
+        cl_application_step(app7, false);
+        cl_widget_focus(tb7);
+
+        type_text(p7, "hi");
+        cl_application_step(app7, false); /* commit the "hi" edit first */
+
+        press(p7, CL_KEY_HOME, CL_MOD_NONE);
+        press(p7, CL_KEY_END, CL_MOD_SHIFT); /* select "hi" (no text change) */
+        p7->ops->clipboard_set(p7, "\r\n");  /* clipboard is only line breaks */
+        changed_count = 0;
+        press(p7, CL_KEY_V, CL_MOD_CTRL);
+        cl_application_step(app7, false);
+        CHECK(strcmp(cl_textbox_text(tb7), "hi") == 0); /* unchanged */
+        CHECK(changed_count == 0);                      /* no spurious notify */
+
+        cl_application_destroy(app7);
     }
 
     if (failures == 0)

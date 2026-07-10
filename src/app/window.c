@@ -161,13 +161,20 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
     ev.data.mouse.button = button;
 
     if (kind == CL_PEV_MOUSE_DOWN) {
+        cl_widget_t *f;
+
         ev.type = CL_EVENT_MOUSE_DOWN;
         target = cl_widget_hit(win->content, pos);
         win->mouse_target = target;
-        if (target && (target->flags & CL_WF_FOCUSABLE))
-            cl_window_set_focus(win, target);
-        else
-            cl_window_set_focus(win, NULL);
+        /*
+         * Move focus to the nearest focusable ancestor of the click. Clicking
+         * non-focusable chrome (a scrollbar, a button) leaves the current focus
+         * untouched, so it does not interrupt an active editing session.
+         */
+        for (f = target; f && !(f->flags & CL_WF_FOCUSABLE); f = f->parent)
+            ;
+        if (f)
+            cl_window_set_focus(win, f);
     } else if (kind == CL_PEV_MOUSE_UP) {
         ev.type = CL_EVENT_MOUSE_UP;
         target = win->mouse_target ? win->mouse_target
@@ -181,6 +188,27 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
 
     if (target)
         cl_widget_dispatch(target, &ev);
+}
+
+void cl_window_handle_wheel(cl_window_t *win, cl_point_t pos, float dx,
+                            float dy)
+{
+    cl_event_t ev;
+    cl_widget_t *target;
+
+    if (!win->content)
+        return;
+    target = cl_widget_hit(win->content, pos);
+    if (!target)
+        return;
+
+    memset(&ev, 0, sizeof(ev));
+    ev.type = CL_EVENT_MOUSE_WHEEL;
+    ev.mods = CL_MOD_NONE;
+    ev.data.wheel.pos = pos;
+    ev.data.wheel.dx = dx;
+    ev.data.wheel.dy = dy;
+    cl_widget_dispatch(target, &ev);
 }
 
 void cl_window_set_focus(cl_window_t *win, cl_widget_t *w)

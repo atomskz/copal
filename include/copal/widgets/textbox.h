@@ -20,10 +20,11 @@ typedef struct cl_application cl_application_t;
 /*
  * Single-line text box (MVP). UTF-8, codepoint-aware cursor and selection,
  * insertion/deletion, arrow/Home/End navigation, mouse positioning, password
- * masking, read-only mode, and a codepoint length cap.
+ * masking, read-only mode, a codepoint length cap, clipboard cut/copy/paste
+ * (Ctrl+X/C/V), and clipping of overflowing text to the box.
  *
- * Not yet implemented (documented limitations): clipboard, undo/redo, IME
- * composition, multi-line, and clipping of overflowing text to the box.
+ * Not yet implemented (documented limitations): undo/redo, IME composition,
+ * and multi-line editing.
  */
 typedef struct cl_textbox_desc {
     uint32_t abi_version;

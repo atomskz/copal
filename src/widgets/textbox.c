@@ -6,6 +6,7 @@
 
 #include <string.h>
 
+#include "app/app_internal.h"
 #include "core/foundation/foundation_internal.h"
 
 #define TB_PAD_X 6.0f
@@ -304,6 +305,50 @@ static void move_cursor(cl_textbox_t *tb, size_t pos, bool extend)
         tb->anchor = pos;
 }
 
+/* ---- clipboard ---------------------------------------------------------- */
+
+static char *selection_dup(cl_textbox_t *tb)
+{
+    size_t lo;
+    size_t hi;
+    char *s;
+
+    if (!has_selection(tb))
+        return NULL;
+    sel_range(tb, &lo, &hi);
+    s = cl_alloc(cl_application_allocator(tb->base.app), hi - lo + 1);
+    if (s) {
+        memcpy(s, tb->buf + lo, hi - lo);
+        s[hi - lo] = '\0';
+    }
+    return s;
+}
+
+/* Single-line box: drop line breaks pasted from the clipboard. */
+static void strip_newlines(char *s)
+{
+    char *d = s;
+
+    for (; *s; s++) {
+        if (*s != '\n' && *s != '\r')
+            *d++ = *s;
+    }
+    *d = '\0';
+}
+
+static void clipboard_copy(cl_textbox_t *tb)
+{
+    char *s;
+
+    if (tb->password || !has_selection(tb))
+        return;
+    s = selection_dup(tb);
+    if (s) {
+        cl_app_clipboard_set(tb->base.app, s);
+        cl_free(cl_application_allocator(tb->base.app), s);
+    }
+}
+
 /* ---- vtable ------------------------------------------------------------- */
 
 static cl_size_t textbox_measure(cl_widget_t *w, cl_constraints_t c)
@@ -325,6 +370,8 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
     float text_y = w->rect.y + (w->rect.h - lh) * 0.5f;
     const char *draw = tb->buf;
     char *stars = NULL;
+    cl_rect_t inner = { w->rect.x + TB_PAD_X, w->rect.y,
+                        w->rect.w - 2.0f * TB_PAD_X, w->rect.h };
 
     cl_paint_fill_round_rect(ctx, w->rect, TB_RADIUS,
                              cl_paint_theme_color(ctx, CL_COLOR_SURFACE));
@@ -353,6 +400,9 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
             draw = stars;
         }
     }
+
+    /* clip the moving text/caret to the inner area (excludes padding/border) */
+    cl_paint_push_clip(ctx, inner);
 
     /* selection highlight */
     if (focused && has_selection(tb) && font) {
@@ -383,6 +433,8 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
                            cl_paint_theme_color(ctx, CL_COLOR_TEXT));
     }
 
+    cl_paint_pop_clip(ctx);
+
     if (stars)
         cl_free(cl_application_allocator(w->app), stars);
 }
@@ -410,6 +462,7 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
     cl_key_t key = ev->data.key.key;
     size_t old_len = tb->len;
     bool handled = true;
+    bool force_notify = false;
     size_t lo;
     size_t hi;
 
@@ -488,13 +541,52 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
             }
             break;
 
+        case CL_KEY_C:
+            if (ctrl)
+                clipboard_copy(tb);
+            else
+                handled = false;
+            break;
+
+        case CL_KEY_X:
+            if (ctrl) {
+                /* password: no cut at all (mirrors copy being suppressed) */
+                clipboard_copy(tb);
+                if (!tb->password && !tb->readonly)
+                    delete_selection(tb);
+            } else {
+                handled = false;
+            }
+            break;
+
+        case CL_KEY_V:
+            if (ctrl) {
+                if (!tb->readonly) {
+                    char *clip = cl_app_clipboard_get(w->app);
+
+                    if (clip) {
+                        strip_newlines(clip);
+                        /* only a non-empty paste is an edit; empty (e.g. a
+                         * newline-only clipboard) must not fire on_changed */
+                        if (clip[0]) {
+                            force_notify = has_selection(tb);
+                            insert_text(tb, clip, strlen(clip));
+                        }
+                        cl_free(cl_application_allocator(w->app), clip);
+                    }
+                }
+            } else {
+                handled = false;
+            }
+            break;
+
         default:
             handled = false;
             break;
     }
 
     if (handled) {
-        if (tb->len != old_len)
+        if (tb->len != old_len || force_notify)
             notify_changed(tb); /* fire only on a real edit */
         update_scroll(tb);
         cl_widget_invalidate(w);

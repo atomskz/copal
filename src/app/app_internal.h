@@ -40,6 +40,8 @@ struct cl_window {
 void cl_window_render(cl_window_t *win);
 void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
                             cl_point_t pos, cl_mouse_button_t button);
+void cl_window_handle_wheel(cl_window_t *win, cl_point_t pos, float dx,
+                            float dy);
 void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
                           cl_key_t key, cl_key_mods_t mods);
 void cl_window_handle_text(cl_window_t *win, const char *utf8);
@@ -48,5 +50,13 @@ void cl_window_focus_next(cl_window_t *win, bool forward);
 void cl_window_resize(cl_window_t *win, cl_size_t size);
 void cl_window_mark_dirty(cl_window_t *win);
 void cl_window_mark_layout_dirty(cl_window_t *win);
+
+/*
+ * Clipboard access for widgets. cl_app_clipboard_get returns a UTF-8 copy
+ * allocated with the app allocator (free with cl_application_allocator), or
+ * NULL if empty. cl_app_clipboard_set copies utf8 to the system clipboard.
+ */
+char *cl_app_clipboard_get(cl_application_t *app);
+void cl_app_clipboard_set(cl_application_t *app, const char *utf8);
 
 #endif /* CL_APP_INTERNAL_H */

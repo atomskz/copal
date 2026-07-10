@@ -25,7 +25,8 @@ enum cl_widget_flags {
     CL_WF_ENABLED = 1u << 1,
     CL_WF_FOCUSABLE = 1u << 2,
     CL_WF_DIRTY = 1u << 3,
-    CL_WF_DEAD = 1u << 4
+    CL_WF_DEAD = 1u << 4,
+    CL_WF_CLIP = 1u << 5 /* clip children to this widget's rect while painting */
 };
 
 typedef struct cl_widget_class cl_widget_class_t;
@@ -45,6 +46,7 @@ typedef struct cl_widget_vtable {
     bool (*mouse_down)(cl_widget_t *w, const cl_event_t *ev);
     bool (*mouse_up)(cl_widget_t *w, const cl_event_t *ev);
     bool (*mouse_move)(cl_widget_t *w, const cl_event_t *ev);
+    bool (*mouse_wheel)(cl_widget_t *w, const cl_event_t *ev);
     bool (*key_down)(cl_widget_t *w, const cl_event_t *ev);
     bool (*key_up)(cl_widget_t *w, const cl_event_t *ev);
     bool (*text_input)(cl_widget_t *w, const cl_event_t *ev);

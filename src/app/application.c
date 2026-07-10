@@ -97,6 +97,12 @@ static void process_events(cl_application_t *app)
                                            ev.button);
                 break;
 
+            case CL_PEV_MOUSE_WHEEL:
+                if (app->window)
+                    cl_window_handle_wheel(app->window, ev.pos, ev.wheel_x,
+                                           ev.wheel_y);
+                break;
+
             case CL_PEV_KEY_DOWN:
             case CL_PEV_KEY_UP:
                 if (app->window)
@@ -152,6 +158,19 @@ cl_result_t cl_application_post(cl_application_t *app, cl_task_fn fn, void *user
     (void)user;
     /* Cross-thread task queue lands in Stage 7 (threading). */
     return CL_ERROR_UNSUPPORTED;
+}
+
+char *cl_app_clipboard_get(cl_application_t *app)
+{
+    if (!app->platform->ops->clipboard_get)
+        return NULL;
+    return app->platform->ops->clipboard_get(app->platform, &app->alloc);
+}
+
+void cl_app_clipboard_set(cl_application_t *app, const char *utf8)
+{
+    if (app->platform->ops->clipboard_set)
+        app->platform->ops->clipboard_set(app->platform, utf8);
 }
 
 cl_theme_t *cl_application_theme(cl_application_t *app)

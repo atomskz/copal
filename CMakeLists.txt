@@ -53,6 +53,7 @@ set(COPAL_SOURCES
     src/platform/mock/platform_mock.c
     src/widget/widget.c
     src/layout/vbox.c
+    src/layout/scrollview.c
     src/widgets/label.c
     src/widgets/button.c
     src/widgets/textbox.c

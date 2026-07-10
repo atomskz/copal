@@ -13,7 +13,9 @@ typedef enum cl_mock_cmd_kind {
     CL_MOCK_FILL_RECT,
     CL_MOCK_FILL_ROUND,
     CL_MOCK_STROKE_ROUND,
-    CL_MOCK_TEXT
+    CL_MOCK_TEXT,
+    CL_MOCK_PUSH_CLIP,
+    CL_MOCK_POP_CLIP
 } cl_mock_cmd_kind_t;
 
 typedef struct cl_mock_command {
@@ -24,6 +26,7 @@ typedef struct cl_mock_command {
     float width;
     cl_point_t pos;
     char text[64];
+    cl_rect_t clip; /* effective clip in force when the command was recorded */
 } cl_mock_command_t;
 
 cl_renderer_t *cl_renderer_mock_create(const cl_allocator_t *a);

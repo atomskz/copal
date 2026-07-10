@@ -301,13 +301,18 @@ void cl_widget_do_arrange(cl_widget_t *w, cl_rect_t rect)
 void cl_widget_do_paint(cl_widget_t *w, cl_paint_context_t *ctx)
 {
     cl_widget_t *c;
+    bool clip = (w->flags & CL_WF_CLIP) != 0 && w->first_child;
 
     if (!(w->flags & CL_WF_VISIBLE))
         return;
     if (w->cls->vtable && w->cls->vtable->paint)
         w->cls->vtable->paint(w, ctx);
+    if (clip)
+        cl_paint_push_clip(ctx, w->rect);
     for (c = w->first_child; c; c = c->next_sibling)
         cl_widget_do_paint(c, ctx);
+    if (clip)
+        cl_paint_pop_clip(ctx);
 }
 
 cl_widget_t *cl_widget_hit(cl_widget_t *w, cl_point_t p)
@@ -346,6 +351,9 @@ static bool widget_handle(cl_widget_t *w, const cl_event_t *ev)
 
         case CL_EVENT_MOUSE_MOVE:
             return vt->mouse_move ? vt->mouse_move(w, ev) : false;
+
+        case CL_EVENT_MOUSE_WHEEL:
+            return vt->mouse_wheel ? vt->mouse_wheel(w, ev) : false;
 
         case CL_EVENT_KEY_DOWN:
             return vt->key_down ? vt->key_down(w, ev) : false;

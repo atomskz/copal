@@ -8,6 +8,7 @@
 #include <copal/types.h>
 #include <copal/error.h>
 #include <copal/event.h>
+#include <copal/allocator.h>
 #include <copal/window.h>
 
 typedef struct cl_platform cl_platform_t;
@@ -19,6 +20,7 @@ typedef enum cl_platform_event_kind {
     CL_PEV_MOUSE_DOWN,
     CL_PEV_MOUSE_UP,
     CL_PEV_MOUSE_MOVE,
+    CL_PEV_MOUSE_WHEEL,
     CL_PEV_KEY_DOWN,
     CL_PEV_KEY_UP,
     CL_PEV_TEXT_INPUT
@@ -29,6 +31,7 @@ typedef struct cl_platform_event {
     cl_size_t size;           /* CL_PEV_RESIZE (logical px) */
     cl_point_t pos;           /* mouse events (logical px) */
     cl_mouse_button_t button; /* mouse button events */
+    float wheel_x, wheel_y;   /* CL_PEV_MOUSE_WHEEL (lines; +y = up/away) */
     cl_key_t key;             /* key events */
     cl_key_mods_t mods;       /* key events */
     char text[32];            /* CL_PEV_TEXT_INPUT (NUL-terminated UTF-8) */
@@ -44,6 +47,13 @@ typedef struct cl_platform_ops {
     void (*present)(cl_platform_t *p);
     void (*wakeup)(cl_platform_t *p);
     void (*start_text_input)(cl_platform_t *p, bool enable);
+    /*
+     * Clipboard. clipboard_get returns a NUL-terminated UTF-8 copy allocated
+     * with a (caller frees with a), or NULL if empty/unavailable. clipboard_set
+     * copies utf8 into the system clipboard.
+     */
+    char *(*clipboard_get)(cl_platform_t *p, const cl_allocator_t *a);
+    void (*clipboard_set)(cl_platform_t *p, const char *utf8);
     void (*destroy)(cl_platform_t *p);
     /* GL proc loader for the OpenGL renderer; NULL for non-GL backends. */
     void *(*gl_get_proc)(cl_platform_t *p, const char *name);

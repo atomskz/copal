@@ -28,6 +28,16 @@ void cl_paint_draw_text(cl_paint_context_t *ctx, cl_font_t *font,
     ctx->renderer->ops->draw_text(ctx->renderer, font, utf8, pos, color);
 }
 
+void cl_paint_push_clip(cl_paint_context_t *ctx, cl_rect_t r)
+{
+    ctx->renderer->ops->push_clip(ctx->renderer, r);
+}
+
+void cl_paint_pop_clip(cl_paint_context_t *ctx)
+{
+    ctx->renderer->ops->pop_clip(ctx->renderer);
+}
+
 cl_theme_t *cl_paint_theme(cl_paint_context_t *ctx)
 {
     return ctx->theme;

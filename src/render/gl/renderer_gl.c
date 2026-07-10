@@ -4,6 +4,7 @@
 #include "text/font_internal.h"
 #include "core/foundation/foundation_internal.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +13,7 @@
 #define ATLAS_H 512
 #define MAX_GLYPHS 512
 #define MAX_TEXT_GLYPHS 256
+#define CL_GL_CLIP_STACK 16
 
 typedef struct glyph {
     cl_font_t *font;
@@ -40,6 +42,11 @@ typedef struct gl_renderer {
     glyph_t glyphs[MAX_GLYPHS];
     int glyph_count;
     float proj[16];
+    cl_size_t vp;   /* logical viewport size */
+    float scale;    /* logical -> framebuffer pixel scale */
+    int fb_w, fb_h; /* framebuffer size in physical px (matches glViewport) */
+    cl_rect_t clip_stack[CL_GL_CLIP_STACK];
+    int clip_depth;
 } gl_renderer_t;
 
 static const char *RECT_VS =
@@ -312,12 +319,103 @@ static void gl_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale)
     if (!r->ok)
         return;
 
+    r->vp = size;
+    r->scale = scale;
+    r->fb_w = (int)(size.w * scale);
+    r->fb_h = (int)(size.h * scale);
+    r->clip_depth = 0;
     set_proj(r, size.w, size.h);
-    r->gl.Viewport(0, 0, (GLsizei)(size.w * scale), (GLsizei)(size.h * scale));
+    r->gl.Viewport(0, 0, (GLsizei)r->fb_w, (GLsizei)r->fb_h);
+    r->gl.Disable(GL_SCISSOR_TEST);
     r->gl.ClearColor(0.96f, 0.96f, 0.97f, 1.0f);
     r->gl.Clear(GL_COLOR_BUFFER_BIT);
     r->gl.Enable(GL_BLEND);
     r->gl.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+static cl_rect_t rect_intersect(cl_rect_t a, cl_rect_t b)
+{
+    float x0 = a.x > b.x ? a.x : b.x;
+    float y0 = a.y > b.y ? a.y : b.y;
+    float x1 = a.x + a.w < b.x + b.w ? a.x + a.w : b.x + b.w;
+    float y1 = a.y + a.h < b.y + b.h ? a.y + a.h : b.y + b.h;
+    cl_rect_t out = { x0, y0, x1 - x0, y1 - y0 };
+
+    if (out.w < 0.0f)
+        out.w = 0.0f;
+    if (out.h < 0.0f)
+        out.h = 0.0f;
+    return out;
+}
+
+/* Apply a logical-pixel rect as the GL scissor (framebuffer px, y flipped). */
+static void gl_apply_scissor(gl_renderer_t *r, cl_rect_t c)
+{
+    float s = r->scale;
+    int left = (int)floorf(c.x * s);
+    int right = (int)ceilf((c.x + c.w) * s);
+    int top = (int)floorf(c.y * s);
+    int bottom = (int)ceilf((c.y + c.h) * s);
+    int w = right - left;
+    int h = bottom - top;
+    int y = r->fb_h - bottom; /* GL scissor origin is bottom-left */
+
+    /* Clamp a negative origin by shrinking the extent, not shifting the box. */
+    if (left < 0) {
+        w += left;
+        left = 0;
+    }
+    if (y < 0) {
+        h += y;
+        y = 0;
+    }
+    if (w < 0)
+        w = 0;
+    if (h < 0)
+        h = 0;
+    r->gl.Scissor(left, y, (GLsizei)w, (GLsizei)h);
+}
+
+static cl_rect_t gl_clip_cur(const gl_renderer_t *r)
+{
+    int top;
+
+    if (r->clip_depth == 0)
+        return (cl_rect_t){ 0.0f, 0.0f, r->vp.w, r->vp.h };
+    top = r->clip_depth < CL_GL_CLIP_STACK ? r->clip_depth : CL_GL_CLIP_STACK;
+    return r->clip_stack[top - 1];
+}
+
+static void gl_push_clip(cl_renderer_t *rr, cl_rect_t rect)
+{
+    gl_renderer_t *r = (gl_renderer_t *)rr;
+    cl_rect_t merged;
+    int idx;
+
+    if (!r->ok)
+        return;
+    merged = rect_intersect(gl_clip_cur(r), rect);
+    idx = r->clip_depth++; /* always advance so a later pop stays balanced */
+    if (idx < CL_GL_CLIP_STACK) {
+        r->clip_stack[idx] = merged;
+        r->gl.Enable(GL_SCISSOR_TEST);
+        gl_apply_scissor(r, merged);
+    }
+    /* Past capacity: keep the current (tighter-or-equal) scissor in force. */
+}
+
+static void gl_pop_clip(cl_renderer_t *rr)
+{
+    gl_renderer_t *r = (gl_renderer_t *)rr;
+
+    if (!r->ok || r->clip_depth == 0)
+        return;
+    r->clip_depth--;
+    if (r->clip_depth == 0)
+        r->gl.Disable(GL_SCISSOR_TEST);
+    else if (r->clip_depth <= CL_GL_CLIP_STACK)
+        gl_apply_scissor(r, r->clip_stack[r->clip_depth - 1]);
+    /* else still past capacity: current scissor already correct */
 }
 
 static void gl_end_frame(cl_renderer_t *rr)
@@ -436,6 +534,8 @@ static const cl_renderer_ops_t gl_ops = {
     .fill_round_rect = gl_fill_round_rect,
     .stroke_round_rect = gl_stroke_round_rect,
     .draw_text = gl_draw_text,
+    .push_clip = gl_push_clip,
+    .pop_clip = gl_pop_clip,
     .destroy = gl_destroy,
 };
 

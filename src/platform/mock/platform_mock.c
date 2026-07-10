@@ -13,6 +13,7 @@ typedef struct mock_platform {
     cl_platform_event_t queue[CL_MOCK_QUEUE];
     size_t head;
     size_t tail;
+    char *clipboard; /* owned UTF-8, NUL-terminated; NULL if empty */
 } mock_platform_t;
 
 static cl_result_t mock_create_window(cl_platform_t *p,
@@ -74,10 +75,42 @@ static void mock_start_text_input(cl_platform_t *p, bool enable)
     (void)enable;
 }
 
+static char *mock_clipboard_get(cl_platform_t *p, const cl_allocator_t *a)
+{
+    mock_platform_t *m = (mock_platform_t *)p;
+    size_t n;
+    char *out;
+
+    if (!m->clipboard)
+        return NULL;
+    n = strlen(m->clipboard) + 1;
+    out = cl_alloc(a, n);
+    if (out)
+        memcpy(out, m->clipboard, n);
+    return out;
+}
+
+static void mock_clipboard_set(cl_platform_t *p, const char *utf8)
+{
+    mock_platform_t *m = (mock_platform_t *)p;
+    size_t n;
+    char *copy = NULL;
+
+    if (utf8) {
+        n = strlen(utf8) + 1;
+        copy = cl_alloc(m->a, n);
+        if (copy)
+            memcpy(copy, utf8, n);
+    }
+    cl_free(m->a, m->clipboard);
+    m->clipboard = copy;
+}
+
 static void mock_destroy(cl_platform_t *p)
 {
     mock_platform_t *m = (mock_platform_t *)p;
 
+    cl_free(m->a, m->clipboard);
     cl_free(m->a, m);
 }
 
@@ -91,6 +124,8 @@ static const cl_platform_ops_t mock_ops = {
     .present = mock_present,
     .wakeup = mock_wakeup,
     .start_text_input = mock_start_text_input,
+    .clipboard_get = mock_clipboard_get,
+    .clipboard_set = mock_clipboard_set,
     .destroy = mock_destroy,
 };
 

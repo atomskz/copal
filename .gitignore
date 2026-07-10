@@ -9,3 +9,6 @@ docs/
 *.so.*
 *.dll
 *.dylib
+
+# Local run/debug artifacts
+errors.log

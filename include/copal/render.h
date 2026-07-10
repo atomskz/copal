@@ -29,6 +29,14 @@ CL_API void cl_paint_draw_text(cl_paint_context_t *ctx, cl_font_t *font,
                                const char *utf8, cl_point_t pos,
                                cl_color_t color);
 
+/*
+ * Clip region stack. cl_paint_push_clip() intersects r with the current clip
+ * and restricts subsequent drawing to it; cl_paint_pop_clip() restores the
+ * previous region. Pushes and pops must balance within a paint() call.
+ */
+CL_API void cl_paint_push_clip(cl_paint_context_t *ctx, cl_rect_t r);
+CL_API void cl_paint_pop_clip(cl_paint_context_t *ctx);
+
 CL_API cl_theme_t *cl_paint_theme(cl_paint_context_t *ctx);
 CL_API cl_color_t cl_paint_theme_color(cl_paint_context_t *ctx,
                                        cl_color_role_t role);

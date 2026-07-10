@@ -1,0 +1,30 @@
+# LeakSanitizer suppressions for copal.
+#
+# These entries suppress leaks that originate INSIDE third-party system
+# libraries pulled in by the native SDL2 + OpenGL backend, not in copal:
+#
+#   * libdbus-1  - SDL registers with the D-Bus session bus during
+#                  SDL_InitSubSystem(SDL_INIT_VIDEO); libdbus keeps per-process
+#                  buffers that are never freed before exit.
+#   * libgallium / Mesa / swrast / dri - the Mesa OpenGL driver keeps lazily
+#                  allocated per-context state for the process lifetime.
+#   * libSDL2    - SDL internal, process-lifetime allocations.
+#
+# copal's own allocations (widgets, text buffers, glyph atlas, theme, clipboard)
+# are all released on shutdown; the headless mock-backed tests run clean under
+# ASan/LSan. With these suppressions the native binary also reports zero leaks,
+# so any real copal leak introduced later will stand out immediately.
+#
+# Usage:
+#   LSAN_OPTIONS=suppressions=tools/lsan.supp ./build/examples/hello_gui
+
+leak:libdbus-1
+leak:libgallium
+leak:libSDL2
+leak:libEGL
+leak:libGLdispatch
+leak:libicuuc
+leak:libgbm
+leak:swrast
+leak:libdricore
+leak:dri
