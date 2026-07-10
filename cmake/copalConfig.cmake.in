@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/copalTargets.cmake")
+
+check_required_components(copal)

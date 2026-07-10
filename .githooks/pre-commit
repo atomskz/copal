@@ -1,0 +1,19 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Rejects a commit if any staged .c/.h file (outside third_party/) is not
+# clang-format-clean. Activate once per clone: tools/setup-hooks.sh
+files=$(git diff --cached --name-only --diff-filter=ACM \
+        | grep -E '\.(c|h)$' | grep -v '^third_party/')
+[ -z "$files" ] && exit 0
+
+status=0
+for f in $files; do
+    clang-format --dry-run --Werror "$f" || status=1
+done
+
+if [ "$status" -ne 0 ]; then
+    echo "pre-commit: formatting violations found." >&2
+    echo "Fix with: clang-format -i <files>" >&2
+fi
+exit $status
