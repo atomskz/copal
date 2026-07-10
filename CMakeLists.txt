@@ -82,6 +82,21 @@ if(NOT WIN32)
     target_link_libraries(copal PRIVATE m)
 endif()
 
+# Native backends: SDL2 platform + OpenGL renderer. Enable both together.
+if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
+    find_package(SDL2 REQUIRED)
+    find_package(OpenGL REQUIRED)
+    target_sources(copal PRIVATE
+        src/platform/sdl/platform_sdl.c
+        src/render/gl/gl_loader.c
+        src/render/gl/renderer_gl.c)
+    target_compile_definitions(copal PRIVATE CL_ENABLE_SDL CL_ENABLE_OPENGL)
+    target_link_libraries(copal PRIVATE SDL2::SDL2 OpenGL::GL)
+elseif(COPAL_ENABLE_SDL OR COPAL_ENABLE_OPENGL)
+    message(WARNING "COPAL_ENABLE_SDL and COPAL_ENABLE_OPENGL must be enabled "
+                    "together; native backend disabled.")
+endif()
+
 target_compile_definitions(copal PRIVATE COPAL_BUILDING)
 if(COPAL_BUILD_SHARED)
     target_compile_definitions(copal PUBLIC COPAL_SHARED)

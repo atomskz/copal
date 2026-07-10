@@ -38,6 +38,8 @@ typedef struct cl_platform_ops {
     void (*present)(cl_platform_t *p);
     void (*wakeup)(cl_platform_t *p);
     void (*destroy)(cl_platform_t *p);
+    /* GL proc loader for the OpenGL renderer; NULL for non-GL backends. */
+    void *(*gl_get_proc)(cl_platform_t *p, const char *name);
 } cl_platform_ops_t;
 
 /* Concrete backends embed this as their first member. */

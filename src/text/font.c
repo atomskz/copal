@@ -8,6 +8,7 @@
 
 #include "stb_truetype.h"
 #include "core/foundation/foundation_internal.h"
+#include "text/font_internal.h"
 
 struct cl_font {
     const cl_allocator_t *a;
@@ -156,4 +157,19 @@ cl_size_t cl_text_measure(cl_font_t *font, const char *utf8, float max_width)
         size.w += (float)advance * font->scale;
     }
     return size;
+}
+
+const stbtt_fontinfo *cl_font_info(cl_font_t *f)
+{
+    return &f->info;
+}
+
+float cl_font_pixel_scale(cl_font_t *f)
+{
+    return f->scale;
+}
+
+float cl_font_ascent_px(cl_font_t *f)
+{
+    return f->ascent;
 }
