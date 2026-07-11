@@ -424,6 +424,9 @@ static bool widget_handle(cl_widget_t *w, const cl_event_t *ev)
         case CL_EVENT_TEXT_INPUT:
             return vt->text_input ? vt->text_input(w, ev) : false;
 
+        case CL_EVENT_TEXT_EDIT:
+            return vt->text_edit ? vt->text_edit(w, ev) : false;
+
         default:
             return false;
     }

@@ -556,6 +556,20 @@ void cl_window_handle_text(cl_window_t *win, const char *utf8)
     cl_widget_dispatch(win->focus, &ev);
 }
 
+void cl_window_handle_text_edit(cl_window_t *win, const char *utf8, int cursor)
+{
+    cl_event_t ev;
+
+    /* An empty composition string is meaningful: it clears the pre-edit. */
+    if (win->overlay || !win->focus || !utf8)
+        return;
+    memset(&ev, 0, sizeof(ev));
+    ev.type = CL_EVENT_TEXT_EDIT;
+    ev.data.edit.utf8 = utf8;
+    ev.data.edit.cursor = cursor;
+    cl_widget_dispatch(win->focus, &ev);
+}
+
 static const uint32_t CL_FOCUS_NEED =
     CL_WF_FOCUSABLE | CL_WF_VISIBLE | CL_WF_ENABLED;
 

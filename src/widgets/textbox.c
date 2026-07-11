@@ -66,6 +66,8 @@ typedef struct cl_textbox {
     tb_edit_kind_t coalesce; /* kind of the current undo group */
     char *pending;           /* pre-edit snapshot text, or NULL */
     size_t pending_cursor, pending_anchor;
+    char *preedit;           /* IME composition shown at the caret, or NULL */
+    int preedit_cursor;      /* caret within the composition, in codepoints */
 } cl_textbox_t;
 
 static cl_size_t textbox_measure(cl_widget_t *w, cl_constraints_t c);
@@ -74,8 +76,12 @@ static bool textbox_mouse_down(cl_widget_t *w, const cl_event_t *ev);
 static bool textbox_mouse_wheel(cl_widget_t *w, const cl_event_t *ev);
 static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev);
 static bool textbox_text_input(cl_widget_t *w, const cl_event_t *ev);
+static bool textbox_text_edit(cl_widget_t *w, const cl_event_t *ev);
 static void textbox_focus_changed(cl_widget_t *w);
 static void textbox_destroy(cl_widget_t *w);
+static char *dup_str(const cl_allocator_t *a, const char *s);
+static void tb_clear_preedit(cl_textbox_t *tb);
+static void tb_update_ime_rect(cl_textbox_t *tb);
 
 static const cl_widget_vtable_t textbox_vtable = {
     .destroy = textbox_destroy,
@@ -85,6 +91,7 @@ static const cl_widget_vtable_t textbox_vtable = {
     .mouse_wheel = textbox_mouse_wheel,
     .key_down = textbox_key_down,
     .text_input = textbox_text_input,
+    .text_edit = textbox_text_edit,
     .focus_gained = textbox_focus_changed,
     .focus_lost = textbox_focus_changed,
 };
@@ -787,7 +794,11 @@ static void textbox_paint_multi(cl_widget_t *w, cl_paint_context_t *ctx,
     float view_h = w->rect.h - 2.0f * TB_PAD_Y;
     cl_rect_t inner = { text_x, text_top, w->rect.w - 2.0f * TB_PAD_X, view_h };
     cl_color_t text_col = cl_paint_theme_color(ctx, CL_COLOR_TEXT);
-    bool sel = focused && has_selection(tb);
+    bool composing = tb->preedit && tb->preedit[0];
+    /* Hide the (still-live) selection while composing; commit replaces it. */
+    bool sel = focused && has_selection(tb) && !composing;
+    size_t caret_line = 0;
+    float caret_cx = 0.0f;
     size_t lo = 0;
     size_t hi = 0;
     size_t first;
@@ -805,6 +816,8 @@ static void textbox_paint_multi(cl_widget_t *w, cl_paint_context_t *ctx,
         return;
     if (sel)
         sel_range(tb, &lo, &hi);
+    if (composing)
+        caret_pos(tb, font, tb->cursor, &caret_cx, &caret_line);
 
     /* Keep the offset in range if a resize shrank the content since the last
      * caret move (which is what normally clamps it). */
@@ -845,7 +858,34 @@ static void textbox_paint_multi(cl_widget_t *w, cl_paint_context_t *ctx,
                     cl_paint_theme_color(ctx, CL_COLOR_SELECTION));
         }
 
-        if (L.len > 0) {
+        if (composing && i == caret_line) {
+            /* draw this line around the composition: text before the caret,
+             * the underlined composition, then the rest shifted right */
+            float px = text_x + caret_cx;
+            float pw = cl_text_measure(font, tb->preedit, CL_UNBOUNDED).w;
+
+            if (tb->cursor > L.start) {
+                char s1 = tb->buf[tb->cursor];
+
+                tb->buf[tb->cursor] = '\0';
+                cl_paint_draw_text(ctx, font, tb->buf + L.start,
+                                   (cl_point_t){ text_x, ly }, text_col);
+                tb->buf[tb->cursor] = s1;
+            }
+            cl_paint_draw_text(ctx, font, tb->preedit,
+                               (cl_point_t){ px, ly }, text_col);
+            cl_paint_fill_rect(ctx,
+                               (cl_rect_t){ px, ly + lh - 2.0f, pw, 1.0f },
+                               text_col);
+            if (end > tb->cursor) {
+                char s2 = tb->buf[end];
+
+                tb->buf[end] = '\0';
+                cl_paint_draw_text(ctx, font, tb->buf + tb->cursor,
+                                   (cl_point_t){ px + pw, ly }, text_col);
+                tb->buf[end] = s2;
+            }
+        } else if (L.len > 0) {
             char saved = tb->buf[end];
 
             tb->buf[end] = '\0'; /* draw exactly this line, then restore */
@@ -855,7 +895,15 @@ static void textbox_paint_multi(cl_widget_t *w, cl_paint_context_t *ctx,
         }
     }
 
-    if (focused && !has_selection(tb)) {
+    if (composing) {
+        size_t pb = byte_offset_of_cp(tb->preedit, strlen(tb->preedit),
+                                      (size_t)tb->preedit_cursor);
+        float cxp = text_x + caret_cx +
+                    cl_text_measure_bytes(font, tb->preedit, pb, CL_UNBOUNDED).w;
+        float cyv = text_top + (float)caret_line * lh - tb->scroll_y;
+
+        cl_paint_fill_rect(ctx, (cl_rect_t){ cxp, cyv, 1.0f, lh }, text_col);
+    } else if (focused && !has_selection(tb)) {
         size_t line;
         float cx;
         float cyv;
@@ -878,6 +926,7 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
     float text_y = w->rect.y + (w->rect.h - lh) * 0.5f;
     const char *draw = tb->buf;
     char *stars = NULL;
+    bool composing = tb->preedit && tb->preedit[0] && !tb->password;
     cl_rect_t inner = { w->rect.x + TB_PAD_X, w->rect.y,
                         w->rect.w - 2.0f * TB_PAD_X, w->rect.h };
 
@@ -917,8 +966,8 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
     /* clip the moving text/caret to the inner area (excludes padding/border) */
     cl_paint_push_clip(ctx, inner);
 
-    /* selection highlight */
-    if (focused && has_selection(tb) && font) {
+    /* selection highlight (hidden while composing; commit replaces it) */
+    if (focused && has_selection(tb) && font && !composing) {
         size_t lo;
         size_t hi;
         float xlo;
@@ -933,17 +982,48 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
                            cl_paint_theme_color(ctx, CL_COLOR_SELECTION));
     }
 
-    if (font && draw && draw[0])
-        cl_paint_draw_text(ctx, font, draw, (cl_point_t){ text_x, text_y },
-                           cl_paint_theme_color(ctx, CL_COLOR_TEXT));
+    if (composing && font) {
+        cl_color_t tc = cl_paint_theme_color(ctx, CL_COLOR_TEXT);
+        float px = text_x + caret_x(tb, font, tb->cursor);
+        float pw = cl_text_measure(font, tb->preedit, CL_UNBOUNDED).w;
+        char saved = tb->buf[tb->cursor];
+        size_t pb;
 
-    /* caret */
-    if (focused && !has_selection(tb) && font) {
-        float cx = text_x + caret_x(tb, font, tb->cursor);
+        /* buffer text before the caret, the composition (underlined), then the
+         * remaining buffer text shifted right by the composition width */
+        tb->buf[tb->cursor] = '\0';
+        if (tb->buf[0])
+            cl_paint_draw_text(ctx, font, tb->buf,
+                               (cl_point_t){ text_x, text_y }, tc);
+        tb->buf[tb->cursor] = saved;
+        cl_paint_draw_text(ctx, font, tb->preedit,
+                           (cl_point_t){ px, text_y }, tc);
+        cl_paint_fill_rect(ctx, (cl_rect_t){ px, text_y + lh - 2.0f, pw, 1.0f },
+                           tc);
+        if (tb->buf[tb->cursor])
+            cl_paint_draw_text(ctx, font, tb->buf + tb->cursor,
+                               (cl_point_t){ px + pw, text_y }, tc);
+        pb = byte_offset_of_cp(tb->preedit, strlen(tb->preedit),
+                               (size_t)tb->preedit_cursor);
+        cl_paint_fill_rect(
+            ctx,
+            (cl_rect_t){ px + cl_text_measure_bytes(font, tb->preedit, pb,
+                                                    CL_UNBOUNDED).w,
+                         text_y, 1.0f, lh },
+            tc);
+    } else {
+        if (font && draw && draw[0])
+            cl_paint_draw_text(ctx, font, draw,
+                               (cl_point_t){ text_x, text_y },
+                               cl_paint_theme_color(ctx, CL_COLOR_TEXT));
 
-        cl_paint_fill_rect(ctx,
-                           (cl_rect_t){ cx, text_y, 1.0f, lh },
-                           cl_paint_theme_color(ctx, CL_COLOR_TEXT));
+        /* caret */
+        if (focused && !has_selection(tb) && font) {
+            float cx = text_x + caret_x(tb, font, tb->cursor);
+
+            cl_paint_fill_rect(ctx, (cl_rect_t){ cx, text_y, 1.0f, lh },
+                               cl_paint_theme_color(ctx, CL_COLOR_TEXT));
+        }
     }
 
     cl_paint_pop_clip(ctx);
@@ -972,6 +1052,7 @@ static bool textbox_mouse_down(cl_widget_t *w, const cl_event_t *ev)
     }
 
     edit_break(tb); /* a click starts a fresh undo group */
+    tb_clear_preedit(tb); /* a click cancels any in-progress composition */
     tb->cursor = off;
     if (!(ev->mods & CL_MOD_SHIFT))
         tb->anchor = off;
@@ -1243,6 +1324,63 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
     return handled;
 }
 
+/* ---- IME composition ---------------------------------------------------- */
+
+static void tb_clear_preedit(cl_textbox_t *tb)
+{
+    if (tb->preedit) {
+        cl_free(cl_application_allocator(tb->base.app), tb->preedit);
+        tb->preedit = NULL;
+        tb->preedit_cursor = 0;
+    }
+}
+
+/* Place the IME candidate window at the caret (logical window coords). */
+static void tb_update_ime_rect(cl_textbox_t *tb)
+{
+    cl_widget_t *w = &tb->base;
+    cl_font_t *font = textbox_font(w);
+    float lh = line_height_of(font);
+    cl_rect_t caret;
+
+    if (tb->multiline) {
+        size_t line;
+        float cx;
+
+        tb_ensure_layout(tb, font);
+        caret_pos(tb, font, tb->cursor, &cx, &line);
+        caret.x = w->rect.x + TB_PAD_X + cx;
+        caret.y = w->rect.y + TB_PAD_Y + (float)line * lh - tb->scroll_y;
+    } else {
+        caret.x = w->rect.x + TB_PAD_X - tb->scroll_x +
+                  caret_x(tb, font, tb->cursor);
+        caret.y = w->rect.y + (w->rect.h - lh) * 0.5f;
+    }
+    caret.w = 1.0f;
+    caret.h = lh;
+    cl_app_set_ime_rect(w->app, caret);
+}
+
+static bool textbox_text_edit(cl_widget_t *w, const cl_event_t *ev)
+{
+    cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
+    const char *s = ev->data.edit.utf8;
+
+    if (tb->readonly)
+        return true;
+    tb_clear_preedit(tb);
+    if (s && s[0]) {
+        tb->preedit = dup_str(cl_application_allocator(w->app), s);
+        /* a negative cursor (signed platform field) clamps to the start */
+        tb->preedit_cursor =
+            ev->data.edit.cursor < 0 ? 0 : ev->data.edit.cursor;
+    }
+    update_scroll(tb); /* keep the caret line visible while composing */
+    tb_update_ime_rect(tb);
+    cl_widget_invalidate(w);
+    return true;
+}
+
 static bool textbox_text_input(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
@@ -1250,17 +1388,25 @@ static bool textbox_text_input(cl_widget_t *w, const cl_event_t *ev)
 
     if (!s || !s[0] || tb->readonly)
         return true;
+    tb_clear_preedit(tb); /* the composition is committed by this input */
     edit_begin(tb);
     insert_text(tb, s, strlen(s));
     if (edit_commit(tb, TB_EDIT_TYPE)) /* fire only when bytes changed */
         notify_changed(tb);
     update_scroll(tb);
+    tb_update_ime_rect(tb);
     cl_widget_invalidate(w);
     return true;
 }
 
 static void textbox_focus_changed(cl_widget_t *w)
 {
+    cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
+
+    if (cl_widget_has_focus(w))
+        tb_update_ime_rect(tb); /* position the candidate window */
+    else
+        tb_clear_preedit(tb); /* composition is abandoned when focus leaves */
     cl_widget_invalidate(w);
 }
 
@@ -1277,6 +1423,7 @@ static void textbox_destroy(cl_widget_t *w)
     cl_free(a, tb->buf);
     cl_free(a, tb->placeholder);
     cl_free(a, tb->lines);
+    cl_free(a, tb->preedit);
 }
 
 /* ---- public ------------------------------------------------------------- */
@@ -1313,6 +1460,7 @@ static void set_text_internal(cl_textbox_t *tb, const char *utf8)
     tb->scroll_y = 0.0f;
     tb->goal_valid = false;
     tb->layout_dirty = true;
+    tb_clear_preedit(tb);
     clear_history(tb); /* a programmatic set is not an undoable edit */
 }
 
@@ -1408,4 +1556,11 @@ size_t cl_textbox_cursor_line(cl_widget_t *tb_w)
         return 0;
     tb_ensure_layout(tb, textbox_font(tb_w));
     return tb_line_of(tb, tb->cursor);
+}
+
+const char *cl_textbox_preedit(cl_widget_t *tb_w)
+{
+    cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, tb_w);
+
+    return tb ? tb->preedit : NULL;
 }

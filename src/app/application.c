@@ -144,6 +144,12 @@ static void process_events(cl_application_t *app)
                     cl_window_handle_text(app->window, ev.text);
                 break;
 
+            case CL_PEV_TEXT_EDIT:
+                if (app->window)
+                    cl_window_handle_text_edit(app->window, ev.text,
+                                               ev.edit_cursor);
+                break;
+
             default:
                 break;
         }
@@ -259,6 +265,12 @@ void cl_app_clipboard_set(cl_application_t *app, const char *utf8)
 {
     if (app->platform->ops->clipboard_set)
         app->platform->ops->clipboard_set(app->platform, utf8);
+}
+
+void cl_app_set_ime_rect(cl_application_t *app, cl_rect_t rect)
+{
+    if (app->platform->ops->set_ime_rect)
+        app->platform->ops->set_ime_rect(app->platform, rect);
 }
 
 cl_theme_t *cl_application_theme(cl_application_t *app)

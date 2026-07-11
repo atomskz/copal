@@ -29,7 +29,9 @@ typedef struct cl_application cl_application_t;
  * content scrolls vertically (wheel or to follow the caret), and pasted line
  * breaks are kept. Password masking is ignored in multiline mode.
  *
- * Not yet implemented (documented limitations): IME composition.
+ * IME composition is supported: a pre-edit (composition) string is shown
+ * underlined at the caret without entering the buffer until the input method
+ * commits it. cl_textbox_preedit() exposes the current composition.
  */
 typedef struct cl_textbox_desc {
     uint32_t abi_version;
@@ -71,6 +73,10 @@ CL_API size_t cl_textbox_line_count(cl_widget_t *tb);
 /** cl_textbox_cursor_line() - visual line index the caret is on (multiline),
  *  or 0 for a single-line box. */
 CL_API size_t cl_textbox_cursor_line(cl_widget_t *tb);
+
+/** cl_textbox_preedit() - the current IME composition string shown at the caret
+ *  (not yet in the text), or NULL when not composing. */
+CL_API const char *cl_textbox_preedit(cl_widget_t *tb);
 
 #ifdef __cplusplus
 }

@@ -111,3 +111,12 @@ endif()
 add_test(NAME multiline COMMAND test_multiline)
 set_tests_properties(multiline PROPERTIES SKIP_RETURN_CODE 77)
 
+add_executable(test_ime test_ime.c)
+target_link_libraries(test_ime PRIVATE copal::copal)
+target_include_directories(test_ime PRIVATE ${CMAKE_SOURCE_DIR}/src)
+copal_set_warnings(test_ime)
+if(COPAL_ENABLE_SANITIZERS)
+    copal_enable_sanitizers(test_ime)
+endif()
+add_test(NAME ime COMMAND test_ime)
+

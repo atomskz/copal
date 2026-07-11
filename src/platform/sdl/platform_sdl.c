@@ -199,6 +199,13 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                 out->text[sizeof(out->text) - 1] = '\0';
                 return true;
 
+            case SDL_TEXTEDITING:
+                out->kind = CL_PEV_TEXT_EDIT;
+                memcpy(out->text, e.edit.text, sizeof(out->text));
+                out->text[sizeof(out->text) - 1] = '\0';
+                out->edit_cursor = e.edit.start;
+                return true;
+
             default:
                 break;
         }
@@ -244,6 +251,18 @@ static void sdl_start_text_input(cl_platform_t *p, bool enable)
         SDL_StartTextInput();
     else
         SDL_StopTextInput();
+}
+
+static void sdl_set_ime_rect(cl_platform_t *p, cl_rect_t rect)
+{
+    SDL_Rect r;
+
+    (void)p;
+    r.x = (int)rect.x;
+    r.y = (int)rect.y;
+    r.w = (int)rect.w;
+    r.h = (int)rect.h;
+    SDL_SetTextInputRect(&r);
 }
 
 static char *sdl_clipboard_get(cl_platform_t *p, const cl_allocator_t *a)
@@ -315,6 +334,7 @@ static const cl_platform_ops_t sdl_ops = {
     .present = sdl_present,
     .wakeup = sdl_wakeup,
     .start_text_input = sdl_start_text_input,
+    .set_ime_rect = sdl_set_ime_rect,
     .clipboard_get = sdl_clipboard_get,
     .clipboard_set = sdl_clipboard_set,
     .destroy = sdl_destroy,

@@ -22,6 +22,7 @@ typedef enum cl_event_type {
     CL_EVENT_KEY_DOWN,
     CL_EVENT_KEY_UP,
     CL_EVENT_TEXT_INPUT,
+    CL_EVENT_TEXT_EDIT, /* IME pre-edit (composition) update */
     CL_EVENT_FOCUS_GAINED,
     CL_EVENT_FOCUS_LOST
 } cl_event_type_t;
@@ -81,6 +82,10 @@ typedef struct cl_event {
         struct {
             const char *utf8; /* NUL-terminated */
         } text;
+        struct {
+            const char *utf8; /* NUL-terminated composition (may be empty) */
+            int cursor;       /* caret position within it, in codepoints */
+        } edit;
     } data;
 } cl_event_t;
 

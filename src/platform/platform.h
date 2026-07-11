@@ -24,7 +24,8 @@ typedef enum cl_platform_event_kind {
     CL_PEV_MOUSE_WHEEL,
     CL_PEV_KEY_DOWN,
     CL_PEV_KEY_UP,
-    CL_PEV_TEXT_INPUT
+    CL_PEV_TEXT_INPUT,
+    CL_PEV_TEXT_EDIT
 } cl_platform_event_kind_t;
 
 typedef struct cl_platform_event {
@@ -35,7 +36,8 @@ typedef struct cl_platform_event {
     float wheel_x, wheel_y;   /* CL_PEV_MOUSE_WHEEL (lines; +y = up/away) */
     cl_key_t key;             /* key events */
     cl_key_mods_t mods;       /* key events */
-    char text[32];            /* CL_PEV_TEXT_INPUT (NUL-terminated UTF-8) */
+    char text[32];            /* CL_PEV_TEXT_INPUT / _EDIT (NUL-term UTF-8) */
+    int edit_cursor;          /* CL_PEV_TEXT_EDIT: caret pos (codepoints) */
 } cl_platform_event_t;
 
 typedef struct cl_platform_ops {
@@ -48,6 +50,9 @@ typedef struct cl_platform_ops {
     void (*present)(cl_platform_t *p);
     void (*wakeup)(cl_platform_t *p);
     void (*start_text_input)(cl_platform_t *p, bool enable);
+    /* Position the IME candidate window near the caret (logical px). NULL if
+     * the backend has no IME. */
+    void (*set_ime_rect)(cl_platform_t *p, cl_rect_t rect);
     /*
      * Clipboard. clipboard_get returns a NUL-terminated UTF-8 copy allocated
      * with a (caller frees with a), or NULL if empty/unavailable. clipboard_set

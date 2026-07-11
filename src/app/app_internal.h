@@ -72,6 +72,7 @@ void cl_window_handle_wheel(cl_window_t *win, cl_point_t pos, float dx,
 void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
                           cl_key_t key, cl_key_mods_t mods);
 void cl_window_handle_text(cl_window_t *win, const char *utf8);
+void cl_window_handle_text_edit(cl_window_t *win, const char *utf8, int cursor);
 void cl_window_set_focus(cl_window_t *win, cl_widget_t *w);
 void cl_window_focus_next(cl_window_t *win, bool forward);
 void cl_window_resize(cl_window_t *win, cl_size_t size);
@@ -92,5 +93,8 @@ void cl_window_tooltip_target_gone(cl_window_t *win, cl_widget_t *w);
  */
 char *cl_app_clipboard_get(cl_application_t *app);
 void cl_app_clipboard_set(cl_application_t *app, const char *utf8);
+
+/* Position the IME candidate window near a caret (no-op if unsupported). */
+void cl_app_set_ime_rect(cl_application_t *app, cl_rect_t rect);
 
 #endif /* CL_APP_INTERNAL_H */
