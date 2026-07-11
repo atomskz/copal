@@ -54,6 +54,7 @@ typedef enum cl_key {
     CL_KEY_ENTER,
     CL_KEY_TAB,
     CL_KEY_ESCAPE,
+    CL_KEY_SPACE,
     /* Letters (used with modifiers for shortcuts). */
     CL_KEY_A, CL_KEY_B, CL_KEY_C, CL_KEY_D, CL_KEY_E, CL_KEY_F, CL_KEY_G,
     CL_KEY_H, CL_KEY_I, CL_KEY_J, CL_KEY_K, CL_KEY_L, CL_KEY_M, CL_KEY_N,
@@ -92,6 +93,9 @@ typedef bool (*cl_event_fn)(cl_widget_t *w, const cl_event_t *ev, void *user);
 /* Text changed / submitted (TextBox); utf8 is the current text. */
 typedef void (*cl_text_changed_fn)(cl_widget_t *w, const char *utf8,
                                    void *user);
+
+/* Toggle state changed (Checkbox); checked is the new state. */
+typedef void (*cl_toggled_fn)(cl_widget_t *w, bool checked, void *user);
 
 #ifdef __cplusplus
 }

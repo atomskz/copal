@@ -52,6 +52,7 @@ static cl_key_t map_key(SDL_Keycode k)
         case SDLK_KP_ENTER:  return CL_KEY_ENTER;
         case SDLK_TAB:       return CL_KEY_TAB;
         case SDLK_ESCAPE:    return CL_KEY_ESCAPE;
+        case SDLK_SPACE:     return CL_KEY_SPACE;
 
         default:             return CL_KEY_UNKNOWN;
     }

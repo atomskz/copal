@@ -80,6 +80,7 @@ int main(int argc, char **argv)
     cl_widget_t *root;
     cl_widget_t *label;
     cl_widget_t *textbox;
+    cl_widget_t *checks;
     cl_widget_t *scroll;
     cl_widget_t *scroll_body;
     cl_widget_t *button;
@@ -131,6 +132,19 @@ int main(int argc, char **argv)
                                    .placeholder = "type here (Ctrl+C/V works)" });
     cl_widget_set_preferred_size(textbox, (cl_size_t){ 240, 0 });
 
+    checks = cl_hbox_create(
+        app, &(cl_hbox_desc_t){ CL_HBOX_DESC_INIT_FIELDS, .spacing = 16,
+                                .align_cross = CL_ALIGN_CENTER });
+    cl_widget_add_child(
+        checks, cl_checkbox_create(
+                    app, &(cl_checkbox_desc_t){ CL_CHECKBOX_DESC_INIT_FIELDS,
+                                                .text = "Enabled",
+                                                .checked = true }));
+    cl_widget_add_child(
+        checks, cl_checkbox_create(
+                    app, &(cl_checkbox_desc_t){ CL_CHECKBOX_DESC_INIT_FIELDS,
+                                                .text = "Verbose" }));
+
     scroll = cl_scrollview_create(
         app, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS });
     cl_widget_set_preferred_size(scroll, (cl_size_t){ 240, 120 });
@@ -153,6 +167,7 @@ int main(int argc, char **argv)
 
     cl_widget_add_child(root, label);
     cl_widget_add_child(root, textbox);
+    cl_widget_add_child(root, checks);
     cl_widget_add_child(root, scroll);
     cl_widget_add_child(root, button);
     cl_window_set_content(win, root);

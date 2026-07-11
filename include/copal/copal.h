@@ -22,6 +22,7 @@
 #include <copal/window.h>
 #include <copal/widgets/label.h>
 #include <copal/widgets/button.h>
+#include <copal/widgets/checkbox.h>
 #include <copal/widgets/textbox.h>
 #include <copal/widgets/scrollview.h>
 
