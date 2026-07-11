@@ -282,6 +282,16 @@ static void *sdl_gl_get_proc(cl_platform_t *p, const char *name)
     return SDL_GL_GetProcAddress(name);
 }
 
+static uint64_t sdl_now_ms(cl_platform_t *p)
+{
+    (void)p;
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+    return SDL_GetTicks64();
+#else
+    return SDL_GetTicks(); /* 32-bit; wraps after ~49 days */
+#endif
+}
+
 static void sdl_destroy(cl_platform_t *p)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
@@ -309,6 +319,7 @@ static const cl_platform_ops_t sdl_ops = {
     .clipboard_set = sdl_clipboard_set,
     .destroy = sdl_destroy,
     .gl_get_proc = sdl_gl_get_proc,
+    .now_ms = sdl_now_ms,
 };
 
 cl_platform_t *cl_platform_sdl_create(const cl_allocator_t *a)

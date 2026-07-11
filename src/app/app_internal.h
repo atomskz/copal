@@ -6,6 +6,7 @@
 
 #include <copal/application.h>
 #include <copal/window.h>
+#include <copal/timer.h>
 #include <copal/allocator.h>
 
 #include "platform/platform.h"
@@ -17,11 +18,18 @@ struct cl_application {
     cl_renderer_t *renderer;
     cl_theme_t *theme;
     cl_window_t *window; /* single window in MVP */
+    cl_timer_t *timers;  /* owned; linked list of active timers */
+    bool timer_firing;   /* true while firing: defers timer reaping */
     cl_log_fn log_fn;
     void *log_user;
     bool quit;
     int exit_code;
 };
+
+/* Timer subsystem (src/app/timer.c), driven by the application loop. */
+int cl_app_timers_timeout(cl_application_t *app);  /* ms to next, or -1 */
+void cl_app_timers_poll(cl_application_t *app);     /* fire due timers */
+void cl_app_timers_free_all(cl_application_t *app); /* free all at shutdown */
 
 struct cl_window {
     cl_application_t *app;      /* weak */

@@ -20,6 +20,7 @@
 #include <copal/layout.h>
 #include <copal/application.h>
 #include <copal/window.h>
+#include <copal/timer.h>
 #include <copal/widgets/label.h>
 #include <copal/widgets/button.h>
 #include <copal/widgets/checkbox.h>

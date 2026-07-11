@@ -4,6 +4,7 @@
 
 /* Platform abstraction (single native window in MVP, ARCHITECTURE §3.2). */
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <copal/types.h>
 #include <copal/error.h>
@@ -57,6 +58,12 @@ typedef struct cl_platform_ops {
     void (*destroy)(cl_platform_t *p);
     /* GL proc loader for the OpenGL renderer; NULL for non-GL backends. */
     void *(*gl_get_proc)(cl_platform_t *p, const char *name);
+    /*
+     * Monotonic clock in milliseconds. Only the relative difference between
+     * two readings is meaningful. NULL if the backend has no clock, in which
+     * case timers are unavailable (cl_timer_create returns NULL).
+     */
+    uint64_t (*now_ms)(cl_platform_t *p);
 } cl_platform_ops_t;
 
 /* Concrete backends embed this as their first member. */

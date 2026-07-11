@@ -13,7 +13,9 @@ typedef struct mock_platform {
     cl_platform_event_t queue[CL_MOCK_QUEUE];
     size_t head;
     size_t tail;
-    char *clipboard; /* owned UTF-8, NUL-terminated; NULL if empty */
+    char *clipboard;     /* owned UTF-8, NUL-terminated; NULL if empty */
+    uint64_t now_ms;     /* monotonic clock, advanced only by the test harness */
+    int last_wait_timeout; /* timeout passed to the most recent wait() */
 } mock_platform_t;
 
 static cl_result_t mock_create_window(cl_platform_t *p,
@@ -55,8 +57,12 @@ static bool mock_poll(cl_platform_t *p, cl_platform_event_t *out)
 
 static void mock_wait(cl_platform_t *p, int timeout_ms)
 {
-    (void)p;
-    (void)timeout_ms;
+    ((mock_platform_t *)p)->last_wait_timeout = timeout_ms;
+}
+
+static uint64_t mock_now_ms(cl_platform_t *p)
+{
+    return ((mock_platform_t *)p)->now_ms;
 }
 
 static void mock_present(cl_platform_t *p)
@@ -127,6 +133,7 @@ static const cl_platform_ops_t mock_ops = {
     .clipboard_get = mock_clipboard_get,
     .clipboard_set = mock_clipboard_set,
     .destroy = mock_destroy,
+    .now_ms = mock_now_ms,
 };
 
 cl_platform_t *cl_platform_mock_create(const cl_allocator_t *a)
@@ -151,4 +158,14 @@ void cl_platform_mock_push(cl_platform_t *p, cl_platform_event_t ev)
         return; /* queue full: drop */
     m->queue[m->tail] = ev;
     m->tail = next;
+}
+
+void cl_platform_mock_advance(cl_platform_t *p, uint64_t ms)
+{
+    ((mock_platform_t *)p)->now_ms += ms;
+}
+
+int cl_platform_mock_last_wait_timeout(cl_platform_t *p)
+{
+    return ((mock_platform_t *)p)->last_wait_timeout;
 }

@@ -73,3 +73,12 @@ if(COPAL_ENABLE_SANITIZERS)
 endif()
 add_test(NAME combobox COMMAND test_combobox)
 
+add_executable(test_timer test_timer.c)
+target_link_libraries(test_timer PRIVATE copal::copal)
+target_include_directories(test_timer PRIVATE ${CMAKE_SOURCE_DIR}/src)
+copal_set_warnings(test_timer)
+if(COPAL_ENABLE_SANITIZERS)
+    copal_enable_sanitizers(test_timer)
+endif()
+add_test(NAME timer COMMAND test_timer)
+

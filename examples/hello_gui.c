@@ -48,6 +48,23 @@ static void on_dark_toggle(cl_widget_t *w, bool checked, void *user)
     cl_widget_invalidate(w); /* repaint the window with the new palette */
 }
 
+/* Repeating 1 s timer: bump a counter and refresh a label with it. */
+struct uptime_ctx {
+    cl_widget_t *label;
+    int seconds;
+};
+
+static void on_uptime_tick(cl_timer_t *timer, void *user)
+{
+    struct uptime_ctx *ctx = user;
+    char buf[32];
+
+    (void)timer;
+    ctx->seconds++;
+    snprintf(buf, sizeof(buf), "uptime: %d s", ctx->seconds);
+    cl_label_set_text(ctx->label, buf);
+}
+
 static void on_menu_button(cl_widget_t *w, void *user)
 {
     cl_application_t *app = user;
@@ -113,6 +130,8 @@ int main(int argc, char **argv)
     cl_widget_t *hscroll_body;
     cl_widget_t *menu_btn;
     cl_widget_t *button;
+    cl_widget_t *uptime;
+    struct uptime_ctx uptime_ctx = { NULL, 0 };
     cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
     int i;
     const char *max_frames;
@@ -249,7 +268,13 @@ int main(int argc, char **argv)
         app, &(cl_button_desc_t){ CL_BUTTON_DESC_INIT_FIELDS, .text = "Close" });
     cl_button_set_on_click(button, on_close, app);
 
+    uptime = cl_label_create(
+        app, &(cl_label_desc_t){ CL_LABEL_DESC_INIT_FIELDS, .text = "uptime: 0 s" });
+    uptime_ctx.label = uptime;
+    cl_timer_create(app, 1000, true, on_uptime_tick, &uptime_ctx);
+
     cl_widget_add_child(root, label);
+    cl_widget_add_child(root, uptime);
     cl_widget_add_child(root, textbox);
     cl_widget_add_child(root, checks);
     cl_widget_add_child(root, radios);

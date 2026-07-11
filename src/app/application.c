@@ -62,6 +62,7 @@ void cl_application_destroy(cl_application_t *app)
 
     if (!app)
         return;
+    cl_app_timers_free_all(app);
     if (app->window)
         cl_window_destroy(app->window);
     if (app->theme)
@@ -123,8 +124,11 @@ static void process_events(cl_application_t *app)
 int cl_application_run(cl_application_t *app)
 {
     while (!app->quit) {
-        app->platform->ops->wait(app->platform, -1);
+        /* Block only until the next timer is due, so timers fire on time even
+         * without input events. */
+        app->platform->ops->wait(app->platform, cl_app_timers_timeout(app));
         process_events(app);
+        cl_app_timers_poll(app);
         if (app->window)
             cl_window_reap_overlay(app->window);
         if (app->quit)
@@ -137,9 +141,15 @@ int cl_application_run(cl_application_t *app)
 
 bool cl_application_step(cl_application_t *app, bool wait)
 {
-    if (wait)
-        app->platform->ops->wait(app->platform, 0);
+    if (wait) {
+        /* Bound the wait by the next timer, but never block indefinitely: a
+         * single step must return to its caller (unlike run()'s own loop). */
+        int timeout = cl_app_timers_timeout(app);
+
+        app->platform->ops->wait(app->platform, timeout < 0 ? 0 : timeout);
+    }
     process_events(app);
+    cl_app_timers_poll(app);
     if (app->window)
         cl_window_reap_overlay(app->window);
     if (app->window && app->window->dirty)
