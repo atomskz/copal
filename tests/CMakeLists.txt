@@ -54,3 +54,13 @@ if(COPAL_ENABLE_SANITIZERS)
     copal_enable_sanitizers(test_theme)
 endif()
 add_test(NAME theme COMMAND test_theme)
+
+add_executable(test_popup test_popup.c)
+target_link_libraries(test_popup PRIVATE copal::copal)
+target_include_directories(test_popup PRIVATE ${CMAKE_SOURCE_DIR}/src)
+copal_set_warnings(test_popup)
+if(COPAL_ENABLE_SANITIZERS)
+    copal_enable_sanitizers(test_popup)
+endif()
+add_test(NAME popup COMMAND test_popup)
+

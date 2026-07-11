@@ -125,6 +125,8 @@ int cl_application_run(cl_application_t *app)
     while (!app->quit) {
         app->platform->ops->wait(app->platform, -1);
         process_events(app);
+        if (app->window)
+            cl_window_reap_overlay(app->window);
         if (app->quit)
             break;
         if (app->window && app->window->dirty)
@@ -138,6 +140,8 @@ bool cl_application_step(cl_application_t *app, bool wait)
     if (wait)
         app->platform->ops->wait(app->platform, 0);
     process_events(app);
+    if (app->window)
+        cl_window_reap_overlay(app->window);
     if (app->window && app->window->dirty)
         cl_window_render(app->window);
     return !app->quit;

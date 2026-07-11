@@ -48,6 +48,19 @@ static void on_dark_toggle(cl_widget_t *w, bool checked, void *user)
     cl_widget_invalidate(w); /* repaint the window with the new palette */
 }
 
+static void on_menu_button(cl_widget_t *w, void *user)
+{
+    cl_application_t *app = user;
+    cl_window_t *win = cl_widget_window(w);
+    cl_rect_t r = cl_widget_rect(w);
+    cl_widget_t *menu = cl_menu_create(app);
+
+    cl_menu_add_item(menu, "New", NULL, NULL);
+    cl_menu_add_item(menu, "Open...", NULL, NULL);
+    cl_menu_add_item(menu, "Save", NULL, NULL);
+    cl_window_open_popup(win, menu, (cl_point_t){ r.x, r.y + r.h });
+}
+
 /* Try $COPAL_FONT, then a few common system fonts across platforms. */
 static cl_font_t *load_default_font(cl_application_t *app)
 {
@@ -95,6 +108,7 @@ int main(int argc, char **argv)
     cl_widget_t *slider;
     cl_widget_t *scroll;
     cl_widget_t *scroll_body;
+    cl_widget_t *menu_btn;
     cl_widget_t *button;
     cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
     int i;
@@ -198,6 +212,11 @@ int main(int argc, char **argv)
     }
     cl_scrollview_set_content(scroll, scroll_body);
 
+    menu_btn = cl_button_create(
+        app, &(cl_button_desc_t){ CL_BUTTON_DESC_INIT_FIELDS,
+                                  .text = "File \xE2\x96\xBE" });
+    cl_button_set_on_click(menu_btn, on_menu_button, app);
+
     button = cl_button_create(
         app, &(cl_button_desc_t){ CL_BUTTON_DESC_INIT_FIELDS, .text = "Close" });
     cl_button_set_on_click(button, on_close, app);
@@ -208,6 +227,7 @@ int main(int argc, char **argv)
     cl_widget_add_child(root, radios);
     cl_widget_add_child(root, slider);
     cl_widget_add_child(root, scroll);
+    cl_widget_add_child(root, menu_btn);
     cl_widget_add_child(root, button);
     cl_window_set_content(win, root);
     cl_window_show(win);

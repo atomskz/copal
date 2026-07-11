@@ -26,6 +26,9 @@ struct cl_application {
 struct cl_window {
     cl_application_t *app;      /* weak */
     cl_widget_t *content;       /* owned */
+    cl_widget_t *overlay;       /* owned; active popup, or NULL */
+    cl_point_t overlay_anchor;  /* requested popup position (pre-clamp) */
+    bool overlay_closing;       /* deferred-close flag for the overlay */
     cl_widget_t *mouse_target;  /* weak; basic pointer capture */
     cl_widget_t *focus;         /* weak; keyboard focus */
     cl_size_t size;             /* logical px */
@@ -50,6 +53,7 @@ void cl_window_focus_next(cl_window_t *win, bool forward);
 void cl_window_resize(cl_window_t *win, cl_size_t size);
 void cl_window_mark_dirty(cl_window_t *win);
 void cl_window_mark_layout_dirty(cl_window_t *win);
+void cl_window_reap_overlay(cl_window_t *win); /* destroy a closed popup safely */
 
 /*
  * Clipboard access for widgets. cl_app_clipboard_get returns a UTF-8 copy

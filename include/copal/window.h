@@ -46,6 +46,19 @@ CL_API cl_size_t cl_window_size(cl_window_t *win);
 CL_API void cl_window_set_on_close(cl_window_t *win, cl_window_close_fn fn,
                                    void *user);
 
+/*
+ * Overlay popups (single-window overlay layer). cl_window_open_popup() shows
+ * `popup` on top of the content at window position `at` (clamped on-screen) and
+ * takes ownership of it. A mouse press outside the popup, or an explicit
+ * cl_window_close_popup(), dismisses it. Only one popup is active at a time;
+ * opening another replaces it. Closing is deferred to a safe point, so a
+ * popup's own handler may request the close.
+ */
+CL_API void cl_window_open_popup(cl_window_t *win, cl_widget_t *popup,
+                                 cl_point_t at);
+CL_API void cl_window_close_popup(cl_window_t *win);
+CL_API cl_widget_t *cl_window_popup(cl_window_t *win);
+
 #ifdef __cplusplus
 }
 #endif
