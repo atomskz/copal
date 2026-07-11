@@ -229,6 +229,18 @@ void cl_window_render(cl_window_t *win)
         win->layout_dirty = false;
     }
 
+    /*
+     * Reveal the focused widget against fresh geometry. This is what makes
+     * scroll-to-focus work when focus was set before the first layout (the
+     * immediate reveal in set_focus then ran against zero rects). It only fires
+     * on a focus change, not on every relayout, so it never fights scrolling.
+     */
+    if (win->focus_reveal_pending) {
+        if (win->focus)
+            cl_widget_reveal(win->focus);
+        win->focus_reveal_pending = false;
+    }
+
     app->renderer->ops->begin_frame(app->renderer, win->size, win->scale,
                                     cl_theme_color(app->theme,
                                                    CL_COLOR_BACKGROUND));
@@ -337,18 +349,29 @@ void cl_window_set_focus(cl_window_t *win, cl_widget_t *w)
 {
     cl_widget_t *old = win->focus;
 
-    if (old == w)
-        return;
-    win->focus = w;
-    if (old) {
-        if (old->cls->vtable && old->cls->vtable->focus_lost)
-            old->cls->vtable->focus_lost(old);
-        cl_window_mark_dirty(win);
+    if (old != w) {
+        win->focus = w;
+        if (old) {
+            if (old->cls->vtable && old->cls->vtable->focus_lost)
+                old->cls->vtable->focus_lost(old);
+            cl_window_mark_dirty(win);
+        }
+        if (w) {
+            if (w->cls->vtable && w->cls->vtable->focus_gained)
+                w->cls->vtable->focus_gained(w);
+            cl_window_mark_dirty(win);
+        }
     }
+    /*
+     * Scroll the focus into view if it sits in a scroller. Reveal fires even on
+     * a redundant focus (old == w) so re-focusing a scrolled-away widget brings
+     * it back, and is retried after the next layout (below) because the reveal
+     * here runs against the current rects, which may still be stale/zero before
+     * the first arrange.
+     */
     if (w) {
-        if (w->cls->vtable && w->cls->vtable->focus_gained)
-            w->cls->vtable->focus_gained(w);
-        cl_window_mark_dirty(win);
+        win->focus_reveal_pending = true;
+        cl_widget_reveal(w);
     }
 }
 

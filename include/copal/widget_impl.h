@@ -48,6 +48,12 @@ typedef struct cl_widget_vtable {
      * hits the widget itself rather than a child painted underneath it.
      */
     cl_rect_t (*clip_rect)(cl_widget_t *w);
+    /*
+     * Scroll or otherwise adjust so the absolute rect `target` (a descendant's
+     * rect) becomes visible within this widget. A NULL slot means the widget
+     * cannot reveal children; cl_widget_reveal() then skips it.
+     */
+    void (*reveal)(cl_widget_t *w, cl_rect_t target);
     bool (*hit_test)(cl_widget_t *w, cl_point_t p);
     bool (*on_event)(cl_widget_t *w, const cl_event_t *ev);
     bool (*mouse_down)(cl_widget_t *w, const cl_event_t *ev);

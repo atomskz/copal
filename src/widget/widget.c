@@ -326,6 +326,23 @@ void cl_widget_do_paint(cl_widget_t *w, cl_paint_context_t *ctx)
         cl_paint_pop_clip(ctx);
 }
 
+void cl_widget_reveal(cl_widget_t *w)
+{
+    cl_widget_t *p;
+
+    if (!w)
+        return;
+    /*
+     * Walk ancestors outward, asking each that can (a scroll container) to
+     * bring w into view. w->rect is re-read on every call: an inner container
+     * that scrolls moves w, and the next outer one must see its new position.
+     */
+    for (p = w->parent; p; p = p->parent) {
+        if (p->cls->vtable && p->cls->vtable->reveal)
+            p->cls->vtable->reveal(p, w->rect);
+    }
+}
+
 cl_widget_t *cl_widget_hit(cl_widget_t *w, cl_point_t p)
 {
     cl_widget_t *c;

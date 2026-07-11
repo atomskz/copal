@@ -25,8 +25,11 @@ typedef struct cl_application cl_application_t;
  * `horizontal` also allows sideways overflow: the content keeps its natural
  * width and a horizontal scrollbar appears when it exceeds the viewport.
  *
- * Not yet implemented (documented limitations): scroll-to-focus and
- * smooth/animated scrolling.
+ * A descendant that gains keyboard focus (via Tab or cl_widget_focus) is
+ * scrolled into view automatically; cl_scrollview_scroll_to_widget() does the
+ * same on demand.
+ *
+ * Not yet implemented (documented limitations): smooth/animated scrolling.
  */
 typedef struct cl_scrollview_desc {
     uint32_t abi_version;
@@ -59,6 +62,11 @@ CL_API float cl_scrollview_scroll_y(cl_widget_t *sv);
 
 /** cl_scrollview_scroll_x() - the current horizontal scroll offset in pixels. */
 CL_API float cl_scrollview_scroll_x(cl_widget_t *sv);
+
+/** cl_scrollview_scroll_to_widget() - scroll the minimal amount so `descendant`
+ *  (a widget somewhere inside the content) is visible within the viewport. */
+CL_API void cl_scrollview_scroll_to_widget(cl_widget_t *sv,
+                                           cl_widget_t *descendant);
 
 #ifdef __cplusplus
 }

@@ -32,6 +32,7 @@ struct cl_window {
     bool overlay_closing;       /* deferred-close flag for the overlay */
     cl_widget_t *mouse_target;  /* weak; basic pointer capture */
     cl_widget_t *focus;         /* weak; keyboard focus */
+    bool focus_reveal_pending;  /* reveal focus once the next layout is fresh */
     cl_size_t size;             /* logical px */
     float scale;
     bool dirty;

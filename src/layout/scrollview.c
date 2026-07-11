@@ -34,6 +34,7 @@ static cl_size_t scrollview_measure(cl_widget_t *w, cl_constraints_t c);
 static void scrollview_arrange(cl_widget_t *w, cl_rect_t rect);
 static void scrollview_paint(cl_widget_t *w, cl_paint_context_t *ctx);
 static cl_rect_t scrollview_clip_rect(cl_widget_t *w);
+static void scrollview_reveal(cl_widget_t *w, cl_rect_t target);
 static bool scrollview_wheel(cl_widget_t *w, const cl_event_t *ev);
 static bool scrollview_mouse_down(cl_widget_t *w, const cl_event_t *ev);
 static bool scrollview_mouse_move(cl_widget_t *w, const cl_event_t *ev);
@@ -44,6 +45,7 @@ static const cl_widget_vtable_t scrollview_vtable = {
     .arrange = scrollview_arrange,
     .paint = scrollview_paint,
     .clip_rect = scrollview_clip_rect,
+    .reveal = scrollview_reveal,
     .mouse_wheel = scrollview_wheel,
     .mouse_down = scrollview_mouse_down,
     .mouse_move = scrollview_mouse_move,
@@ -294,6 +296,44 @@ static cl_rect_t scrollview_clip_rect(cl_widget_t *w)
     return (cl_rect_t){ w->rect.x, w->rect.y, sv->view_w, sv->view_h };
 }
 
+/*
+ * Minimal 1-D offset to bring the segment [t0, t0+len] inside [v0, v0+view].
+ * When the target is larger than the viewport, only its start edge is pinned
+ * (never the far edge), so repeated reveals converge to one stable position
+ * instead of flip-flopping between start- and end-alignment.
+ */
+static float sv_reveal_axis(float t0, float len, float v0, float view)
+{
+    if (len >= view)
+        return t0 > v0 ? t0 - v0 : 0.0f; /* oversized: pin the start edge */
+    if (t0 < v0)
+        return t0 - v0; /* off the near side: scroll back */
+    if (t0 + len > v0 + view)
+        return (t0 + len) - (v0 + view); /* off the far side: scroll forward */
+    return 0.0f;                         /* already fully visible */
+}
+
+/* Scroll by the minimal amount so the absolute rect `target` fits the viewport. */
+static void sv_reveal_rect(cl_scrollview_t *sv, cl_rect_t target)
+{
+    cl_rect_t r = sv->base.rect;
+    float dx = sv_reveal_axis(target.x, target.w, r.x, sv->view_w);
+    float dy = sv_reveal_axis(target.y, target.h, r.y, sv->view_h);
+
+    if (dx == 0.0f && dy == 0.0f)
+        return;
+    sv->scroll_x += dx;
+    sv->scroll_y += dy;
+    sv_clamp(sv);
+    sv_reposition(sv);
+    cl_widget_invalidate(&sv->base);
+}
+
+static void scrollview_reveal(cl_widget_t *w, cl_rect_t target)
+{
+    sv_reveal_rect(CL_WIDGET_CAST(cl_scrollview, w), target);
+}
+
 /* ---- input -------------------------------------------------------------- */
 
 /* True if an ancestor is a scrollview that can consume a vertical wheel. */
@@ -521,4 +561,13 @@ float cl_scrollview_scroll_x(cl_widget_t *sv_w)
     cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, sv_w);
 
     return sv ? sv->scroll_x : 0.0f;
+}
+
+void cl_scrollview_scroll_to_widget(cl_widget_t *sv_w, cl_widget_t *descendant)
+{
+    cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, sv_w);
+
+    if (!sv || !descendant)
+        return;
+    sv_reveal_rect(sv, descendant->rect);
 }

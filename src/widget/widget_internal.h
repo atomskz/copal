@@ -17,6 +17,7 @@ void cl_widget_do_arrange(cl_widget_t *w, cl_rect_t rect);
 void cl_widget_do_paint(cl_widget_t *w, cl_paint_context_t *ctx);
 cl_widget_t *cl_widget_hit(cl_widget_t *w, cl_point_t p);
 bool cl_widget_dispatch(cl_widget_t *w, const cl_event_t *ev);
+void cl_widget_reveal(cl_widget_t *w); /* scroll ancestors to reveal w */
 void cl_widget_set_window(cl_widget_t *w, cl_window_t *win);
 
 #endif /* CL_WIDGET_INTERNAL_H */

@@ -71,6 +71,17 @@ static void mark_clicked(cl_widget_t *w, void *user)
     *(bool *)user = true;
 }
 
+static void key_down(cl_platform_t *p, cl_key_t key, cl_key_mods_t mods)
+{
+    cl_platform_event_t ev;
+
+    memset(&ev, 0, sizeof(ev));
+    ev.kind = CL_PEV_KEY_DOWN;
+    ev.key = key;
+    ev.mods = mods;
+    cl_platform_mock_push(p, ev);
+}
+
 static void mouse(cl_platform_t *p, cl_platform_event_kind_t kind, float x,
                   float y)
 {
@@ -481,6 +492,242 @@ int main(void)
 
         cl_font_release(font4);
         cl_application_destroy(app4);
+    }
+
+    /* Scroll-to-focus: focusing a descendant (directly, via Tab, or via the
+     * explicit API) scrolls it into the viewport; horizontal works too. */
+    {
+        cl_platform_t *p5 = cl_platform_mock_create(a);
+        cl_renderer_t *r5 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad5 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app5;
+        cl_font_t *font5;
+        cl_window_t *w5;
+        cl_widget_t *sv5;
+        cl_widget_t *body5;
+        cl_widget_t *btns[12];
+        cl_window_desc_t wd5 = CL_WINDOW_DESC_INIT;
+        cl_rect_t svr5;
+        cl_rect_t b;
+
+        ad5.platform = p5;
+        ad5.renderer = r5;
+        app5 = cl_application_create(&ad5);
+        font5 = load_any_font(app5);
+        if (!font5) {
+            cl_application_destroy(app5);
+            if (failures == 0)
+                printf("all scrollview tests passed\n");
+            return failures == 0 ? 0 : 1;
+        }
+        cl_theme_set_font(cl_application_theme(app5), font5);
+
+        wd5.width = 240;
+        wd5.height = 120;
+        w5 = cl_window_create(app5, &wd5);
+        sv5 = cl_scrollview_create(
+            app5, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS });
+        cl_widget_set_preferred_size(sv5, (cl_size_t){ 240, 100 });
+        body5 = cl_vbox_create(
+            app5, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS, .spacing = 4 });
+        for (i = 0; i < 12; i++) {
+            char buf[24];
+
+            snprintf(buf, sizeof(buf), "row %d", (int)i);
+            btns[i] = cl_button_create(
+                app5, &(cl_button_desc_t){ CL_BUTTON_DESC_INIT_FIELDS,
+                                           .text = buf });
+            cl_widget_add_child(body5, btns[i]);
+        }
+        cl_scrollview_set_content(sv5, body5);
+        cl_window_set_content(w5, sv5);
+        cl_application_step(app5, false);
+
+        svr5 = cl_widget_rect(sv5);
+
+        /* The first button is visible at the top: focusing it keeps offset 0. */
+        CHECK(cl_widget_focus(btns[0]));
+        CHECK(cl_scrollview_scroll_y(sv5) == 0.0f);
+
+        /* Focusing the last button scrolls down until it is fully in view. */
+        CHECK(cl_widget_focus(btns[11]));
+        CHECK(cl_scrollview_scroll_y(sv5) > 0.0f);
+        b = cl_widget_rect(btns[11]);
+        CHECK(b.y >= svr5.y - 0.5f);
+        CHECK(b.y + b.h <= svr5.y + svr5.h + 0.5f);
+
+        /* Focusing back to the top scrolls all the way up again. */
+        CHECK(cl_widget_focus(btns[0]));
+        CHECK(cl_scrollview_scroll_y(sv5) == 0.0f);
+
+        /* The explicit API reveals a middle button. */
+        cl_scrollview_scroll_to_widget(sv5, btns[6]);
+        b = cl_widget_rect(btns[6]);
+        CHECK(b.y >= svr5.y - 0.5f);
+        CHECK(b.y + b.h <= svr5.y + svr5.h + 0.5f);
+
+        /* Tab navigation from the top through every button ends on the last
+         * one and leaves it revealed (each Tab reveals through set_focus).
+         * Focus is already on btns[0], so reset the offset explicitly (a
+         * re-focus reveal-no-ops from here); the Tab loop must be the only
+         * thing that can drive scroll_y positive below. */
+        cl_scrollview_scroll_to_widget(sv5, btns[0]);
+        CHECK(cl_scrollview_scroll_y(sv5) == 0.0f);
+        for (i = 0; i < 11; i++)
+            key_down(p5, CL_KEY_TAB, CL_MOD_NONE);
+        cl_application_step(app5, false);
+        CHECK(cl_widget_has_focus(btns[11]));
+        CHECK(cl_scrollview_scroll_y(sv5) > 0.0f);
+        b = cl_widget_rect(btns[11]);
+        CHECK(b.y + b.h <= svr5.y + svr5.h + 0.5f);
+
+        /* Re-focusing an already-focused widget that has since been scrolled
+         * out of view brings it back (reveal runs even when focus is
+         * unchanged). */
+        CHECK(cl_widget_focus(btns[0])); /* real change away from btns[11] */
+        CHECK(cl_scrollview_scroll_y(sv5) == 0.0f);
+        cl_scrollview_scroll_to(sv5, 100000.0f); /* scroll btns[0] off the top */
+        CHECK(cl_scrollview_scroll_y(sv5) > 0.0f);
+        cl_widget_focus(btns[0]); /* same widget: reveal must still fire */
+        CHECK(cl_scrollview_scroll_y(sv5) == 0.0f);
+
+        /* Revealing a target taller than the viewport is idempotent: it pins
+         * the near edge rather than flip-flopping between top and bottom. */
+        cl_scrollview_scroll_to(sv5, 100000.0f); /* bottom-aligned to start */
+        cl_scrollview_scroll_to_widget(sv5, body5); /* body is over-tall */
+        {
+            float first = cl_scrollview_scroll_y(sv5);
+
+            cl_scrollview_scroll_to_widget(sv5, body5);
+            CHECK(cl_scrollview_scroll_y(sv5) == first); /* stable, no jitter */
+        }
+
+        cl_font_release(font5);
+        cl_application_destroy(app5);
+    }
+
+    /* Horizontal scroll-to-widget: revealing a right-hand child scrolls
+     * sideways. */
+    {
+        cl_platform_t *p6 = cl_platform_mock_create(a);
+        cl_renderer_t *r6 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad6 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app6;
+        cl_font_t *font6;
+        cl_window_t *w6;
+        cl_widget_t *sv6;
+        cl_widget_t *body6;
+        cl_widget_t *last = NULL;
+        cl_window_desc_t wd6 = CL_WINDOW_DESC_INIT;
+        cl_rect_t svr6;
+        cl_rect_t b;
+
+        ad6.platform = p6;
+        ad6.renderer = r6;
+        app6 = cl_application_create(&ad6);
+        font6 = load_any_font(app6);
+        if (!font6) {
+            cl_application_destroy(app6);
+            if (failures == 0)
+                printf("all scrollview tests passed\n");
+            return failures == 0 ? 0 : 1;
+        }
+        cl_theme_set_font(cl_application_theme(app6), font6);
+
+        wd6.width = 200;
+        wd6.height = 80;
+        w6 = cl_window_create(app6, &wd6);
+        sv6 = cl_scrollview_create(
+            app6, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS,
+                                           .horizontal = true });
+        cl_widget_set_preferred_size(sv6, (cl_size_t){ 160, 60 });
+        body6 = cl_hbox_create(
+            app6, &(cl_hbox_desc_t){ CL_HBOX_DESC_INIT_FIELDS, .spacing = 6 });
+        for (i = 0; i < 10; i++) {
+            char buf[24];
+
+            snprintf(buf, sizeof(buf), "col %d", (int)i);
+            last = cl_button_create(
+                app6, &(cl_button_desc_t){ CL_BUTTON_DESC_INIT_FIELDS,
+                                           .text = buf });
+            cl_widget_add_child(body6, last);
+        }
+        cl_scrollview_set_content(sv6, body6);
+        cl_window_set_content(w6, sv6);
+        cl_application_step(app6, false);
+
+        svr6 = cl_widget_rect(sv6);
+        CHECK(cl_scrollview_scroll_x(sv6) == 0.0f);
+        cl_scrollview_scroll_to_widget(sv6, last);
+        CHECK(cl_scrollview_scroll_x(sv6) > 0.0f);
+        b = cl_widget_rect(last);
+        CHECK(b.x + b.w <= svr6.x + svr6.w + 0.5f); /* right edge now in view */
+
+        cl_font_release(font6);
+        cl_application_destroy(app6);
+    }
+
+    /* Scroll-to-focus survives being requested BEFORE the first layout: rects
+     * are zero until the deferred arrange, so the reveal is retried then. */
+    {
+        cl_platform_t *p7 = cl_platform_mock_create(a);
+        cl_renderer_t *r7 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad7 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app7;
+        cl_font_t *font7;
+        cl_window_t *w7;
+        cl_widget_t *sv7;
+        cl_widget_t *body7;
+        cl_widget_t *rows[12];
+        cl_window_desc_t wd7 = CL_WINDOW_DESC_INIT;
+        cl_rect_t svr7;
+        cl_rect_t b;
+
+        ad7.platform = p7;
+        ad7.renderer = r7;
+        app7 = cl_application_create(&ad7);
+        font7 = load_any_font(app7);
+        if (!font7) {
+            cl_application_destroy(app7);
+            if (failures == 0)
+                printf("all scrollview tests passed\n");
+            return failures == 0 ? 0 : 1;
+        }
+        cl_theme_set_font(cl_application_theme(app7), font7);
+
+        wd7.width = 240;
+        wd7.height = 120;
+        w7 = cl_window_create(app7, &wd7);
+        sv7 = cl_scrollview_create(
+            app7, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS });
+        body7 = cl_vbox_create(
+            app7, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS, .spacing = 4 });
+        for (i = 0; i < 12; i++) {
+            char buf[24];
+
+            snprintf(buf, sizeof(buf), "row %d", (int)i);
+            rows[i] = cl_button_create(
+                app7, &(cl_button_desc_t){ CL_BUTTON_DESC_INIT_FIELDS,
+                                           .text = buf });
+            cl_widget_add_child(body7, rows[i]);
+        }
+        cl_scrollview_set_content(sv7, body7);
+        cl_window_set_content(w7, sv7);
+
+        /* Focus the last row before any step: rects are still zero, so the
+         * immediate reveal in set_focus can do nothing. */
+        CHECK(cl_widget_focus(rows[11]));
+        CHECK(cl_scrollview_scroll_y(sv7) == 0.0f);
+
+        /* The first layout retries the pending reveal and the row comes in. */
+        cl_application_step(app7, false);
+        CHECK(cl_scrollview_scroll_y(sv7) > 0.0f);
+        svr7 = cl_widget_rect(sv7);
+        b = cl_widget_rect(rows[11]);
+        CHECK(b.y + b.h <= svr7.y + svr7.h + 0.5f);
+
+        cl_font_release(font7);
+        cl_application_destroy(app7);
     }
 
     if (failures == 0)
