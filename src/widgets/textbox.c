@@ -14,6 +14,20 @@
 #define TB_RADIUS 4.0f
 #define TB_DEFAULT_WIDTH 160.0f
 
+/* Undo grouping: consecutive same-kind edits collapse into one undo step. */
+typedef enum {
+    TB_EDIT_NONE,
+    TB_EDIT_TYPE,
+    TB_EDIT_DELETE,
+    TB_EDIT_OTHER
+} tb_edit_kind_t;
+
+typedef struct tb_snapshot {
+    char *text; /* NUL-terminated copy of the buffer */
+    size_t cursor;
+    size_t anchor;
+} tb_snapshot_t;
+
 typedef struct cl_textbox {
     cl_widget_t base;
     char *buf;   /* UTF-8, NUL-terminated */
@@ -30,6 +44,13 @@ typedef struct cl_textbox {
     void *on_changed_user;
     cl_text_changed_fn on_submit;
     void *on_submit_user;
+    tb_snapshot_t *undo;
+    size_t undo_count, undo_cap;
+    tb_snapshot_t *redo;
+    size_t redo_count, redo_cap;
+    tb_edit_kind_t coalesce; /* kind of the current undo group */
+    char *pending;           /* pre-edit snapshot text, or NULL */
+    size_t pending_cursor, pending_anchor;
 } cl_textbox_t;
 
 static cl_size_t textbox_measure(cl_widget_t *w, cl_constraints_t c);
@@ -349,6 +370,148 @@ static void clipboard_copy(cl_textbox_t *tb)
     }
 }
 
+/* ---- undo / redo -------------------------------------------------------- */
+
+#define TB_HISTORY_MAX 128
+
+static char *tb_dup_n(cl_textbox_t *tb, const char *s, size_t n)
+{
+    char *p = cl_alloc(cl_application_allocator(tb->base.app), n + 1);
+
+    if (p) {
+        memcpy(p, s, n);
+        p[n] = '\0';
+    }
+    return p;
+}
+
+static void stack_free(cl_textbox_t *tb, tb_snapshot_t *stack, size_t count)
+{
+    const cl_allocator_t *a = cl_application_allocator(tb->base.app);
+    size_t i;
+
+    for (i = 0; i < count; i++)
+        cl_free(a, stack[i].text);
+}
+
+/* Push a snapshot (taking ownership of text) onto the undo or redo stack. */
+static void stack_push(cl_textbox_t *tb, bool undo, char *text, size_t cursor,
+                       size_t anchor)
+{
+    const cl_allocator_t *a = cl_application_allocator(tb->base.app);
+    tb_snapshot_t **stack = undo ? &tb->undo : &tb->redo;
+    size_t *count = undo ? &tb->undo_count : &tb->redo_count;
+    size_t *cap = undo ? &tb->undo_cap : &tb->redo_cap;
+
+    if (!text)
+        return;
+    if (*count >= TB_HISTORY_MAX) { /* bound memory: drop the oldest */
+        cl_free(a, (*stack)[0].text);
+        memmove(*stack, *stack + 1, (*count - 1) * sizeof(**stack));
+        (*count)--;
+    }
+    if (*count == *cap) {
+        size_t nc = *cap ? *cap * 2 : 16;
+        tb_snapshot_t *ns = cl_realloc(a, *stack, nc * sizeof(*ns));
+
+        if (!ns) {
+            cl_free(a, text);
+            return;
+        }
+        *stack = ns;
+        *cap = nc;
+    }
+    (*stack)[*count].text = text;
+    (*stack)[*count].cursor = cursor;
+    (*stack)[*count].anchor = anchor;
+    (*count)++;
+}
+
+static void clear_redo(cl_textbox_t *tb)
+{
+    stack_free(tb, tb->redo, tb->redo_count);
+    tb->redo_count = 0;
+}
+
+static void clear_history(cl_textbox_t *tb)
+{
+    stack_free(tb, tb->undo, tb->undo_count);
+    stack_free(tb, tb->redo, tb->redo_count);
+    tb->undo_count = 0;
+    tb->redo_count = 0;
+    cl_free(cl_application_allocator(tb->base.app), tb->pending);
+    tb->pending = NULL;
+    tb->coalesce = TB_EDIT_NONE;
+}
+
+/* Capture the pre-edit state; pair with edit_commit(). */
+static void edit_begin(cl_textbox_t *tb)
+{
+    cl_free(cl_application_allocator(tb->base.app), tb->pending);
+    tb->pending = tb_dup_n(tb, tb->buf, tb->len);
+    tb->pending_cursor = tb->cursor;
+    tb->pending_anchor = tb->anchor;
+}
+
+/* Commit a captured edit onto the undo stack unless it was a no-op or a
+ * continuation of the current same-kind group. Returns whether the buffer
+ * actually changed (drives the on_changed notification). */
+static bool edit_commit(cl_textbox_t *tb, tb_edit_kind_t kind)
+{
+    const cl_allocator_t *a = cl_application_allocator(tb->base.app);
+    bool changed;
+
+    if (!tb->pending)
+        return false;
+    changed = strcmp(tb->pending, tb->buf) != 0;
+    if (!changed || (kind == tb->coalesce && kind != TB_EDIT_OTHER)) {
+        cl_free(a, tb->pending);
+        tb->pending = NULL;
+        return changed;
+    }
+    clear_redo(tb);
+    stack_push(tb, true, tb->pending, tb->pending_cursor, tb->pending_anchor);
+    tb->pending = NULL; /* ownership moved (or freed) by stack_push */
+    tb->coalesce = kind;
+    return changed;
+}
+
+/* End the current undo group so the next edit starts a fresh one. */
+static void edit_break(cl_textbox_t *tb)
+{
+    tb->coalesce = TB_EDIT_NONE;
+}
+
+static void restore_snapshot(cl_textbox_t *tb, const tb_snapshot_t *snap)
+{
+    size_t n = strlen(snap->text);
+
+    if (!ensure_cap(tb, n + 1))
+        return;
+    memcpy(tb->buf, snap->text, n + 1);
+    tb->len = n;
+    tb->cursor = snap->cursor > n ? n : snap->cursor;
+    tb->anchor = snap->anchor > n ? n : snap->anchor;
+}
+
+static bool history_apply(cl_textbox_t *tb, bool undo)
+{
+    tb_snapshot_t **from = undo ? &tb->undo : &tb->redo;
+    size_t *from_count = undo ? &tb->undo_count : &tb->redo_count;
+    tb_snapshot_t snap;
+
+    if (*from_count == 0)
+        return false;
+    /* Save the current state onto the opposite stack, then restore. */
+    stack_push(tb, !undo, tb_dup_n(tb, tb->buf, tb->len), tb->cursor,
+               tb->anchor);
+    snap = (*from)[--(*from_count)];
+    restore_snapshot(tb, &snap);
+    cl_free(cl_application_allocator(tb->base.app), snap.text);
+    tb->coalesce = TB_EDIT_NONE;
+    return true;
+}
+
 /* ---- vtable ------------------------------------------------------------- */
 
 static cl_size_t textbox_measure(cl_widget_t *w, cl_constraints_t c)
@@ -446,6 +609,7 @@ static bool textbox_mouse_down(cl_widget_t *w, const cl_event_t *ev)
     float local_x = ev->data.mouse.pos.x - (w->rect.x + TB_PAD_X) + tb->scroll_x;
     size_t off = offset_at_x(tb, font, local_x);
 
+    edit_break(tb); /* a click starts a fresh undo group */
     tb->cursor = off;
     if (!(ev->mods & CL_MOD_SHIFT))
         tb->anchor = off;
@@ -460,14 +624,15 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
     bool shift = (ev->mods & CL_MOD_SHIFT) != 0;
     bool ctrl = (ev->mods & CL_MOD_CTRL) != 0;
     cl_key_t key = ev->data.key.key;
-    size_t old_len = tb->len;
     bool handled = true;
     bool force_notify = false;
+    tb_edit_kind_t commit = TB_EDIT_NONE;
     size_t lo;
     size_t hi;
 
     switch (key) {
         case CL_KEY_LEFT:
+            edit_break(tb);
             if (ctrl) { /* word motion not yet implemented: let it bubble */
                 handled = false;
             } else if (has_selection(tb) && !shift) {
@@ -479,6 +644,7 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
             break;
 
         case CL_KEY_RIGHT:
+            edit_break(tb);
             if (ctrl) {
                 handled = false;
             } else if (has_selection(tb) && !shift) {
@@ -491,6 +657,7 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
             break;
 
         case CL_KEY_HOME:
+            edit_break(tb);
             if (ctrl)
                 handled = false;
             else
@@ -498,6 +665,7 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
             break;
 
         case CL_KEY_END:
+            edit_break(tb);
             if (ctrl)
                 handled = false;
             else
@@ -507,22 +675,26 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
         case CL_KEY_BACKSPACE:
             if (tb->readonly)
                 break;
+            edit_begin(tb);
             if (has_selection(tb)) {
                 delete_selection(tb);
             } else if (tb->cursor > 0) {
                 delete_range(tb, prev_boundary(tb->buf, tb->cursor),
                              tb->cursor);
             }
+            commit = TB_EDIT_DELETE;
             break;
 
         case CL_KEY_DELETE:
             if (tb->readonly)
                 break;
+            edit_begin(tb);
             if (has_selection(tb))
                 delete_selection(tb);
             else if (tb->cursor < tb->len)
                 delete_range(tb, tb->cursor,
                              next_boundary(tb->buf, tb->len, tb->cursor));
+            commit = TB_EDIT_DELETE;
             break;
 
         case CL_KEY_ENTER:
@@ -534,6 +706,7 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
 
         case CL_KEY_A:
             if (ctrl) {
+                edit_break(tb);
                 tb->anchor = 0;
                 tb->cursor = tb->len;
             } else {
@@ -542,18 +715,22 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
             break;
 
         case CL_KEY_C:
-            if (ctrl)
+            if (ctrl) {
+                edit_break(tb); /* a copy ends the current typing group */
                 clipboard_copy(tb);
-            else
+            } else {
                 handled = false;
+            }
             break;
 
         case CL_KEY_X:
             if (ctrl) {
                 /* password: no cut at all (mirrors copy being suppressed) */
+                edit_begin(tb);
                 clipboard_copy(tb);
                 if (!tb->password && !tb->readonly)
                     delete_selection(tb);
+                commit = TB_EDIT_OTHER;
             } else {
                 handled = false;
             }
@@ -569,8 +746,9 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
                         /* only a non-empty paste is an edit; empty (e.g. a
                          * newline-only clipboard) must not fire on_changed */
                         if (clip[0]) {
-                            force_notify = has_selection(tb);
+                            edit_begin(tb);
                             insert_text(tb, clip, strlen(clip));
+                            commit = TB_EDIT_OTHER;
                         }
                         cl_free(cl_application_allocator(w->app), clip);
                     }
@@ -580,14 +758,31 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
             }
             break;
 
+        case CL_KEY_Z:
+            if (ctrl)
+                handled = force_notify =
+                    shift ? history_apply(tb, false) : history_apply(tb, true);
+            else
+                handled = false;
+            break;
+
+        case CL_KEY_Y:
+            if (ctrl)
+                handled = force_notify = history_apply(tb, false);
+            else
+                handled = false;
+            break;
+
         default:
             handled = false;
             break;
     }
 
+    if (commit != TB_EDIT_NONE && edit_commit(tb, commit))
+        force_notify = true; /* a real (buffer-changing) edit */
     if (handled) {
-        if (tb->len != old_len || force_notify)
-            notify_changed(tb); /* fire only on a real edit */
+        if (force_notify)
+            notify_changed(tb);
         update_scroll(tb);
         cl_widget_invalidate(w);
     }
@@ -598,17 +793,13 @@ static bool textbox_text_input(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
     const char *s = ev->data.text.utf8;
-    size_t old_len;
-    bool had_sel;
 
     if (!s || !s[0] || tb->readonly)
         return true;
-    old_len = tb->len;
-    had_sel = has_selection(tb);
+    edit_begin(tb);
     insert_text(tb, s, strlen(s));
-    /* changed if a selection was replaced or bytes were inserted */
-    if (had_sel || tb->len != old_len)
-        notify_changed(tb); /* skip true no-ops (e.g. max_length reached) */
+    if (edit_commit(tb, TB_EDIT_TYPE)) /* fire only when bytes changed */
+        notify_changed(tb);
     update_scroll(tb);
     cl_widget_invalidate(w);
     return true;
@@ -624,6 +815,11 @@ static void textbox_destroy(cl_widget_t *w)
     cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
     const cl_allocator_t *a = cl_application_allocator(w->app);
 
+    stack_free(tb, tb->undo, tb->undo_count);
+    stack_free(tb, tb->redo, tb->redo_count);
+    cl_free(a, tb->undo);
+    cl_free(a, tb->redo);
+    cl_free(a, tb->pending);
     cl_free(a, tb->buf);
     cl_free(a, tb->placeholder);
 }
@@ -659,6 +855,7 @@ static void set_text_internal(cl_textbox_t *tb, const char *utf8)
     tb->cursor = n;
     tb->anchor = n;
     tb->scroll_x = 0.0f;
+    clear_history(tb); /* a programmatic set is not an undoable edit */
 }
 
 cl_widget_t *cl_textbox_create(cl_application_t *app,

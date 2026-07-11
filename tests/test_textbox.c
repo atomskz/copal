@@ -382,6 +382,91 @@ int main(void)
         cl_application_destroy(app7);
     }
 
+    /* Undo / redo. */
+    {
+        cl_platform_t *p8 = cl_platform_mock_create(a);
+        cl_renderer_t *r8 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad8 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app8;
+        cl_window_t *w8;
+        cl_widget_t *tb8;
+        cl_window_desc_t wd8 = CL_WINDOW_DESC_INIT;
+
+        ad8.platform = p8;
+        ad8.renderer = r8;
+        app8 = cl_application_create(&ad8);
+        wd8.width = 240;
+        wd8.height = 40;
+        w8 = cl_window_create(app8, &wd8);
+        tb8 = cl_textbox_create(
+            app8, &(cl_textbox_desc_t){ CL_TEXTBOX_DESC_INIT_FIELDS });
+        cl_textbox_set_on_changed(tb8, on_changed, NULL);
+        cl_window_set_content(w8, tb8);
+        cl_application_step(app8, false);
+        cl_widget_focus(tb8);
+
+        /* Consecutive typing coalesces into a single undo step. */
+        type_text(p8, "a");
+        type_text(p8, "b");
+        type_text(p8, "c");
+        cl_application_step(app8, false);
+        CHECK(strcmp(cl_textbox_text(tb8), "abc") == 0);
+        press(p8, CL_KEY_Z, CL_MOD_CTRL); /* undo the whole run */
+        cl_application_step(app8, false);
+        CHECK(strlen(cl_textbox_text(tb8)) == 0);
+        press(p8, CL_KEY_Y, CL_MOD_CTRL); /* redo */
+        cl_application_step(app8, false);
+        CHECK(strcmp(cl_textbox_text(tb8), "abc") == 0);
+
+        /* A delete is a separate undo step from the preceding typing. */
+        press(p8, CL_KEY_BACKSPACE, CL_MOD_NONE);
+        cl_application_step(app8, false);
+        CHECK(strcmp(cl_textbox_text(tb8), "ab") == 0);
+        press(p8, CL_KEY_Z, CL_MOD_CTRL);
+        cl_application_step(app8, false);
+        CHECK(strcmp(cl_textbox_text(tb8), "abc") == 0); /* undo the delete */
+        press(p8, CL_KEY_Z, CL_MOD_CTRL);
+        cl_application_step(app8, false);
+        CHECK(strlen(cl_textbox_text(tb8)) == 0); /* undo the typing */
+
+        /* A new edit after an undo clears the redo history. */
+        type_text(p8, "x");
+        cl_application_step(app8, false);
+        press(p8, CL_KEY_Z, CL_MOD_CTRL); /* -> "" */
+        cl_application_step(app8, false);
+        type_text(p8, "y"); /* new edit clears redo */
+        cl_application_step(app8, false);
+        press(p8, CL_KEY_Y, CL_MOD_CTRL); /* redo is empty: no-op */
+        cl_application_step(app8, false);
+        CHECK(strcmp(cl_textbox_text(tb8), "y") == 0);
+
+        /* set_text resets the history: there is nothing to undo. */
+        cl_textbox_set_text(tb8, "foo");
+        press(p8, CL_KEY_Z, CL_MOD_CTRL);
+        cl_application_step(app8, false);
+        CHECK(strcmp(cl_textbox_text(tb8), "foo") == 0);
+
+        /* A real undo and redo each fire on_changed once; an empty-history
+         * Ctrl+Z fires nothing. */
+        cl_textbox_set_text(tb8, "");
+        type_text(p8, "z");
+        cl_application_step(app8, false);
+        changed_count = 0;
+        press(p8, CL_KEY_Z, CL_MOD_CTRL); /* real undo -> "" */
+        cl_application_step(app8, false);
+        CHECK(strlen(cl_textbox_text(tb8)) == 0);
+        CHECK(changed_count == 1);
+        press(p8, CL_KEY_Y, CL_MOD_CTRL); /* real redo -> "z" */
+        cl_application_step(app8, false);
+        CHECK(strcmp(cl_textbox_text(tb8), "z") == 0);
+        CHECK(changed_count == 2);
+        press(p8, CL_KEY_Y, CL_MOD_CTRL); /* nothing to redo */
+        cl_application_step(app8, false);
+        CHECK(changed_count == 2); /* no spurious notify */
+
+        cl_application_destroy(app8);
+    }
+
     if (failures == 0)
         printf("all textbox tests passed\n");
     return failures == 0 ? 0 : 1;

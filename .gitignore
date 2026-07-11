@@ -9,5 +9,6 @@ docs/
 *.dll
 *.dylib
 
-# Local run/debug artifacts
+# Editor / local run artifacts
+.vscode/
 errors.log
