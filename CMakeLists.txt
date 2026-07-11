@@ -72,10 +72,14 @@ target_include_directories(copal
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb)
 
 # stb_truetype is third-party: build its implementation TU without our warnings.
-if(NOT MSVC)
+if(MSVC)
+    set_source_files_properties(src/text/stb_impl.c PROPERTIES
+        COMPILE_FLAGS "/w")
+else()
     set_source_files_properties(src/text/stb_impl.c PROPERTIES
         COMPILE_FLAGS "-w")
 endif()
@@ -150,6 +154,15 @@ endif()
 # ---------------------------------------------------------------------------
 # Install + package config
 # ---------------------------------------------------------------------------
+# A FetchContent SDL2 is a target built in this tree, not an installable
+# package, so it cannot be part of copal's export set. Disable install/export
+# in that configuration (COPAL_FETCH_SDL2 is a build-it-locally convenience).
+if(COPAL_ENABLE_INSTALL AND COPAL_FETCH_SDL2)
+    message(STATUS "copal: COPAL_FETCH_SDL2 is ON; disabling install/export "
+                   "(the vendored SDL2 cannot be part of the package).")
+    set(COPAL_ENABLE_INSTALL OFF)
+endif()
+
 if(COPAL_ENABLE_INSTALL)
     install(TARGETS copal
         EXPORT copalTargets

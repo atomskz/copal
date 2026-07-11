@@ -3,6 +3,12 @@
 
 #include <string.h>
 
+/*
+ * copal wraps SDL as a library: the consuming application owns main(), so tell
+ * SDL not to redefine it (SDL_main) and mark main as ready ourselves. This also
+ * avoids needing to link SDL2main on Windows.
+ */
+#define SDL_MAIN_HANDLED
 #include <SDL.h>
 
 typedef struct sdl_platform {
@@ -308,6 +314,7 @@ cl_platform_t *cl_platform_sdl_create(const cl_allocator_t *a)
 {
     sdl_platform_t *s;
 
+    SDL_SetMainReady(); /* we defined SDL_MAIN_HANDLED; app owns main() */
     if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0)
         return NULL;
 
