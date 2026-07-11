@@ -301,6 +301,14 @@ void cl_widget_do_arrange(cl_widget_t *w, cl_rect_t rect)
         w->cls->vtable->arrange(w, rect);
 }
 
+/* Clip rect used for children (and hit-testing) when CL_WF_CLIP is set. */
+static cl_rect_t widget_clip_rect(cl_widget_t *w)
+{
+    if (w->cls->vtable && w->cls->vtable->clip_rect)
+        return w->cls->vtable->clip_rect(w);
+    return w->rect;
+}
+
 void cl_widget_do_paint(cl_widget_t *w, cl_paint_context_t *ctx)
 {
     cl_widget_t *c;
@@ -311,7 +319,7 @@ void cl_widget_do_paint(cl_widget_t *w, cl_paint_context_t *ctx)
     if (w->cls->vtable && w->cls->vtable->paint)
         w->cls->vtable->paint(w, ctx);
     if (clip)
-        cl_paint_push_clip(ctx, w->rect);
+        cl_paint_push_clip(ctx, widget_clip_rect(w));
     for (c = w->first_child; c; c = c->next_sibling)
         cl_widget_do_paint(c, ctx);
     if (clip)
@@ -327,6 +335,14 @@ cl_widget_t *cl_widget_hit(cl_widget_t *w, cl_point_t p)
         return NULL;
     if (!cl_rect_contains(w->rect, p))
         return NULL;
+    /*
+     * Children are clipped to widget_clip_rect(): a point inside the widget but
+     * outside that region (e.g. a scrollbar gutter, or content scrolled past
+     * the viewport edge) hits this widget, not a child drawn underneath.
+     */
+    if ((w->flags & CL_WF_CLIP) && w->first_child &&
+        !cl_rect_contains(widget_clip_rect(w), p))
+        return w;
     for (c = w->first_child; c; c = c->next_sibling) {
         cl_widget_t *h = cl_widget_hit(c, p);
 

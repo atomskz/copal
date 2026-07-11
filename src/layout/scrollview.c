@@ -11,19 +11,29 @@
 #define WHEEL_STEP 40.0f   /* pixels scrolled per wheel notch */
 #define SV_DEFAULT 160.0f  /* default viewport size when none is set */
 
+typedef enum sv_drag {
+    SV_DRAG_NONE,
+    SV_DRAG_V, /* dragging the vertical thumb */
+    SV_DRAG_H  /* dragging the horizontal thumb */
+} sv_drag_t;
+
 typedef struct cl_scrollview {
     cl_widget_t base;
+    float scroll_x;
     float scroll_y;
+    float content_w; /* laid-out content width (== view_w unless horizontal) */
     float content_h; /* last measured content height */
-    float view_w;    /* content-area width (excludes the scrollbar gutter) */
-    float view_h;    /* content-area height */
-    bool dragging;   /* dragging the vertical thumb */
-    float drag_dy;   /* pointer.y - thumb.y captured at drag start */
+    float view_w;    /* content-area width (excludes the vertical gutter) */
+    float view_h;    /* content-area height (excludes the horizontal gutter) */
+    bool horizontal; /* allow horizontal overflow and scrolling */
+    sv_drag_t drag;  /* which thumb, if any, is being dragged */
+    float drag_off;  /* pointer coord - thumb start, on the drag axis */
 } cl_scrollview_t;
 
 static cl_size_t scrollview_measure(cl_widget_t *w, cl_constraints_t c);
 static void scrollview_arrange(cl_widget_t *w, cl_rect_t rect);
 static void scrollview_paint(cl_widget_t *w, cl_paint_context_t *ctx);
+static cl_rect_t scrollview_clip_rect(cl_widget_t *w);
 static bool scrollview_wheel(cl_widget_t *w, const cl_event_t *ev);
 static bool scrollview_mouse_down(cl_widget_t *w, const cl_event_t *ev);
 static bool scrollview_mouse_move(cl_widget_t *w, const cl_event_t *ev);
@@ -33,6 +43,7 @@ static const cl_widget_vtable_t scrollview_vtable = {
     .measure = scrollview_measure,
     .arrange = scrollview_arrange,
     .paint = scrollview_paint,
+    .clip_rect = scrollview_clip_rect,
     .mouse_wheel = scrollview_wheel,
     .mouse_down = scrollview_mouse_down,
     .mouse_move = scrollview_mouse_move,
@@ -49,26 +60,43 @@ static const cl_widget_class_t cl_scrollview_class = {
 
 /* ---- geometry helpers --------------------------------------------------- */
 
-static float sv_max_scroll(const cl_scrollview_t *sv)
+static float sv_max_scroll_x(const cl_scrollview_t *sv)
+{
+    float m = sv->content_w - sv->view_w;
+
+    return m > 0.0f ? m : 0.0f;
+}
+
+static float sv_max_scroll_y(const cl_scrollview_t *sv)
 {
     float m = sv->content_h - sv->view_h;
 
     return m > 0.0f ? m : 0.0f;
 }
 
-static bool sv_scrollable(const cl_scrollview_t *sv)
+static bool sv_scroll_x_on(const cl_scrollview_t *sv)
+{
+    return sv->content_w > sv->view_w;
+}
+
+static bool sv_scroll_y_on(const cl_scrollview_t *sv)
 {
     return sv->content_h > sv->view_h;
 }
 
 static void sv_clamp(cl_scrollview_t *sv)
 {
-    float m = sv_max_scroll(sv);
+    float mx = sv_max_scroll_x(sv);
+    float my = sv_max_scroll_y(sv);
 
+    if (sv->scroll_x < 0.0f)
+        sv->scroll_x = 0.0f;
+    if (sv->scroll_x > mx)
+        sv->scroll_x = mx;
     if (sv->scroll_y < 0.0f)
         sv->scroll_y = 0.0f;
-    if (sv->scroll_y > m)
-        sv->scroll_y = m;
+    if (sv->scroll_y > my)
+        sv->scroll_y = my;
 }
 
 /* Re-place the content child at the current scroll offset without remeasuring. */
@@ -79,9 +107,9 @@ static void sv_reposition(cl_scrollview_t *sv)
     if (!content)
         return;
     cl_widget_do_arrange(content,
-                         (cl_rect_t){ sv->base.rect.x,
+                         (cl_rect_t){ sv->base.rect.x - sv->scroll_x,
                                       sv->base.rect.y - sv->scroll_y,
-                                      sv->view_w, sv->content_h });
+                                      sv->content_w, sv->content_h });
 }
 
 static float sv_thumb_h(const cl_scrollview_t *sv)
@@ -100,11 +128,34 @@ static float sv_thumb_h(const cl_scrollview_t *sv)
 
 static float sv_thumb_y(const cl_scrollview_t *sv)
 {
-    float max_scroll = sv_max_scroll(sv);
+    float max_scroll = sv_max_scroll_y(sv);
     float travel = sv->view_h - sv_thumb_h(sv);
     float t = max_scroll > 0.0f ? sv->scroll_y / max_scroll : 0.0f;
 
     return sv->base.rect.y + t * travel;
+}
+
+static float sv_thumb_w(const cl_scrollview_t *sv)
+{
+    float wdt;
+
+    if (sv->content_w <= 0.0f)
+        return sv->view_w;
+    wdt = sv->view_w * (sv->view_w / sv->content_w);
+    if (wdt < SB_MIN_THUMB)
+        wdt = SB_MIN_THUMB;
+    if (wdt > sv->view_w)
+        wdt = sv->view_w;
+    return wdt;
+}
+
+static float sv_thumb_x(const cl_scrollview_t *sv)
+{
+    float max_scroll = sv_max_scroll_x(sv);
+    float travel = sv->view_w - sv_thumb_w(sv);
+    float t = max_scroll > 0.0f ? sv->scroll_x / max_scroll : 0.0f;
+
+    return sv->base.rect.x + t * travel;
 }
 
 /* ---- layout ------------------------------------------------------------- */
@@ -127,38 +178,85 @@ static void scrollview_arrange(cl_widget_t *w, cl_rect_t rect)
     cl_widget_t *content = w->first_child;
     cl_constraints_t cc;
     cl_size_t cs;
-    float vw = rect.w;
+    float avail_w = rect.w;
+    float avail_h = rect.h;
     bool need_v;
+    bool need_h;
 
     if (!content) {
         sv->view_w = rect.w;
         sv->view_h = rect.h;
+        sv->content_w = rect.w;
         sv->content_h = 0.0f;
         return;
     }
 
+    /*
+     * Measure the content. Without horizontal scrolling the width is bounded to
+     * the viewport so wrapping content reflows to fit; with it, the width is
+     * unbounded so the content keeps its natural width and overflows sideways.
+     */
     cc.min = (cl_size_t){ 0.0f, 0.0f };
-    cc.max = (cl_size_t){ vw, CL_UNBOUNDED };
+    cc.max = (cl_size_t){ sv->horizontal ? CL_UNBOUNDED : avail_w,
+                          CL_UNBOUNDED };
     cs = cl_widget_do_measure(content, cc);
 
-    need_v = cs.h > rect.h;
-    if (need_v) {
-        vw -= SB_SIZE;
-        if (vw < 0.0f)
-            vw = 0.0f;
-        cc.max.w = vw;
-        cs = cl_widget_do_measure(content, cc); /* reflow at reduced width */
+    /*
+     * Decide which scrollbars are needed. Each bar steals space along its cross
+     * axis, which can in turn make the other bar necessary; re-check once.
+     */
+    need_h = sv->horizontal && cs.w > avail_w;
+    need_v = cs.h > avail_h;
+    if (need_h)
+        avail_h -= SB_SIZE;
+    if (need_v)
+        avail_w -= SB_SIZE;
+    if (!need_h && sv->horizontal && cs.w > avail_w) {
+        need_h = true;
+        avail_h -= SB_SIZE;
+    }
+    if (!need_v && cs.h > avail_h) {
+        need_v = true;
+        avail_w -= SB_SIZE;
+    }
+    if (avail_w < 0.0f)
+        avail_w = 0.0f;
+    if (avail_h < 0.0f)
+        avail_h = 0.0f;
+
+    if (sv->horizontal) {
+        /* Content keeps its natural width, but never narrower than the
+         * viewport, so a narrow child can still stretch to fill. */
+        sv->content_w = cs.w > avail_w ? cs.w : avail_w;
+    } else {
+        /* Reflow to the (possibly reduced) viewport width so wrapping content
+         * fits; the content width then equals the viewport. */
+        if (cc.max.w != avail_w) {
+            cc.max.w = avail_w;
+            cs = cl_widget_do_measure(content, cc);
+        }
+        sv->content_w = avail_w;
     }
 
-    sv->view_w = vw;
-    sv->view_h = rect.h;
+    sv->view_w = avail_w;
+    sv->view_h = avail_h;
     sv->content_h = cs.h;
     sv_clamp(sv);
     cl_widget_do_arrange(content,
-                         (cl_rect_t){ rect.x, rect.y - sv->scroll_y, vw, cs.h });
+                         (cl_rect_t){ rect.x - sv->scroll_x,
+                                      rect.y - sv->scroll_y,
+                                      sv->content_w, sv->content_h });
 }
 
 /* ---- paint -------------------------------------------------------------- */
+
+static void sv_paint_bar(cl_paint_context_t *ctx, cl_rect_t track, cl_rect_t thumb)
+{
+    cl_paint_fill_rect(ctx, track,
+                       cl_paint_theme_color(ctx, CL_COLOR_SURFACE_ACTIVE));
+    cl_paint_fill_round_rect(ctx, thumb, (SB_SIZE - 2.0f * SB_INSET) * 0.5f,
+                             cl_paint_theme_color(ctx, CL_COLOR_BORDER));
+}
 
 static void scrollview_paint(cl_widget_t *w, cl_paint_context_t *ctx)
 {
@@ -167,36 +265,75 @@ static void scrollview_paint(cl_widget_t *w, cl_paint_context_t *ctx)
 
     cl_paint_fill_rect(ctx, r, cl_paint_theme_color(ctx, CL_COLOR_SURFACE));
 
-    if (sv_scrollable(sv)) {
+    if (sv_scroll_y_on(sv)) {
         float th = sv_thumb_h(sv);
         float ty = sv_thumb_y(sv);
-        cl_rect_t track = { r.x + r.w - SB_SIZE, r.y, SB_SIZE, r.h };
+        cl_rect_t track = { r.x + r.w - SB_SIZE, r.y, SB_SIZE, sv->view_h };
         cl_rect_t thumb = { track.x + SB_INSET, ty, SB_SIZE - 2.0f * SB_INSET,
                             th };
 
-        cl_paint_fill_rect(ctx, track,
-                           cl_paint_theme_color(ctx, CL_COLOR_SURFACE_ACTIVE));
-        cl_paint_fill_round_rect(ctx, thumb, (SB_SIZE - 2.0f * SB_INSET) * 0.5f,
-                                 cl_paint_theme_color(ctx, CL_COLOR_BORDER));
+        sv_paint_bar(ctx, track, thumb);
     }
-    /* content children are painted next by cl_widget_do_paint, clipped to r
-     * via CL_WF_CLIP set at construction. */
+    if (sv_scroll_x_on(sv)) {
+        float tw = sv_thumb_w(sv);
+        float tx = sv_thumb_x(sv);
+        cl_rect_t track = { r.x, r.y + r.h - SB_SIZE, sv->view_w, SB_SIZE };
+        cl_rect_t thumb = { tx, track.y + SB_INSET, tw,
+                            SB_SIZE - 2.0f * SB_INSET };
+
+        sv_paint_bar(ctx, track, thumb);
+    }
+    /* content children are painted next by cl_widget_do_paint, clipped to the
+     * viewport via CL_WF_CLIP + scrollview_clip_rect(). */
+}
+
+static cl_rect_t scrollview_clip_rect(cl_widget_t *w)
+{
+    cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, w);
+
+    return (cl_rect_t){ w->rect.x, w->rect.y, sv->view_w, sv->view_h };
 }
 
 /* ---- input -------------------------------------------------------------- */
 
+/* True if an ancestor is a scrollview that can consume a vertical wheel. */
+static bool sv_has_vertical_ancestor(const cl_widget_t *w)
+{
+    cl_widget_t *p;
+
+    for (p = w->parent; p; p = p->parent) {
+        cl_scrollview_t *anc = CL_WIDGET_CAST(cl_scrollview, p);
+
+        if (anc && sv_scroll_y_on(anc))
+            return true;
+    }
+    return false;
+}
+
 static bool scrollview_wheel(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, w);
-    float before;
+    float before_x = sv->scroll_x;
+    float before_y = sv->scroll_y;
 
-    if (!sv_scrollable(sv))
-        return false; /* let an outer scroll container handle it */
-    before = sv->scroll_y;
-    sv->scroll_y -= ev->data.wheel.dy * WHEEL_STEP;
+    if (sv_scroll_y_on(sv))
+        sv->scroll_y -= ev->data.wheel.dy * WHEEL_STEP;
+    if (sv_scroll_x_on(sv)) {
+        float dx = ev->data.wheel.dx;
+
+        /*
+         * A horizontal-only view scrolls sideways on the vertical wheel too,
+         * but only when it stands alone: if an outer scrollview can scroll
+         * vertically, leave the vertical delta for it so the wheel is not
+         * trapped by a nested horizontal strip.
+         */
+        if (dx == 0.0f && !sv_scroll_y_on(sv) && !sv_has_vertical_ancestor(w))
+            dx = ev->data.wheel.dy;
+        sv->scroll_x -= dx * WHEEL_STEP;
+    }
     sv_clamp(sv);
-    if (sv->scroll_y == before)
-        return false; /* already at the edge: bubble to an outer container */
+    if (sv->scroll_x == before_x && sv->scroll_y == before_y)
+        return false; /* nothing moved: bubble to an outer container */
     sv_reposition(sv);
     cl_widget_invalidate(w);
     return true;
@@ -205,45 +342,79 @@ static bool scrollview_wheel(cl_widget_t *w, const cl_event_t *ev)
 static bool scrollview_mouse_down(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, w);
+    cl_rect_t r = w->rect;
+    float x = ev->data.mouse.pos.x;
     float y = ev->data.mouse.pos.y;
-    float th;
-    float ty;
 
-    if (!sv_scrollable(sv))
-        return false;
-    th = sv_thumb_h(sv);
-    ty = sv_thumb_y(sv);
+    /* Vertical thumb / track: the right gutter, above the horizontal one so
+     * the empty bottom-right corner (both bars visible) stays inert. */
+    if (sv_scroll_y_on(sv) && x >= r.x + r.w - SB_SIZE &&
+        y < r.y + sv->view_h) {
+        float th = sv_thumb_h(sv);
+        float ty = sv_thumb_y(sv);
 
-    if (y >= ty && y < ty + th) {
-        sv->dragging = true;
-        sv->drag_dy = y - ty;
-    } else {
-        /* page towards the click */
-        sv->scroll_y += (y < ty ? -sv->view_h : sv->view_h);
-        sv_clamp(sv);
-        sv_reposition(sv);
-        cl_widget_invalidate(w);
+        if (y >= ty && y < ty + th) {
+            sv->drag = SV_DRAG_V;
+            sv->drag_off = y - ty;
+        } else { /* page towards the click */
+            sv->scroll_y += (y < ty ? -sv->view_h : sv->view_h);
+            sv_clamp(sv);
+            sv_reposition(sv);
+            cl_widget_invalidate(w);
+        }
+        return true;
     }
-    return true;
+    /* Horizontal thumb / track: the bottom gutter, left of the vertical one. */
+    if (sv_scroll_x_on(sv) && y >= r.y + r.h - SB_SIZE &&
+        x < r.x + sv->view_w) {
+        float tw = sv_thumb_w(sv);
+        float tx = sv_thumb_x(sv);
+
+        if (x >= tx && x < tx + tw) {
+            sv->drag = SV_DRAG_H;
+            sv->drag_off = x - tx;
+        } else { /* page towards the click */
+            sv->scroll_x += (x < tx ? -sv->view_w : sv->view_w);
+            sv_clamp(sv);
+            sv_reposition(sv);
+            cl_widget_invalidate(w);
+        }
+        return true;
+    }
+    return false; /* click was in the content area: let a child handle it */
 }
 
 static bool scrollview_mouse_move(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, w);
-    float travel;
-    float ty;
 
-    if (!sv->dragging)
-        return false;
-    travel = sv->view_h - sv_thumb_h(sv);
-    if (travel <= 0.0f)
-        return true; /* degenerate track (viewport <= min thumb): nothing to drag */
-    ty = ev->data.mouse.pos.y - sv->drag_dy - sv->base.rect.y;
-    sv->scroll_y = (ty / travel) * sv_max_scroll(sv);
-    sv_clamp(sv);
-    sv_reposition(sv);
-    cl_widget_invalidate(w);
-    return true;
+    if (sv->drag == SV_DRAG_V) {
+        float travel = sv->view_h - sv_thumb_h(sv);
+        float ty;
+
+        if (travel <= 0.0f)
+            return true; /* degenerate track: nothing to drag */
+        ty = ev->data.mouse.pos.y - sv->drag_off - sv->base.rect.y;
+        sv->scroll_y = (ty / travel) * sv_max_scroll_y(sv);
+        sv_clamp(sv);
+        sv_reposition(sv);
+        cl_widget_invalidate(w);
+        return true;
+    }
+    if (sv->drag == SV_DRAG_H) {
+        float travel = sv->view_w - sv_thumb_w(sv);
+        float tx;
+
+        if (travel <= 0.0f)
+            return true;
+        tx = ev->data.mouse.pos.x - sv->drag_off - sv->base.rect.x;
+        sv->scroll_x = (tx / travel) * sv_max_scroll_x(sv);
+        sv_clamp(sv);
+        sv_reposition(sv);
+        cl_widget_invalidate(w);
+        return true;
+    }
+    return false;
 }
 
 static bool scrollview_mouse_up(cl_widget_t *w, const cl_event_t *ev)
@@ -251,9 +422,9 @@ static bool scrollview_mouse_up(cl_widget_t *w, const cl_event_t *ev)
     cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, w);
 
     (void)ev;
-    if (!sv->dragging)
+    if (sv->drag == SV_DRAG_NONE)
         return false;
-    sv->dragging = false;
+    sv->drag = SV_DRAG_NONE;
     return true;
 }
 
@@ -263,6 +434,7 @@ cl_widget_t *cl_scrollview_create(cl_application_t *app,
                                   const cl_scrollview_desc_t *desc)
 {
     cl_widget_t *w;
+    cl_scrollview_t *sv;
 
     if (desc && (desc->struct_size != sizeof(cl_scrollview_desc_t) ||
                  desc->abi_version != CL_VERSION)) {
@@ -272,6 +444,9 @@ cl_widget_t *cl_scrollview_create(cl_application_t *app,
     w = cl_widget_alloc(app, &cl_scrollview_class);
     if (!w)
         return NULL;
+    sv = CL_WIDGET_CAST(cl_scrollview, w);
+    if (desc)
+        sv->horizontal = desc->horizontal;
     w->flags |= CL_WF_CLIP;
     return w;
 }
@@ -288,8 +463,9 @@ void cl_scrollview_set_content(cl_widget_t *sv_w, cl_widget_t *content)
         return;
     if (old)
         cl_widget_destroy(old);
+    sv->scroll_x = 0.0f;
     sv->scroll_y = 0.0f;
-    sv->dragging = false;
+    sv->drag = SV_DRAG_NONE;
     if (content) {
         /*
          * The scrollview takes ownership. If the widget is still parented
@@ -321,9 +497,28 @@ void cl_scrollview_scroll_to(cl_widget_t *sv_w, float y)
     cl_widget_invalidate(sv_w);
 }
 
+void cl_scrollview_scroll_to_x(cl_widget_t *sv_w, float x)
+{
+    cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, sv_w);
+
+    if (!sv)
+        return;
+    sv->scroll_x = x;
+    sv_clamp(sv);
+    sv_reposition(sv);
+    cl_widget_invalidate(sv_w);
+}
+
 float cl_scrollview_scroll_y(cl_widget_t *sv_w)
 {
     cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, sv_w);
 
     return sv ? sv->scroll_y : 0.0f;
+}
+
+float cl_scrollview_scroll_x(cl_widget_t *sv_w)
+{
+    cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, sv_w);
+
+    return sv ? sv->scroll_x : 0.0f;
 }

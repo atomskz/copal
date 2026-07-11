@@ -54,6 +54,23 @@ static void wheel(cl_platform_t *p, cl_point_t pos, float dy)
     cl_platform_mock_push(p, ev);
 }
 
+static void wheel_x(cl_platform_t *p, cl_point_t pos, float dx)
+{
+    cl_platform_event_t ev;
+
+    memset(&ev, 0, sizeof(ev));
+    ev.kind = CL_PEV_MOUSE_WHEEL;
+    ev.pos = pos;
+    ev.wheel_x = dx;
+    cl_platform_mock_push(p, ev);
+}
+
+static void mark_clicked(cl_widget_t *w, void *user)
+{
+    (void)w;
+    *(bool *)user = true;
+}
+
 static void mouse(cl_platform_t *p, cl_platform_event_kind_t kind, float x,
                   float y)
 {
@@ -276,6 +293,194 @@ int main(void)
         if (font2)
             cl_font_release(font2);
         cl_application_destroy(app2);
+    }
+
+    /* Horizontal scrolling: an opt-in scrollview whose content overflows
+     * sideways scrolls on wheel dx / drag / scroll_to_x, and its scrollbar
+     * gutter wins clicks over content drawn underneath it. */
+    {
+        cl_platform_t *p3 = cl_platform_mock_create(a);
+        cl_renderer_t *r3 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad3 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app3;
+        cl_font_t *font3;
+        cl_window_t *w3;
+        cl_widget_t *root3;
+        cl_widget_t *hsv;
+        cl_widget_t *btn;
+        cl_window_desc_t wd3 = CL_WINDOW_DESC_INIT;
+        cl_rect_t hr;
+        cl_rect_t b0;
+        cl_rect_t b1;
+        float max_x;
+        bool clicked = false;
+
+        ad3.platform = p3;
+        ad3.renderer = r3;
+        app3 = cl_application_create(&ad3);
+        font3 = load_any_font(app3);
+        if (!font3) {
+            cl_application_destroy(app3);
+            if (failures == 0)
+                printf("all scrollview tests passed\n");
+            return failures == 0 ? 0 : 1;
+        }
+        cl_theme_set_font(cl_application_theme(app3), font3);
+
+        wd3.width = 160;
+        wd3.height = 120;
+        w3 = cl_window_create(app3, &wd3);
+        root3 = cl_vbox_create(app3,
+                               &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS,
+                                                  .padding = { 8, 8, 8, 8 } });
+        hsv = cl_scrollview_create(
+            app3, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS,
+                                           .horizontal = true });
+        cl_widget_set_preferred_size(hsv, (cl_size_t){ 120, 28 });
+        btn = cl_button_create(
+            app3, &(cl_button_desc_t){ CL_BUTTON_DESC_INIT_FIELDS,
+                                       .text = "a very very very wide button" });
+        cl_button_set_on_click(btn, mark_clicked, &clicked);
+        cl_scrollview_set_content(hsv, btn);
+        cl_widget_add_child(root3, hsv);
+        cl_window_set_content(w3, root3);
+        cl_application_step(app3, false);
+
+        hr = cl_widget_rect(hsv);
+        CHECK(cl_scrollview_scroll_x(hsv) == 0.0f);
+
+        /* Content overflows horizontally: scroll_to_x past the end clamps. */
+        cl_scrollview_scroll_to_x(hsv, 100000.0f);
+        max_x = cl_scrollview_scroll_x(hsv);
+        CHECK(max_x > 0.0f);
+
+        /* The content child moves left by exactly the horizontal offset. */
+        cl_scrollview_scroll_to_x(hsv, 0.0f);
+        b0 = cl_widget_rect(btn);
+        cl_scrollview_scroll_to_x(hsv, 30.0f);
+        b1 = cl_widget_rect(btn);
+        CHECK(b1.x == b0.x - 30.0f);
+
+        /* Horizontal wheel (dx) scrolls sideways and clamps at 0. */
+        cl_scrollview_scroll_to_x(hsv, 0.0f);
+        wheel_x(p3, (cl_point_t){ hr.x + 10.0f, hr.y + 6.0f }, -1.0f);
+        cl_application_step(app3, false);
+        CHECK(cl_scrollview_scroll_x(hsv) == 40.0f); /* one WHEEL_STEP right */
+        wheel_x(p3, (cl_point_t){ hr.x + 10.0f, hr.y + 6.0f }, 5.0f);
+        cl_application_step(app3, false);
+        CHECK(cl_scrollview_scroll_x(hsv) == 0.0f);
+
+        /* A click in the bottom scrollbar gutter must drive the scrollbar, not
+         * the wide button painted beneath it (clip-aware hit-testing). */
+        {
+            float gy = hr.y + hr.h - 4.0f; /* inside the horizontal gutter */
+            float gx = hr.x + hr.w * 0.6f; /* right of the thumb, in the track */
+
+            mouse(p3, CL_PEV_MOUSE_DOWN, gx, gy);
+            mouse(p3, CL_PEV_MOUSE_UP, gx, gy);
+            cl_application_step(app3, false);
+            CHECK(!clicked);                           /* button never fired */
+            CHECK(cl_scrollview_scroll_x(hsv) > 0.0f); /* paged right instead */
+        }
+
+        /* The empty corner where both gutters meet is inert chrome: a click
+         * there must not page either axis. */
+        cl_scrollview_scroll_to(hsv, 0.0f);
+        cl_scrollview_scroll_to_x(hsv, 0.0f);
+        {
+            float cx = hr.x + hr.w - 3.0f; /* right gutter band */
+            float cy = hr.y + hr.h - 3.0f; /* bottom gutter band */
+
+            mouse(p3, CL_PEV_MOUSE_DOWN, cx, cy);
+            mouse(p3, CL_PEV_MOUSE_UP, cx, cy);
+            cl_application_step(app3, false);
+            CHECK(cl_scrollview_scroll_y(hsv) == 0.0f); /* corner did not page */
+            CHECK(cl_scrollview_scroll_x(hsv) == 0.0f);
+        }
+
+        cl_font_release(font3);
+        cl_application_destroy(app3);
+    }
+
+    /* Nested scroll: a horizontal-only view inside a vertical container must
+     * let a plain vertical wheel bubble to the outer container instead of
+     * trapping it as sideways motion. */
+    {
+        cl_platform_t *p4 = cl_platform_mock_create(a);
+        cl_renderer_t *r4 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad4 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app4;
+        cl_font_t *font4;
+        cl_window_t *w4;
+        cl_widget_t *outer_sv;
+        cl_widget_t *outer_body;
+        cl_widget_t *inner_sv;
+        cl_widget_t *inner_body;
+        cl_window_desc_t wd4 = CL_WINDOW_DESC_INIT;
+        cl_rect_t ir;
+
+        ad4.platform = p4;
+        ad4.renderer = r4;
+        app4 = cl_application_create(&ad4);
+        font4 = load_any_font(app4);
+        if (!font4) {
+            cl_application_destroy(app4);
+            if (failures == 0)
+                printf("all scrollview tests passed\n");
+            return failures == 0 ? 0 : 1;
+        }
+        cl_theme_set_font(cl_application_theme(app4), font4);
+
+        wd4.width = 220;
+        wd4.height = 140;
+        w4 = cl_window_create(app4, &wd4);
+        outer_sv = cl_scrollview_create(
+            app4, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS });
+        cl_widget_set_preferred_size(outer_sv, (cl_size_t){ 200, 120 });
+        outer_body = cl_vbox_create(
+            app4, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS, .spacing = 4 });
+
+        inner_sv = cl_scrollview_create(
+            app4, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS,
+                                           .horizontal = true });
+        cl_widget_set_preferred_size(inner_sv, (cl_size_t){ 160, 60 });
+        inner_body = cl_hbox_create(
+            app4, &(cl_hbox_desc_t){ CL_HBOX_DESC_INIT_FIELDS, .spacing = 6 });
+        for (i = 0; i < 8; i++) {
+            char buf[24];
+
+            snprintf(buf, sizeof(buf), "col %d", (int)(i + 1));
+            cl_widget_add_child(
+                inner_body, cl_button_create(
+                                app4, &(cl_button_desc_t){
+                                          CL_BUTTON_DESC_INIT_FIELDS,
+                                          .text = buf }));
+        }
+        cl_scrollview_set_content(inner_sv, inner_body);
+        cl_widget_add_child(outer_body, inner_sv);
+        for (i = 0; i < 8; i++) {
+            cl_widget_add_child(
+                outer_body, cl_label_create(
+                                app4, &(cl_label_desc_t){
+                                          CL_LABEL_DESC_INIT_FIELDS,
+                                          .text = "tall filler row" }));
+        }
+        cl_scrollview_set_content(outer_sv, outer_body);
+        cl_window_set_content(w4, outer_sv);
+        cl_application_step(app4, false);
+
+        ir = cl_widget_rect(inner_sv);
+        CHECK(cl_scrollview_scroll_x(inner_sv) == 0.0f);
+        CHECK(cl_scrollview_scroll_y(outer_sv) == 0.0f);
+
+        /* Plain vertical wheel (dy only) with the pointer over the inner strip. */
+        wheel(p4, (cl_point_t){ ir.x + 12.0f, ir.y + 12.0f }, -1.0f);
+        cl_application_step(app4, false);
+        CHECK(cl_scrollview_scroll_x(inner_sv) == 0.0f);  /* inner kept still */
+        CHECK(cl_scrollview_scroll_y(outer_sv) == 40.0f); /* outer scrolled */
+
+        cl_font_release(font4);
+        cl_application_destroy(app4);
     }
 
     if (failures == 0)

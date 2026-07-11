@@ -12,3 +12,4 @@ docs/
 # Editor / local run artifacts
 .vscode/
 errors.log
+.claude/

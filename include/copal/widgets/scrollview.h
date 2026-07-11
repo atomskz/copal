@@ -2,6 +2,7 @@
 #ifndef CL_WIDGETS_SCROLLVIEW_H
 #define CL_WIDGETS_SCROLLVIEW_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -16,17 +17,21 @@ extern "C" {
 typedef struct cl_application cl_application_t;
 
 /*
- * Vertical scroll container (MVP). Holds a single content widget, clips it to
- * the viewport, and scrolls it vertically via the mouse wheel or a draggable
- * scrollbar. The content is laid out at the viewport width and its natural
- * height.
+ * Scroll container (MVP). Holds a single content widget, clips it to the
+ * viewport, and scrolls it via the mouse wheel or draggable scrollbars.
  *
- * Not yet implemented (documented limitations): horizontal scrolling,
- * scroll-to-focus, and smooth/animated scrolling.
+ * By default only vertical scrolling is enabled: the content is laid out at the
+ * viewport width (so wrapping content reflows) and its natural height. Setting
+ * `horizontal` also allows sideways overflow: the content keeps its natural
+ * width and a horizontal scrollbar appears when it exceeds the viewport.
+ *
+ * Not yet implemented (documented limitations): scroll-to-focus and
+ * smooth/animated scrolling.
  */
 typedef struct cl_scrollview_desc {
     uint32_t abi_version;
     size_t struct_size;
+    bool horizontal; /* allow horizontal overflow and scrolling */
 } cl_scrollview_desc_t;
 
 #define CL_SCROLLVIEW_DESC_INIT_FIELDS \
@@ -45,8 +50,15 @@ CL_API cl_widget_t *cl_scrollview_content(cl_widget_t *sv);
 /** cl_scrollview_scroll_to() - set the vertical scroll offset (clamped). */
 CL_API void cl_scrollview_scroll_to(cl_widget_t *sv, float y);
 
+/** cl_scrollview_scroll_to_x() - set the horizontal scroll offset (clamped).
+ *  Has no visible effect unless the scrollview was created with horizontal. */
+CL_API void cl_scrollview_scroll_to_x(cl_widget_t *sv, float x);
+
 /** cl_scrollview_scroll_y() - the current vertical scroll offset in pixels. */
 CL_API float cl_scrollview_scroll_y(cl_widget_t *sv);
+
+/** cl_scrollview_scroll_x() - the current horizontal scroll offset in pixels. */
+CL_API float cl_scrollview_scroll_x(cl_widget_t *sv);
 
 #ifdef __cplusplus
 }

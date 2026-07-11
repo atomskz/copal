@@ -109,6 +109,8 @@ int main(int argc, char **argv)
     cl_widget_t *combo;
     cl_widget_t *scroll;
     cl_widget_t *scroll_body;
+    cl_widget_t *hscroll;
+    cl_widget_t *hscroll_body;
     cl_widget_t *menu_btn;
     cl_widget_t *button;
     cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
@@ -220,6 +222,24 @@ int main(int argc, char **argv)
     }
     cl_scrollview_set_content(scroll, scroll_body);
 
+    /* Horizontal scrolling: a row of buttons wider than the viewport. */
+    hscroll = cl_scrollview_create(
+        app, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS,
+                                      .horizontal = true });
+    cl_widget_set_preferred_size(hscroll, (cl_size_t){ 240, 44 });
+    hscroll_body = cl_hbox_create(
+        app, &(cl_hbox_desc_t){ CL_HBOX_DESC_INIT_FIELDS, .spacing = 6 });
+    for (i = 0; i < 10; i++) {
+        char buf[32];
+
+        snprintf(buf, sizeof(buf), "column %d", i + 1);
+        cl_widget_add_child(
+            hscroll_body,
+            cl_button_create(app, &(cl_button_desc_t){
+                                      CL_BUTTON_DESC_INIT_FIELDS, .text = buf }));
+    }
+    cl_scrollview_set_content(hscroll, hscroll_body);
+
     menu_btn = cl_button_create(
         app, &(cl_button_desc_t){ CL_BUTTON_DESC_INIT_FIELDS,
                                   .text = "File \xE2\x96\xBE" });
@@ -236,6 +256,7 @@ int main(int argc, char **argv)
     cl_widget_add_child(root, slider);
     cl_widget_add_child(root, combo);
     cl_widget_add_child(root, scroll);
+    cl_widget_add_child(root, hscroll);
     cl_widget_add_child(root, menu_btn);
     cl_widget_add_child(root, button);
     cl_window_set_content(win, root);
