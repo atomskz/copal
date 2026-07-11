@@ -39,6 +39,38 @@ static void on_close(cl_widget_t *w, void *user)
     cl_application_quit((cl_application_t *)user, 0);
 }
 
+/* Try $COPAL_FONT, then a few common system fonts across platforms. */
+static cl_font_t *load_default_font(cl_application_t *app)
+{
+    static const char *candidates[] = {
+        "C:/Windows/Fonts/segoeui.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/tahoma.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/Library/Fonts/Arial.ttf",
+    };
+    const char *env = getenv("COPAL_FONT");
+    cl_font_t *font;
+    size_t i;
+
+    if (env) {
+        font = cl_font_load_file(app, env, 18.0f);
+        if (font)
+            return font;
+        fprintf(stderr, "warning: COPAL_FONT=%s could not be loaded\n", env);
+    }
+    for (i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        font = cl_font_load_file(app, candidates[i], 18.0f);
+        if (font)
+            return font;
+    }
+    return NULL;
+}
+
 int main(int argc, char **argv)
 {
     cl_application_desc_t ad = CL_APPLICATION_DESC_INIT; /* NULL -> SDL + GL */
@@ -53,7 +85,6 @@ int main(int argc, char **argv)
     cl_widget_t *button;
     cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
     int i;
-    const char *font_path;
     const char *max_frames;
     int rc;
 
@@ -67,15 +98,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    font_path = getenv("COPAL_FONT");
-    if (!font_path)
-        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
-    font = cl_font_load_file(app, font_path, 18.0f);
+    font = load_default_font(app);
     if (font)
         cl_theme_set_font(cl_application_theme(app), font);
     else
-        fprintf(stderr, "warning: no font at %s (text will not render)\n",
-                font_path);
+        fprintf(stderr, "warning: no usable system font found "
+                        "(set COPAL_FONT=/path/to/font.ttf); text will not "
+                        "render\n");
 
     wd.title = "copal - hello";
     wd.width = 480;
