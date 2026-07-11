@@ -55,8 +55,13 @@ void cl_window_destroy(cl_window_t *win)
 
     if (!win)
         return;
-    if (win->overlay)
-        cl_widget_destroy(win->overlay);
+    if (win->overlay) {
+        cl_widget_t *o = win->overlay;
+
+        win->overlay = NULL; /* clear first: content destroy may re-enter here */
+        win->overlay_owner = NULL;
+        cl_widget_destroy(o);
+    }
     if (win->content)
         cl_widget_destroy(win->content);
     app = win->app;
@@ -151,11 +156,31 @@ void cl_window_open_popup(cl_window_t *win, cl_widget_t *popup, cl_point_t at)
     if (win->overlay && win->overlay != popup)
         cl_widget_destroy(win->overlay); /* replace any existing popup */
     win->overlay = popup;
+    win->overlay_owner = NULL;
     win->overlay_anchor = at;
     win->overlay_closing = false;
     cl_widget_set_window(popup, win);
     place_overlay(win);
     cl_window_mark_dirty(win);
+}
+
+void cl_window_set_overlay_owner(cl_window_t *win, cl_widget_t *owner)
+{
+    if (win)
+        win->overlay_owner = owner;
+}
+
+void cl_window_owner_destroyed(cl_window_t *win, cl_widget_t *w)
+{
+    if (win && win->overlay && win->overlay_owner == w) {
+        cl_widget_t *o = win->overlay;
+
+        win->overlay = NULL;
+        win->overlay_owner = NULL;
+        win->overlay_closing = false;
+        cl_widget_destroy(o); /* the popup references w, which is dying */
+        cl_window_mark_dirty(win);
+    }
 }
 
 void cl_window_close_popup(cl_window_t *win)
@@ -177,6 +202,7 @@ void cl_window_reap_overlay(cl_window_t *win)
         cl_widget_t *o = win->overlay;
 
         win->overlay = NULL;
+        win->overlay_owner = NULL;
         win->overlay_closing = false;
         cl_widget_destroy(o);
         cl_window_mark_dirty(win);

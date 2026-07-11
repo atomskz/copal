@@ -106,6 +106,7 @@ int main(int argc, char **argv)
     cl_widget_t *dark;
     cl_widget_t *radios;
     cl_widget_t *slider;
+    cl_widget_t *combo;
     cl_widget_t *scroll;
     cl_widget_t *scroll_body;
     cl_widget_t *menu_btn;
@@ -196,6 +197,13 @@ int main(int argc, char **argv)
                                   .max = 100, .value = 40 });
     cl_widget_set_preferred_size(slider, (cl_size_t){ 240, 0 });
 
+    combo = cl_combobox_create(
+        app, &(cl_combobox_desc_t){ CL_COMBOBOX_DESC_INIT_FIELDS,
+                                    .placeholder = "Choose a fruit" });
+    cl_combobox_add_item(combo, "Apple");
+    cl_combobox_add_item(combo, "Banana");
+    cl_combobox_add_item(combo, "Cherry");
+
     scroll = cl_scrollview_create(
         app, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS });
     cl_widget_set_preferred_size(scroll, (cl_size_t){ 240, 120 });
@@ -226,6 +234,7 @@ int main(int argc, char **argv)
     cl_widget_add_child(root, checks);
     cl_widget_add_child(root, radios);
     cl_widget_add_child(root, slider);
+    cl_widget_add_child(root, combo);
     cl_widget_add_child(root, scroll);
     cl_widget_add_child(root, menu_btn);
     cl_widget_add_child(root, button);

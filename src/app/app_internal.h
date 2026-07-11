@@ -27,6 +27,7 @@ struct cl_window {
     cl_application_t *app;      /* weak */
     cl_widget_t *content;       /* owned */
     cl_widget_t *overlay;       /* owned; active popup, or NULL */
+    cl_widget_t *overlay_owner; /* weak; widget that opened the popup, or NULL */
     cl_point_t overlay_anchor;  /* requested popup position (pre-clamp) */
     bool overlay_closing;       /* deferred-close flag for the overlay */
     cl_widget_t *mouse_target;  /* weak; basic pointer capture */
@@ -54,6 +55,10 @@ void cl_window_resize(cl_window_t *win, cl_size_t size);
 void cl_window_mark_dirty(cl_window_t *win);
 void cl_window_mark_layout_dirty(cl_window_t *win);
 void cl_window_reap_overlay(cl_window_t *win); /* destroy a closed popup safely */
+/* Tie a popup's lifetime to the widget that opened it. */
+void cl_window_set_overlay_owner(cl_window_t *win, cl_widget_t *owner);
+/* If w owns the open popup, tear the popup down (called when w is destroyed). */
+void cl_window_owner_destroyed(cl_window_t *win, cl_widget_t *w);
 
 /*
  * Clipboard access for widgets. cl_app_clipboard_get returns a UTF-8 copy

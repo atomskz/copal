@@ -64,3 +64,12 @@ if(COPAL_ENABLE_SANITIZERS)
 endif()
 add_test(NAME popup COMMAND test_popup)
 
+add_executable(test_combobox test_combobox.c)
+target_link_libraries(test_combobox PRIVATE copal::copal)
+target_include_directories(test_combobox PRIVATE ${CMAKE_SOURCE_DIR}/src)
+copal_set_warnings(test_combobox)
+if(COPAL_ENABLE_SANITIZERS)
+    copal_enable_sanitizers(test_combobox)
+endif()
+add_test(NAME combobox COMMAND test_combobox)
+

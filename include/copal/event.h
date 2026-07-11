@@ -100,6 +100,9 @@ typedef void (*cl_toggled_fn)(cl_widget_t *w, bool checked, void *user);
 /* Continuous value changed (Slider); value is the new value. */
 typedef void (*cl_value_fn)(cl_widget_t *w, float value, void *user);
 
+/* Discrete selection changed (ComboBox); index is the new selection. */
+typedef void (*cl_selection_fn)(cl_widget_t *w, int index, void *user);
+
 #ifdef __cplusplus
 }
 #endif

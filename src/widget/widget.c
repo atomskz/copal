@@ -82,6 +82,7 @@ void cl_widget_set_window(cl_widget_t *w, cl_window_t *win)
             cl_window_set_focus(old, NULL);
         if (old->mouse_target == w)
             old->mouse_target = NULL;
+        cl_window_owner_destroyed(old, w); /* tear down a popup w opened */
     }
     w->window = win;
     for (c = w->first_child; c; c = c->next_sibling)
@@ -149,6 +150,8 @@ static void widget_destroy_subtree(cl_widget_t *w)
         w->window->mouse_target = NULL;
     if (w->window && w->window->focus == w)
         w->window->focus = NULL;
+    if (w->window)
+        cl_window_owner_destroyed(w->window, w); /* tear down its popup, if any */
 
     a = cl_application_allocator(w->app);
     if (w->cls->vtable && w->cls->vtable->destroy)
