@@ -1,7 +1,0 @@
-/home/atomsk/src/copal/build2/CMakeFiles/copal.dir
-/home/atomsk/src/copal/build2/CMakeFiles/edit_cache.dir
-/home/atomsk/src/copal/build2/CMakeFiles/rebuild_cache.dir
-/home/atomsk/src/copal/build2/CMakeFiles/list_install_components.dir
-/home/atomsk/src/copal/build2/CMakeFiles/install.dir
-/home/atomsk/src/copal/build2/CMakeFiles/install/local.dir
-/home/atomsk/src/copal/build2/CMakeFiles/install/strip.dir
