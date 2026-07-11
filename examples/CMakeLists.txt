@@ -20,8 +20,11 @@ if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
     # On Windows, drop SDL2.dll (and any other runtime deps) next to the .exe so
     # it can be launched directly. Needs CMake 3.21+ for $<TARGET_RUNTIME_DLLS>.
     if(WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
+        # copy_if_different needs >= 2 args; when the DLL list is empty (e.g. a
+        # static SDL2) fall back to `true` so the step is a clean no-op.
         add_custom_command(TARGET hello_gui POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            COMMAND ${CMAKE_COMMAND} -E
+                    $<IF:$<BOOL:$<TARGET_RUNTIME_DLLS:hello_gui>>,copy_if_different,true>
                     $<TARGET_RUNTIME_DLLS:hello_gui> $<TARGET_FILE_DIR:hello_gui>
             COMMAND_EXPAND_LISTS)
     endif()

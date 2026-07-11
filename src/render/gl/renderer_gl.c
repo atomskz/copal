@@ -123,7 +123,7 @@ static GLuint compile_shader(struct gl_api *gl, GLenum type, const char *src)
     GLuint s = gl->CreateShader(type);
     GLint ok = 0;
 
-    gl->ShaderSource(s, 1, &src, NULL);
+    gl->ShaderSource(s, 1, (const GLchar *const *)&src, NULL);
     gl->CompileShader(s);
     gl->GetShaderiv(s, GL_COMPILE_STATUS, &ok);
     if (!ok) {

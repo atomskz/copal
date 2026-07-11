@@ -121,6 +121,10 @@ elseif(COPAL_ENABLE_SDL OR COPAL_ENABLE_OPENGL)
 endif()
 
 target_compile_definitions(copal PRIVATE COPAL_BUILDING)
+if(MSVC)
+    # fopen/fread etc. are standard C; silence MSVC's non-standard C4996 nags.
+    target_compile_definitions(copal PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
 if(COPAL_BUILD_SHARED)
     target_compile_definitions(copal PUBLIC COPAL_SHARED)
     set_target_properties(copal PROPERTIES
