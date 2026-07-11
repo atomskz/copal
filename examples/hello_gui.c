@@ -119,6 +119,7 @@ int main(int argc, char **argv)
     cl_widget_t *root;
     cl_widget_t *label;
     cl_widget_t *textbox;
+    cl_widget_t *notes;
     cl_widget_t *checks;
     cl_widget_t *dark;
     cl_widget_t *radios;
@@ -179,6 +180,14 @@ int main(int argc, char **argv)
         app, &(cl_textbox_desc_t){ CL_TEXTBOX_DESC_INIT_FIELDS,
                                    .placeholder = "type here (Ctrl+C/V works)" });
     cl_widget_set_preferred_size(textbox, (cl_size_t){ 240, 0 });
+
+    notes = cl_textbox_create(
+        app, &(cl_textbox_desc_t){
+                 CL_TEXTBOX_DESC_INIT_FIELDS, .multiline = true,
+                 .text = "Multi-line notes.\nEnter adds a line; long lines wrap "
+                         "to the width of the box; Up/Down move between lines "
+                         "and the wheel scrolls." });
+    cl_widget_set_preferred_size(notes, (cl_size_t){ 240, 76 });
 
     checks = cl_hbox_create(
         app, &(cl_hbox_desc_t){ CL_HBOX_DESC_INIT_FIELDS, .spacing = 16,
@@ -280,6 +289,7 @@ int main(int argc, char **argv)
     cl_widget_add_child(root, label);
     cl_widget_add_child(root, uptime);
     cl_widget_add_child(root, textbox);
+    cl_widget_add_child(root, notes);
     cl_widget_add_child(root, checks);
     cl_widget_add_child(root, radios);
     cl_widget_add_child(root, slider);

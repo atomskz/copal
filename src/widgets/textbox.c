@@ -28,6 +28,12 @@ typedef struct tb_snapshot {
     size_t anchor;
 } tb_snapshot_t;
 
+/* One visual line of the wrapped multiline layout. */
+typedef struct tb_line {
+    size_t start; /* byte offset of the line's first char */
+    size_t len;   /* bytes on the line (excludes a trailing '\n' or wrap) */
+} tb_line_t;
+
 typedef struct cl_textbox {
     cl_widget_t base;
     char *buf;   /* UTF-8, NUL-terminated */
@@ -38,8 +44,17 @@ typedef struct cl_textbox {
     char *placeholder;
     bool password;
     bool readonly;
+    bool multiline;
     size_t max_length; /* codepoints; 0 = unlimited */
     float scroll_x;
+    float scroll_y;    /* multiline: vertical content offset (px) */
+    float goal_x;      /* multiline: desired caret x for Up/Down */
+    bool goal_valid;
+    tb_line_t *lines;   /* multiline: visual line spans */
+    size_t line_count;
+    size_t line_cap;
+    float layout_width; /* wrap width the layout was built for */
+    bool layout_dirty;
     cl_text_changed_fn on_changed;
     void *on_changed_user;
     cl_text_changed_fn on_submit;
@@ -56,6 +71,7 @@ typedef struct cl_textbox {
 static cl_size_t textbox_measure(cl_widget_t *w, cl_constraints_t c);
 static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx);
 static bool textbox_mouse_down(cl_widget_t *w, const cl_event_t *ev);
+static bool textbox_mouse_wheel(cl_widget_t *w, const cl_event_t *ev);
 static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev);
 static bool textbox_text_input(cl_widget_t *w, const cl_event_t *ev);
 static void textbox_focus_changed(cl_widget_t *w);
@@ -66,6 +82,7 @@ static const cl_widget_vtable_t textbox_vtable = {
     .measure = textbox_measure,
     .paint = textbox_paint,
     .mouse_down = textbox_mouse_down,
+    .mouse_wheel = textbox_mouse_wheel,
     .key_down = textbox_key_down,
     .text_input = textbox_text_input,
     .focus_gained = textbox_focus_changed,
@@ -211,12 +228,236 @@ static size_t offset_at_x(cl_textbox_t *tb, cl_font_t *font, float x)
     return tb->len;
 }
 
+/* ---- multiline layout --------------------------------------------------- */
+
+static float line_height_of(cl_font_t *font)
+{
+    return font ? cl_font_metrics(font).line_height : 16.0f;
+}
+
+static float measure_span(cl_font_t *font, const char *p, size_t n)
+{
+    return font ? cl_text_measure_bytes(font, p, n, CL_UNBOUNDED).w : 0.0f;
+}
+
+static bool lines_reserve(cl_textbox_t *tb, size_t need)
+{
+    size_t nc;
+    tb_line_t *nl;
+
+    if (tb->line_cap >= need)
+        return true;
+    nc = tb->line_cap ? tb->line_cap * 2 : 8;
+    if (nc < need)
+        nc = need;
+    nl = cl_realloc(cl_application_allocator(tb->base.app), tb->lines,
+                    nc * sizeof(*nl));
+    if (!nl)
+        return false;
+    tb->lines = nl;
+    tb->line_cap = nc;
+    return true;
+}
+
+static void emit_line(cl_textbox_t *tb, size_t start, size_t len)
+{
+    if (!lines_reserve(tb, tb->line_count + 1))
+        return;
+    tb->lines[tb->line_count].start = start;
+    tb->lines[tb->line_count].len = len;
+    tb->line_count++;
+}
+
+/* Greedy word-wrap: break at the last space that fits, or mid-word if a single
+ * word is too wide; explicit '\n' always starts a new line. Always >= 1 line. */
+static void tb_relayout(cl_textbox_t *tb, cl_font_t *font, float wrap_w)
+{
+    size_t i = 0;
+
+    tb->line_count = 0;
+    tb->layout_width = wrap_w;
+    tb->layout_dirty = false;
+
+    for (;;) {
+        size_t line_start = i;
+        size_t last_break = 0; /* byte after the last space that fit; 0 = none */
+        float width = 0.0f;
+        size_t j = i;
+        bool hard = false;
+        bool wrapped = false;
+
+        while (j < tb->len) {
+            uint32_t cp;
+            size_t n = cl_utf8_next(tb->buf + j, &cp);
+            float adv;
+
+            if (n == 0 || j + n > tb->len)
+                break;
+            if (cp == '\n') {
+                hard = true;
+                break;
+            }
+            adv = measure_span(font, tb->buf + j, n);
+            if (wrap_w > 0.0f && width + adv > wrap_w && j > line_start) {
+                wrapped = true;
+                break;
+            }
+            width += adv;
+            j += n;
+            if (cp == ' ')
+                last_break = j; /* break after this space */
+        }
+
+        if (hard) {
+            emit_line(tb, line_start, j - line_start);
+            i = j + 1; /* skip the '\n' */
+            continue;
+        }
+        if (wrapped) {
+            size_t brk = (last_break > line_start) ? last_break : j;
+
+            emit_line(tb, line_start, brk - line_start);
+            i = brk;
+            continue;
+        }
+        emit_line(tb, line_start, tb->len - line_start); /* trailing line */
+        break;
+    }
+    if (tb->line_count == 0)
+        emit_line(tb, 0, 0); /* empty buffer still has one line */
+}
+
+static float tb_wrap_width(cl_textbox_t *tb)
+{
+    float w = tb->base.rect.w - 2.0f * TB_PAD_X;
+
+    return w > 0.0f ? w : 0.0f;
+}
+
+static void tb_ensure_layout(cl_textbox_t *tb, cl_font_t *font)
+{
+    float wrap_w = tb_wrap_width(tb);
+
+    if (tb->layout_dirty || wrap_w != tb->layout_width || tb->line_count == 0)
+        tb_relayout(tb, font, wrap_w);
+}
+
+/* Index of the visual line containing byte offset (last line with start <= off). */
+static size_t tb_line_of(cl_textbox_t *tb, size_t offset)
+{
+    size_t i;
+
+    for (i = tb->line_count; i > 0; i--) {
+        if (tb->lines[i - 1].start <= offset)
+            return i - 1;
+    }
+    return 0;
+}
+
+/* Byte offset within a visual line nearest to x (measured from the line start). */
+static size_t offset_in_line_at_x(cl_textbox_t *tb, cl_font_t *font, size_t line,
+                                  float x)
+{
+    tb_line_t L;
+    size_t end;
+    size_t i;
+    float px = 0.0f;
+    uint32_t cp;
+    size_t n;
+
+    if (line >= tb->line_count) /* only reachable if layout OOM'd */
+        return 0;
+    L = tb->lines[line];
+    end = L.start + L.len;
+    i = L.start;
+
+    if (!font || x <= 0.0f)
+        return L.start;
+    while (i < end && (n = cl_utf8_next(tb->buf + i, &cp)) != 0) {
+        float adv;
+
+        if (i + n > end)
+            break;
+        adv = measure_span(font, tb->buf + i, n);
+        if (x < px + adv * 0.5f)
+            return i;
+        px += adv;
+        i += n;
+    }
+    return end;
+}
+
+static void caret_pos(cl_textbox_t *tb, cl_font_t *font, size_t offset,
+                      float *out_x, size_t *out_line)
+{
+    size_t line;
+
+    if (tb->line_count == 0) { /* only reachable if layout OOM'd */
+        *out_line = 0;
+        *out_x = 0.0f;
+        return;
+    }
+    line = tb_line_of(tb, offset);
+    *out_line = line;
+    *out_x = measure_span(font, tb->buf + tb->lines[line].start,
+                          offset - tb->lines[line].start);
+}
+
+static size_t offset_at_point(cl_textbox_t *tb, cl_font_t *font, float cx,
+                              float cy)
+{
+    float lh = line_height_of(font);
+    long li;
+
+    if (tb->line_count == 0)
+        return 0;
+    li = (long)(cy / lh);
+    if (li < 0)
+        li = 0;
+    if ((size_t)li >= tb->line_count)
+        li = (long)tb->line_count - 1;
+    return offset_in_line_at_x(tb, font, (size_t)li, cx);
+}
+
+static void update_scroll_y(cl_textbox_t *tb, cl_font_t *font)
+{
+    float lh = line_height_of(font);
+    float cy = (float)tb_line_of(tb, tb->cursor) * lh;
+    float view_h = tb->base.rect.h - 2.0f * TB_PAD_Y;
+    float content_h = (float)tb->line_count * lh;
+    float max_scroll;
+
+    if (view_h < 0.0f)
+        view_h = 0.0f;
+    if (cy - tb->scroll_y < 0.0f)
+        tb->scroll_y = cy;
+    else if (cy + lh - tb->scroll_y > view_h)
+        tb->scroll_y = cy + lh - view_h;
+    max_scroll = content_h - view_h;
+    if (max_scroll < 0.0f)
+        max_scroll = 0.0f;
+    if (tb->scroll_y > max_scroll)
+        tb->scroll_y = max_scroll;
+    if (tb->scroll_y < 0.0f)
+        tb->scroll_y = 0.0f;
+}
+
+/* ---- scroll ------------------------------------------------------------- */
+
 static void update_scroll(cl_textbox_t *tb)
 {
     cl_font_t *font = textbox_font(&tb->base);
-    float cx = caret_x(tb, font, tb->cursor);
-    float visible = tb->base.rect.w - 2.0f * TB_PAD_X;
+    float cx;
+    float visible;
 
+    if (tb->multiline) {
+        tb_ensure_layout(tb, font);
+        update_scroll_y(tb, font);
+        return;
+    }
+
+    cx = caret_x(tb, font, tb->cursor);
+    visible = tb->base.rect.w - 2.0f * TB_PAD_X;
     if (visible < 0.0f)
         visible = 0.0f;
     if (cx - tb->scroll_x < 0.0f)
@@ -277,6 +518,7 @@ static void delete_range(cl_textbox_t *tb, size_t lo, size_t hi)
     tb->len -= hi - lo;
     tb->cursor = lo;
     tb->anchor = lo;
+    tb->layout_dirty = true;
 }
 
 static void delete_selection(cl_textbox_t *tb)
@@ -317,6 +559,7 @@ static void insert_text(cl_textbox_t *tb, const char *s, size_t slen)
     tb->len += slen;
     tb->cursor += slen;
     tb->anchor = tb->cursor;
+    tb->layout_dirty = true;
 }
 
 static void move_cursor(cl_textbox_t *tb, size_t pos, bool extend)
@@ -492,6 +735,7 @@ static void restore_snapshot(cl_textbox_t *tb, const tb_snapshot_t *snap)
     tb->len = n;
     tb->cursor = snap->cursor > n ? n : snap->cursor;
     tb->anchor = snap->anchor > n ? n : snap->anchor;
+    tb->layout_dirty = true;
 }
 
 static bool history_apply(cl_textbox_t *tb, bool undo)
@@ -516,11 +760,112 @@ static bool history_apply(cl_textbox_t *tb, bool undo)
 
 static cl_size_t textbox_measure(cl_widget_t *w, cl_constraints_t c)
 {
+    cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
     cl_font_t *font = textbox_font(w);
-    float lh = font ? cl_font_metrics(font).line_height : 16.0f;
+    float lh = line_height_of(font);
 
     (void)c;
+    if (tb->multiline) {
+        /* Default to four visible lines; honour an explicit preferred size. */
+        float ww = w->pref_size.w > 0.0f ? w->pref_size.w : TB_DEFAULT_WIDTH;
+        float hh = w->pref_size.h > 0.0f ? w->pref_size.h
+                                         : 4.0f * lh + 2.0f * TB_PAD_Y;
+
+        return (cl_size_t){ ww, hh };
+    }
     return (cl_size_t){ TB_DEFAULT_WIDTH, lh + 2.0f * TB_PAD_Y };
+}
+
+/* Paint the wrapped, vertically-scrolled multiline layout. */
+static void textbox_paint_multi(cl_widget_t *w, cl_paint_context_t *ctx,
+                                cl_font_t *font, bool focused)
+{
+    cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
+    float lh = line_height_of(font);
+    float text_x = w->rect.x + TB_PAD_X;
+    float text_top = w->rect.y + TB_PAD_Y;
+    float view_h = w->rect.h - 2.0f * TB_PAD_Y;
+    cl_rect_t inner = { text_x, text_top, w->rect.w - 2.0f * TB_PAD_X, view_h };
+    cl_color_t text_col = cl_paint_theme_color(ctx, CL_COLOR_TEXT);
+    bool sel = focused && has_selection(tb);
+    size_t lo = 0;
+    size_t hi = 0;
+    size_t first;
+    size_t i;
+
+    tb_ensure_layout(tb, font);
+
+    if (tb->len == 0 && !focused && tb->placeholder && font) {
+        cl_paint_draw_text(ctx, font, tb->placeholder,
+                           (cl_point_t){ text_x, text_top },
+                           cl_paint_theme_color(ctx, CL_COLOR_TEXT_MUTED));
+        return;
+    }
+    if (!font)
+        return;
+    if (sel)
+        sel_range(tb, &lo, &hi);
+
+    /* Keep the offset in range if a resize shrank the content since the last
+     * caret move (which is what normally clamps it). */
+    {
+        float max_scroll = (float)tb->line_count * lh - view_h;
+
+        if (max_scroll < 0.0f)
+            max_scroll = 0.0f;
+        if (tb->scroll_y > max_scroll)
+            tb->scroll_y = max_scroll;
+        if (tb->scroll_y < 0.0f)
+            tb->scroll_y = 0.0f;
+    }
+
+    cl_paint_push_clip(ctx, inner);
+    first = (size_t)(tb->scroll_y / lh);
+    for (i = first; i < tb->line_count; i++) {
+        tb_line_t L = tb->lines[i];
+        size_t end = L.start + L.len;
+        float ly = text_top + (float)i * lh - tb->scroll_y;
+
+        if (ly >= text_top + view_h)
+            break; /* past the bottom of the viewport */
+
+        if (sel && lo <= end && hi >= L.start) {
+            size_t s = lo > L.start ? lo : L.start;
+            size_t e = hi < end ? hi : end;
+            float xs = measure_span(font, tb->buf + L.start, s - L.start);
+            float xe = e > s ? measure_span(font, tb->buf + L.start, e - L.start)
+                             : xs;
+            float ww = xe - xs;
+
+            if (hi > end)
+                ww += lh * 0.3f; /* the newline/wrap into the next line */
+            if (ww > 0.0f)
+                cl_paint_fill_rect(
+                    ctx, (cl_rect_t){ text_x + xs, ly, ww, lh },
+                    cl_paint_theme_color(ctx, CL_COLOR_SELECTION));
+        }
+
+        if (L.len > 0) {
+            char saved = tb->buf[end];
+
+            tb->buf[end] = '\0'; /* draw exactly this line, then restore */
+            cl_paint_draw_text(ctx, font, tb->buf + L.start,
+                               (cl_point_t){ text_x, ly }, text_col);
+            tb->buf[end] = saved;
+        }
+    }
+
+    if (focused && !has_selection(tb)) {
+        size_t line;
+        float cx;
+        float cyv;
+
+        caret_pos(tb, font, tb->cursor, &cx, &line);
+        cyv = text_top + (float)line * lh - tb->scroll_y;
+        cl_paint_fill_rect(ctx, (cl_rect_t){ text_x + cx, cyv, 1.0f, lh },
+                           text_col);
+    }
+    cl_paint_pop_clip(ctx);
 }
 
 static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
@@ -542,6 +887,11 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
         ctx, w->rect, TB_RADIUS, focused ? 2.0f : 1.0f,
         cl_paint_theme_color(ctx, focused ? CL_COLOR_FOCUS_RING
                                           : CL_COLOR_BORDER));
+
+    if (tb->multiline) {
+        textbox_paint_multi(w, ctx, font, focused);
+        return;
+    }
 
     if (tb->len == 0 && !focused && tb->placeholder) {
         if (font)
@@ -606,14 +956,58 @@ static bool textbox_mouse_down(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
     cl_font_t *font = textbox_font(w);
-    float local_x = ev->data.mouse.pos.x - (w->rect.x + TB_PAD_X) + tb->scroll_x;
-    size_t off = offset_at_x(tb, font, local_x);
+    size_t off;
+
+    if (tb->multiline) {
+        float cx = ev->data.mouse.pos.x - (w->rect.x + TB_PAD_X);
+        float cy = ev->data.mouse.pos.y - (w->rect.y + TB_PAD_Y) + tb->scroll_y;
+
+        tb_ensure_layout(tb, font);
+        off = offset_at_point(tb, font, cx, cy);
+    } else {
+        float local_x =
+            ev->data.mouse.pos.x - (w->rect.x + TB_PAD_X) + tb->scroll_x;
+
+        off = offset_at_x(tb, font, local_x);
+    }
 
     edit_break(tb); /* a click starts a fresh undo group */
     tb->cursor = off;
     if (!(ev->mods & CL_MOD_SHIFT))
         tb->anchor = off;
+    tb->goal_valid = false;
     update_scroll(tb);
+    cl_widget_invalidate(w);
+    return true;
+}
+
+static bool textbox_mouse_wheel(cl_widget_t *w, const cl_event_t *ev)
+{
+    cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
+    cl_font_t *font = textbox_font(w);
+    float lh;
+    float view_h;
+    float max_scroll;
+    float before;
+
+    if (!tb->multiline)
+        return false; /* single line: let an outer scroller take the wheel */
+    tb_ensure_layout(tb, font);
+    lh = line_height_of(font);
+    view_h = w->rect.h - 2.0f * TB_PAD_Y;
+    if (view_h < 0.0f)
+        view_h = 0.0f;
+    max_scroll = (float)tb->line_count * lh - view_h;
+    if (max_scroll <= 0.0f)
+        return false; /* nothing to scroll: bubble to an outer container */
+    before = tb->scroll_y;
+    tb->scroll_y -= ev->data.wheel.dy * lh * 3.0f; /* three lines per notch */
+    if (tb->scroll_y < 0.0f)
+        tb->scroll_y = 0.0f;
+    if (tb->scroll_y > max_scroll)
+        tb->scroll_y = max_scroll;
+    if (tb->scroll_y == before)
+        return false; /* already at the edge */
     cl_widget_invalidate(w);
     return true;
 }
@@ -629,6 +1023,11 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
     tb_edit_kind_t commit = TB_EDIT_NONE;
     size_t lo;
     size_t hi;
+
+    /* Any motion other than Up/Down resets the goal column for the next
+     * Up/Down (which preserves the caret's x across short lines). */
+    if (key != CL_KEY_UP && key != CL_KEY_DOWN)
+        tb->goal_valid = false;
 
     switch (key) {
         case CL_KEY_LEFT:
@@ -656,20 +1055,67 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
             }
             break;
 
+        case CL_KEY_UP:
+        case CL_KEY_DOWN:
+            if (!tb->multiline) {
+                handled = false;
+                break;
+            }
+            edit_break(tb);
+            {
+                cl_font_t *font = textbox_font(w);
+                size_t line;
+                float cx;
+
+                tb_ensure_layout(tb, font);
+                caret_pos(tb, font, tb->cursor, &cx, &line);
+                if (!tb->goal_valid) {
+                    tb->goal_x = cx;
+                    tb->goal_valid = true;
+                }
+                if (key == CL_KEY_UP)
+                    tb->cursor = line == 0 ? 0
+                        : offset_in_line_at_x(tb, font, line - 1, tb->goal_x);
+                else
+                    tb->cursor = line + 1 >= tb->line_count ? tb->len
+                        : offset_in_line_at_x(tb, font, line + 1, tb->goal_x);
+                if (!shift)
+                    tb->anchor = tb->cursor;
+            }
+            break;
+
         case CL_KEY_HOME:
             edit_break(tb);
-            if (ctrl)
+            if (tb->multiline && !ctrl) {
+                cl_font_t *font = textbox_font(w);
+
+                tb_ensure_layout(tb, font);
+                if (tb->line_count > 0) /* 0 only if a layout alloc failed */
+                    move_cursor(tb, tb->lines[tb_line_of(tb, tb->cursor)].start,
+                                shift);
+            } else if (ctrl && !tb->multiline) {
                 handled = false;
-            else
-                move_cursor(tb, 0, shift);
+            } else {
+                move_cursor(tb, 0, shift); /* Ctrl+Home (multiline) = doc start */
+            }
             break;
 
         case CL_KEY_END:
             edit_break(tb);
-            if (ctrl)
+            if (tb->multiline && !ctrl) {
+                cl_font_t *font = textbox_font(w);
+
+                tb_ensure_layout(tb, font);
+                if (tb->line_count > 0) { /* 0 only if a layout alloc failed */
+                    tb_line_t L = tb->lines[tb_line_of(tb, tb->cursor)];
+
+                    move_cursor(tb, L.start + L.len, shift);
+                }
+            } else if (ctrl && !tb->multiline) {
                 handled = false;
-            else
-                move_cursor(tb, tb->len, shift);
+            } else {
+                move_cursor(tb, tb->len, shift); /* Ctrl+End (multiline) = end */
+            }
             break;
 
         case CL_KEY_BACKSPACE:
@@ -698,10 +1144,17 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
             break;
 
         case CL_KEY_ENTER:
-            if (tb->on_submit)
+            if (tb->multiline) {
+                if (!tb->readonly) {
+                    edit_begin(tb);
+                    insert_text(tb, "\n", 1);
+                    commit = TB_EDIT_OTHER; /* a newline breaks the undo group */
+                }
+            } else if (tb->on_submit) {
                 tb->on_submit(w, tb->buf, tb->on_submit_user);
-            else
+            } else {
                 handled = false;
+            }
             break;
 
         case CL_KEY_A:
@@ -742,7 +1195,8 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
                     char *clip = cl_app_clipboard_get(w->app);
 
                     if (clip) {
-                        strip_newlines(clip);
+                        if (!tb->multiline)
+                            strip_newlines(clip); /* single-line: drop breaks */
                         /* only a non-empty paste is an edit; empty (e.g. a
                          * newline-only clipboard) must not fire on_changed */
                         if (clip[0]) {
@@ -822,6 +1276,7 @@ static void textbox_destroy(cl_widget_t *w)
     cl_free(a, tb->pending);
     cl_free(a, tb->buf);
     cl_free(a, tb->placeholder);
+    cl_free(a, tb->lines);
 }
 
 /* ---- public ------------------------------------------------------------- */
@@ -855,6 +1310,9 @@ static void set_text_internal(cl_textbox_t *tb, const char *utf8)
     tb->cursor = n;
     tb->anchor = n;
     tb->scroll_x = 0.0f;
+    tb->scroll_y = 0.0f;
+    tb->goal_valid = false;
+    tb->layout_dirty = true;
     clear_history(tb); /* a programmatic set is not an undoable edit */
 }
 
@@ -876,9 +1334,12 @@ cl_widget_t *cl_textbox_create(cl_application_t *app,
     }
     tb->buf[0] = '\0';
 
+    tb->layout_dirty = true;
+
     if (desc) {
         tb->password = desc->password;
         tb->readonly = desc->readonly;
+        tb->multiline = desc->multiline;
         tb->max_length = desc->max_length;
         tb->placeholder = dup_str(cl_application_allocator(app),
                                   desc->placeholder);
@@ -925,4 +1386,26 @@ void cl_textbox_set_on_submit(cl_widget_t *tb_w, cl_text_changed_fn fn,
         tb->on_submit = fn;
         tb->on_submit_user = user;
     }
+}
+
+size_t cl_textbox_line_count(cl_widget_t *tb_w)
+{
+    cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, tb_w);
+
+    if (!tb)
+        return 0;
+    if (!tb->multiline)
+        return 1;
+    tb_ensure_layout(tb, textbox_font(tb_w));
+    return tb->line_count;
+}
+
+size_t cl_textbox_cursor_line(cl_widget_t *tb_w)
+{
+    cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, tb_w);
+
+    if (!tb || !tb->multiline)
+        return 0;
+    tb_ensure_layout(tb, textbox_font(tb_w));
+    return tb_line_of(tb, tb->cursor);
 }

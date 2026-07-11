@@ -18,22 +18,27 @@ extern "C" {
 typedef struct cl_application cl_application_t;
 
 /*
- * Single-line text box (MVP). UTF-8, codepoint-aware cursor and selection,
- * insertion/deletion, arrow/Home/End navigation, mouse positioning, password
- * masking, read-only mode, a codepoint length cap, clipboard cut/copy/paste
- * (Ctrl+X/C/V), undo/redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z), and clipping of
- * overflowing text to the box.
+ * Text box. UTF-8, codepoint-aware cursor and selection, insertion/deletion,
+ * arrow/Home/End navigation, mouse positioning, password masking, read-only
+ * mode, a codepoint length cap, clipboard cut/copy/paste (Ctrl+X/C/V), and
+ * undo/redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z).
  *
- * Not yet implemented (documented limitations): IME composition and multi-line
- * editing.
+ * With `multiline` set the box wraps text to its width and keeps explicit line
+ * breaks: Enter inserts a newline (not submit), Up/Down move between lines,
+ * Home/End act per visual line (Ctrl+Home/End jump to the document ends), the
+ * content scrolls vertically (wheel or to follow the caret), and pasted line
+ * breaks are kept. Password masking is ignored in multiline mode.
+ *
+ * Not yet implemented (documented limitations): IME composition.
  */
 typedef struct cl_textbox_desc {
     uint32_t abi_version;
     size_t struct_size;
     const char *text;        /* initial text (UTF-8); may be NULL */
     const char *placeholder; /* shown when empty and unfocused; may be NULL */
-    bool password;           /* mask characters */
+    bool password;           /* mask characters (single-line only) */
     bool readonly;           /* navigation allowed, editing blocked */
+    bool multiline;          /* wrap to width, keep newlines, scroll vertically */
     size_t max_length;       /* max codepoints; 0 = unlimited */
 } cl_textbox_desc_t;
 
@@ -53,9 +58,19 @@ CL_API const char *cl_textbox_text(cl_widget_t *tb);
 CL_API void cl_textbox_set_on_changed(cl_widget_t *tb, cl_text_changed_fn fn,
                                       void *user);
 
-/** cl_textbox_set_on_submit() - called only when Enter is pressed. */
+/** cl_textbox_set_on_submit() - called only when Enter is pressed (single-line;
+ *  in multiline mode Enter inserts a newline and never submits). */
 CL_API void cl_textbox_set_on_submit(cl_widget_t *tb, cl_text_changed_fn fn,
                                      void *user);
+
+/** cl_textbox_line_count() - number of wrapped visual lines (multiline); the
+ *  layout is recomputed against the current width. Returns 1 for a single-line
+ *  box. */
+CL_API size_t cl_textbox_line_count(cl_widget_t *tb);
+
+/** cl_textbox_cursor_line() - visual line index the caret is on (multiline),
+ *  or 0 for a single-line box. */
+CL_API size_t cl_textbox_cursor_line(cl_widget_t *tb);
 
 #ifdef __cplusplus
 }
