@@ -15,6 +15,7 @@ option(COPAL_BUILD_EXAMPLES    "Build examples"                     ON)
 option(COPAL_BUILD_TESTS       "Build tests"                        ON)
 option(COPAL_ENABLE_SDL        "Enable SDL2 platform backend"       OFF) # Stage 6
 option(COPAL_ENABLE_OPENGL     "Enable OpenGL renderer backend"     OFF) # Stage 6
+option(COPAL_FETCH_SDL2        "Download and build SDL2 via FetchContent" OFF)
 option(COPAL_ENABLE_SANITIZERS "Enable ASan/UBSan"                  OFF)
 option(COPAL_ENABLE_INSTALL    "Enable install rules"               ON)
 
@@ -86,7 +87,23 @@ endif()
 
 # Native backends: SDL2 platform + OpenGL renderer. Enable both together.
 if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
-    find_package(SDL2 REQUIRED)
+    # SDL2 comes from either a system/vcpkg package (find_package) or, when
+    # COPAL_FETCH_SDL2 is set, is downloaded and built as a subproject. The
+    # latter needs no local SDL2 install and is the easy path on Windows.
+    if(COPAL_FETCH_SDL2)
+        include(FetchContent)
+        FetchContent_Declare(SDL2
+            GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+            GIT_TAG release-2.30.9
+            GIT_SHALLOW TRUE)
+        set(SDL2_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
+        set(SDL_TEST OFF CACHE BOOL "" FORCE)
+        set(SDL_SHARED ON CACHE BOOL "" FORCE)
+        set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(SDL2)
+    else()
+        find_package(SDL2 REQUIRED)
+    endif()
     find_package(OpenGL REQUIRED)
     target_sources(copal PRIVATE
         src/platform/sdl/platform_sdl.c
