@@ -64,6 +64,7 @@ set(COPAL_SOURCES
     src/widgets/menu.c
     src/widgets/combobox.c
     src/widgets/textbox.c
+    src/widgets/tooltip.c
     src/app/application.c
     src/app/window.c
     src/app/timer.c)

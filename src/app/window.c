@@ -6,8 +6,11 @@
 
 #include "app/app_internal.h"
 #include "widget/widget_internal.h"
+#include "widgets/tooltip_internal.h"
 #include "render/paint_context.h"
 #include "core/foundation/foundation_internal.h"
+
+static void tooltip_dismiss(cl_window_t *win); /* defined with the hover layer */
 
 cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *desc)
 {
@@ -55,6 +58,7 @@ void cl_window_destroy(cl_window_t *win)
 
     if (!win)
         return;
+    tooltip_dismiss(win); /* cancel the dwell timer and free the bubble first */
     if (win->overlay) {
         cl_widget_t *o = win->overlay;
 
@@ -153,6 +157,7 @@ void cl_window_open_popup(cl_window_t *win, cl_widget_t *popup, cl_point_t at)
 {
     if (!win || !popup)
         return;
+    tooltip_dismiss(win); /* a popup supersedes any hover tooltip */
     if (win->overlay && win->overlay != popup)
         cl_widget_destroy(win->overlay); /* replace any existing popup */
     win->overlay = popup;
@@ -209,10 +214,141 @@ void cl_window_reap_overlay(cl_window_t *win)
     }
 }
 
+/* ---- hover tooltips ----------------------------------------------------- */
+
+#define TOOLTIP_DWELL_MS 500
+#define TOOLTIP_GAP 18.0f /* vertical offset of the bubble from the cursor */
+
+/* Nearest widget under `pos` (itself or an ancestor) that carries a tooltip and
+ * is visible + enabled, or NULL. */
+static cl_widget_t *tooltip_target_at(cl_window_t *win, cl_point_t pos)
+{
+    cl_widget_t *w;
+
+    if (!win->content)
+        return NULL;
+    w = cl_widget_hit(win->content, pos);
+    for (; w; w = w->parent) {
+        const uint32_t vis = CL_WF_VISIBLE | CL_WF_ENABLED;
+
+        if (w->tooltip && (w->flags & vis) == vis)
+            return w;
+    }
+    return NULL;
+}
+
+/* True while the current tooltip target is still shown on screen: it and every
+ * ancestor are visible and it is enabled. A target hidden/disabled/collapsed
+ * without an intervening pointer move must not keep a bubble painted. */
+static bool tooltip_target_live(cl_window_t *win)
+{
+    cl_widget_t *w = win->tooltip_target;
+
+    if (!w || !(w->flags & CL_WF_ENABLED))
+        return false;
+    for (; w; w = w->parent) {
+        if (!(w->flags & CL_WF_VISIBLE))
+            return false;
+    }
+    return true;
+}
+
+/* Measure the bubble and place it near the anchor, clamped on-screen. */
+static void tooltip_place(cl_window_t *win)
+{
+    cl_constraints_t c;
+    cl_size_t sz;
+    float x = win->tooltip_anchor.x;
+    float y = win->tooltip_anchor.y + TOOLTIP_GAP;
+
+    c.min = (cl_size_t){ 0.0f, 0.0f };
+    c.max = (cl_size_t){ CL_UNBOUNDED, CL_UNBOUNDED };
+    sz = cl_widget_do_measure(win->tooltip, c);
+    if (x + sz.w > win->size.w)
+        x = win->size.w - sz.w;
+    if (y + sz.h > win->size.h)
+        y = win->tooltip_anchor.y - sz.h; /* no room below: flip above */
+    if (x < 0.0f)
+        x = 0.0f;
+    if (y < 0.0f)
+        y = 0.0f;
+    cl_widget_do_arrange(win->tooltip, (cl_rect_t){ x, y, sz.w, sz.h });
+}
+
+static void tooltip_cancel_timer(cl_window_t *win)
+{
+    if (win->tooltip_timer) {
+        cl_timer_cancel(win->tooltip_timer);
+        win->tooltip_timer = NULL;
+    }
+}
+
+/* Hide the bubble, cancel any pending dwell, and forget the target. */
+static void tooltip_dismiss(cl_window_t *win)
+{
+    tooltip_cancel_timer(win);
+    if (win->tooltip) {
+        cl_widget_destroy(win->tooltip);
+        win->tooltip = NULL;
+        cl_window_mark_dirty(win);
+    }
+    win->tooltip_target = NULL;
+}
+
+static void tooltip_on_dwell(cl_timer_t *timer, void *user)
+{
+    cl_window_t *win = user;
+    cl_widget_t *tgt = win->tooltip_target;
+
+    win->tooltip_timer = NULL; /* this one-shot has fired */
+    cl_timer_cancel(timer);    /* free it (deferred while the pass runs) */
+    if (!tgt || !tgt->tooltip)
+        return;
+    win->tooltip = cl_tooltip_create(win->app, tgt->tooltip);
+    if (win->tooltip) {
+        tooltip_place(win);
+        cl_window_mark_dirty(win);
+    }
+}
+
+/* Update the hover state on pointer motion (called only when not dragging). */
+static void tooltip_hover(cl_window_t *win, cl_point_t pos)
+{
+    cl_widget_t *tgt = tooltip_target_at(win, pos);
+
+    if (tgt != win->tooltip_target) {
+        tooltip_dismiss(win); /* left the previous target */
+        win->tooltip_target = tgt;
+        if (tgt) {
+            win->tooltip_anchor = pos;
+            win->tooltip_timer = cl_timer_create(
+                win->app, TOOLTIP_DWELL_MS, false, tooltip_on_dwell, win);
+        }
+    } else if (tgt && !win->tooltip) {
+        win->tooltip_anchor = pos; /* not shown yet: keep near the cursor */
+    }
+}
+
+void cl_window_tooltip_target_gone(cl_window_t *win, cl_widget_t *w)
+{
+    if (win && win->tooltip_target == w)
+        tooltip_dismiss(win);
+}
+
+cl_widget_t *cl_window_tooltip(cl_window_t *win)
+{
+    return win ? win->tooltip : NULL;
+}
+
 void cl_window_render(cl_window_t *win)
 {
     cl_application_t *app = win->app;
     struct cl_paint_context ctx;
+
+    /* Drop a bubble whose target was hidden, disabled, or collapsed since the
+     * last pointer move (the hover layer otherwise only reconciles on motion). */
+    if (win->tooltip && !tooltip_target_live(win))
+        tooltip_dismiss(win);
 
     if (win->layout_dirty) {
         if (win->content) {
@@ -226,6 +362,8 @@ void cl_window_render(cl_window_t *win)
         }
         if (win->overlay && !win->overlay_closing)
             place_overlay(win); /* re-clamp the popup against the new size */
+        if (win->tooltip)
+            tooltip_place(win); /* re-clamp the bubble against the new size */
         win->layout_dirty = false;
     }
 
@@ -250,6 +388,8 @@ void cl_window_render(cl_window_t *win)
         cl_widget_do_paint(win->content, &ctx);
     if (win->overlay && !win->overlay_closing)
         cl_widget_do_paint(win->overlay, &ctx); /* popups paint on top */
+    if (win->tooltip)
+        cl_widget_do_paint(win->tooltip, &ctx); /* tooltip paints on top */
     app->renderer->ops->end_frame(app->renderer);
     app->platform->ops->present(app->platform);
     win->dirty = false;
@@ -291,6 +431,7 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
     if (kind == CL_PEV_MOUSE_DOWN) {
         cl_widget_t *f;
 
+        tooltip_dismiss(win); /* a click removes any tooltip */
         ev.type = CL_EVENT_MOUSE_DOWN;
         target = cl_widget_hit(win->content, pos);
         win->mouse_target = target;
@@ -312,6 +453,8 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
         ev.type = CL_EVENT_MOUSE_MOVE;
         target = win->mouse_target ? win->mouse_target
                                    : cl_widget_hit(win->content, pos);
+        if (!win->mouse_target)
+            tooltip_hover(win, pos); /* not dragging: update hover tooltip */
     }
 
     if (target)
@@ -340,6 +483,7 @@ void cl_window_handle_wheel(cl_window_t *win, cl_point_t pos, float dx,
 
     if (!win->content)
         return;
+    tooltip_dismiss(win); /* scrolling moves content out from under the bubble */
     target = cl_widget_hit(win->content, pos);
     if (target)
         cl_widget_dispatch(target, &ev);
@@ -392,6 +536,8 @@ void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
         return;
     }
 
+    if (kind == CL_PEV_KEY_DOWN)
+        tooltip_dismiss(win); /* keyboard activity dismisses a hover tooltip */
     if (win->focus)
         handled = cl_widget_dispatch(win->focus, &ev);
     if (!handled && kind == CL_PEV_KEY_DOWN && key == CL_KEY_TAB)

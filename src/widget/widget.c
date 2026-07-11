@@ -82,7 +82,8 @@ void cl_widget_set_window(cl_widget_t *w, cl_window_t *win)
             cl_window_set_focus(old, NULL);
         if (old->mouse_target == w)
             old->mouse_target = NULL;
-        cl_window_owner_destroyed(old, w); /* tear down a popup w opened */
+        cl_window_owner_destroyed(old, w);   /* tear down a popup w opened */
+        cl_window_tooltip_target_gone(old, w); /* drop its hover tooltip */
     }
     w->window = win;
     for (c = w->first_child; c; c = c->next_sibling)
@@ -150,12 +151,15 @@ static void widget_destroy_subtree(cl_widget_t *w)
         w->window->mouse_target = NULL;
     if (w->window && w->window->focus == w)
         w->window->focus = NULL;
-    if (w->window)
+    if (w->window) {
         cl_window_owner_destroyed(w->window, w); /* tear down its popup, if any */
+        cl_window_tooltip_target_gone(w->window, w); /* drop its hover tooltip */
+    }
 
     a = cl_application_allocator(w->app);
     if (w->cls->vtable && w->cls->vtable->destroy)
         w->cls->vtable->destroy(w);
+    cl_free(a, w->tooltip);
     cl_free(a, w);
 }
 
@@ -278,6 +282,26 @@ void cl_widget_set_userdata(cl_widget_t *w, void *user)
 void *cl_widget_userdata(cl_widget_t *w)
 {
     return w->userdata;
+}
+
+void cl_widget_set_tooltip(cl_widget_t *w, const char *utf8)
+{
+    const cl_allocator_t *a = cl_application_allocator(w->app);
+
+    cl_free(a, w->tooltip);
+    w->tooltip = NULL;
+    if (utf8 && utf8[0]) {
+        size_t n = strlen(utf8) + 1;
+
+        w->tooltip = cl_alloc(a, n);
+        if (w->tooltip)
+            memcpy(w->tooltip, utf8, n);
+    }
+}
+
+const char *cl_widget_tooltip(cl_widget_t *w)
+{
+    return w->tooltip;
 }
 
 /* ---- layout / paint / hit-test ----------------------------------------- */

@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#define CL_WIDGET_RESERVED 32
+#define CL_WIDGET_RESERVED 24
 
 enum cl_widget_flags {
     CL_WF_VISIBLE = 1u << 0,
@@ -93,6 +93,7 @@ struct cl_widget {
     uint32_t flags;
     uint32_t generation;
     void *userdata;
+    char *tooltip; /* owned UTF-8 hover text, or NULL (cl_widget_set_tooltip) */
     unsigned char reserved[CL_WIDGET_RESERVED];
 };
 

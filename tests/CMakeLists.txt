@@ -82,3 +82,13 @@ if(COPAL_ENABLE_SANITIZERS)
 endif()
 add_test(NAME timer COMMAND test_timer)
 
+add_executable(test_tooltip test_tooltip.c)
+target_link_libraries(test_tooltip PRIVATE copal::copal)
+target_include_directories(test_tooltip PRIVATE ${CMAKE_SOURCE_DIR}/src)
+copal_set_warnings(test_tooltip)
+if(COPAL_ENABLE_SANITIZERS)
+    copal_enable_sanitizers(test_tooltip)
+endif()
+add_test(NAME tooltip COMMAND test_tooltip)
+set_tests_properties(tooltip PROPERTIES SKIP_RETURN_CODE 77)
+

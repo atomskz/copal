@@ -267,6 +267,9 @@ int main(int argc, char **argv)
     button = cl_button_create(
         app, &(cl_button_desc_t){ CL_BUTTON_DESC_INIT_FIELDS, .text = "Close" });
     cl_button_set_on_click(button, on_close, app);
+    cl_widget_set_tooltip(button, "Quit the application");
+    cl_widget_set_tooltip(textbox, "Type here — supports undo/redo and clipboard");
+    cl_widget_set_tooltip(slider, "Drag to change the value");
 
     uptime = cl_label_create(
         app, &(cl_label_desc_t){ CL_LABEL_DESC_INIT_FIELDS, .text = "uptime: 0 s" });

@@ -48,6 +48,11 @@ CL_API void cl_widget_invalidate_layout(cl_widget_t *w);
 CL_API void cl_widget_set_userdata(cl_widget_t *w, void *user);
 CL_API void *cl_widget_userdata(cl_widget_t *w);
 
+/* Hover tooltip. The text (copied) appears after the pointer dwells over the
+ * widget; NULL or "" clears it. */
+CL_API void cl_widget_set_tooltip(cl_widget_t *w, const char *utf8);
+CL_API const char *cl_widget_tooltip(cl_widget_t *w);
+
 #ifdef __cplusplus
 }
 #endif

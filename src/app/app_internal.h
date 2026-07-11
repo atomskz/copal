@@ -38,10 +38,14 @@ struct cl_window {
     cl_widget_t *overlay_owner; /* weak; widget that opened the popup, or NULL */
     cl_point_t overlay_anchor;  /* requested popup position (pre-clamp) */
     bool overlay_closing;       /* deferred-close flag for the overlay */
-    cl_widget_t *mouse_target;  /* weak; basic pointer capture */
-    cl_widget_t *focus;         /* weak; keyboard focus */
-    bool focus_reveal_pending;  /* reveal focus once the next layout is fresh */
-    cl_size_t size;             /* logical px */
+    cl_widget_t *mouse_target;   /* weak; basic pointer capture */
+    cl_widget_t *focus;          /* weak; keyboard focus */
+    bool focus_reveal_pending;   /* reveal focus once the next layout is fresh */
+    cl_widget_t *tooltip;        /* owned; the shown tooltip bubble, or NULL */
+    cl_widget_t *tooltip_target; /* weak; hovered widget being timed/shown */
+    cl_timer_t *tooltip_timer;   /* pending dwell timer, or NULL */
+    cl_point_t tooltip_anchor;   /* cursor position to place the tooltip near */
+    cl_size_t size;              /* logical px */
     float scale;
     bool dirty;
     bool layout_dirty;
@@ -68,6 +72,8 @@ void cl_window_reap_overlay(cl_window_t *win); /* destroy a closed popup safely 
 void cl_window_set_overlay_owner(cl_window_t *win, cl_widget_t *owner);
 /* If w owns the open popup, tear the popup down (called when w is destroyed). */
 void cl_window_owner_destroyed(cl_window_t *win, cl_widget_t *w);
+/* If w is the hovered tooltip target, dismiss it (called when w is destroyed). */
+void cl_window_tooltip_target_gone(cl_window_t *win, cl_widget_t *w);
 
 /*
  * Clipboard access for widgets. cl_app_clipboard_get returns a UTF-8 copy

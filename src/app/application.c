@@ -62,9 +62,11 @@ void cl_application_destroy(cl_application_t *app)
 
     if (!app)
         return;
-    cl_app_timers_free_all(app);
+    /* Destroy the window first: it cancels its own timers (e.g. the tooltip
+     * dwell) via the live timer list before that list is torn down. */
     if (app->window)
         cl_window_destroy(app->window);
+    cl_app_timers_free_all(app);
     if (app->theme)
         cl_theme_free(app->theme);
     if (app->renderer && app->renderer->ops->destroy)

@@ -59,6 +59,10 @@ CL_API void cl_window_open_popup(cl_window_t *win, cl_widget_t *popup,
 CL_API void cl_window_close_popup(cl_window_t *win);
 CL_API cl_widget_t *cl_window_popup(cl_window_t *win);
 
+/* The tooltip bubble currently shown by the hover layer, or NULL. Ownership
+ * stays with the window; mainly useful for introspection and testing. */
+CL_API cl_widget_t *cl_window_tooltip(cl_window_t *win);
+
 #ifdef __cplusplus
 }
 #endif
