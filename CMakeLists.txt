@@ -46,6 +46,7 @@ set(COPAL_SOURCES
     src/core/foundation/error.c
     src/core/foundation/allocator.c
     src/core/foundation/utf8.c
+    src/core/foundation/mutex.c
     src/text/font.c
     src/text/stb_impl.c
     src/theme/theme.c
@@ -96,6 +97,12 @@ endif()
 if(NOT WIN32)
     target_link_libraries(copal PRIVATE m)
 endif()
+
+# Cross-thread task queue (cl_application_post) uses a mutex; PUBLIC so headless
+# consumers that post from their own threads inherit the pthread flags.
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+target_link_libraries(copal PUBLIC Threads::Threads)
 
 # Native backends: SDL2 platform + OpenGL renderer. Enable both together.
 if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)

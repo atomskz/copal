@@ -49,6 +49,16 @@ CL_API int cl_application_run(cl_application_t *app);
 CL_API bool cl_application_step(cl_application_t *app, bool wait);
 CL_API void cl_application_quit(cl_application_t *app, int exit_code);
 
+/*
+ * cl_application_post() - queue fn(user) to run on the loop (UI) thread.
+ *
+ * Thread-safe: may be called from any thread. The task runs once, in FIFO
+ * order, from inside cl_application_run()/cl_application_step() (a blocked run
+ * loop is woken so it drains promptly). A task may itself post more work. Tasks
+ * still queued when the application is destroyed are dropped without running.
+ * Requires the application's allocator to be thread-safe (the default is).
+ * Returns CL_OK, or CL_ERROR_INVALID_ARGUMENT / CL_ERROR_OUT_OF_MEMORY.
+ */
 CL_API cl_result_t cl_application_post(cl_application_t *app, cl_task_fn fn,
                                        void *user);
 

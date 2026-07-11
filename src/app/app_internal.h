@@ -11,6 +11,9 @@
 
 #include "platform/platform.h"
 #include "render/renderer.h"
+#include "core/foundation/mutex_internal.h"
+
+typedef struct cl_task cl_task_t; /* cross-thread task node (application.c) */
 
 struct cl_application {
     cl_allocator_t alloc; /* value copy so &alloc is stable */
@@ -20,11 +23,18 @@ struct cl_application {
     cl_window_t *window; /* single window in MVP */
     cl_timer_t *timers;  /* owned; linked list of active timers */
     bool timer_firing;   /* true while firing: defers timer reaping */
+    cl_mutex_t *task_mutex; /* guards the cross-thread task queue */
+    cl_task_t *task_head;   /* FIFO of posted tasks (guarded) */
+    cl_task_t *task_tail;
     cl_log_fn log_fn;
     void *log_user;
     bool quit;
     int exit_code;
 };
+
+/* Run and free all queued cross-thread tasks (cl_application_post) on the loop
+ * thread. Defined in application.c, driven by run()/step(). */
+void cl_app_run_tasks(cl_application_t *app);
 
 /* Timer subsystem (src/app/timer.c), driven by the application loop. */
 int cl_app_timers_timeout(cl_application_t *app);  /* ms to next, or -1 */

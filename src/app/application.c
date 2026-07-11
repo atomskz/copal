@@ -13,6 +13,12 @@ cl_platform_t *cl_platform_sdl_create(const cl_allocator_t *a);
 cl_renderer_t *cl_renderer_gl_create(const cl_allocator_t *a, cl_platform_t *p);
 #endif
 
+struct cl_task {
+    cl_task_fn fn;
+    void *user;
+    cl_task_t *next;
+};
+
 cl_application_t *cl_application_create(const cl_application_desc_t *desc)
 {
     const cl_allocator_t *a;
@@ -53,6 +59,13 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
         cl_free(a, app);
         return NULL;
     }
+
+    app->task_mutex = cl_mutex_create(&app->alloc);
+    if (!app->task_mutex) {
+        cl_theme_free(app->theme);
+        cl_free(a, app);
+        return NULL;
+    }
     return app;
 }
 
@@ -67,6 +80,20 @@ void cl_application_destroy(cl_application_t *app)
     if (app->window)
         cl_window_destroy(app->window);
     cl_app_timers_free_all(app);
+    /* Drop any tasks posted but never drained (they are not run at teardown). */
+    if (app->task_mutex) {
+        cl_task_t *t = app->task_head;
+
+        while (t) {
+            cl_task_t *next = t->next;
+
+            cl_free(&app->alloc, t);
+            t = next;
+        }
+        app->task_head = app->task_tail = NULL;
+        cl_mutex_destroy(app->task_mutex);
+        app->task_mutex = NULL;
+    }
     if (app->theme)
         cl_theme_free(app->theme);
     if (app->renderer && app->renderer->ops->destroy)
@@ -130,6 +157,7 @@ int cl_application_run(cl_application_t *app)
          * without input events. */
         app->platform->ops->wait(app->platform, cl_app_timers_timeout(app));
         process_events(app);
+        cl_app_run_tasks(app);
         cl_app_timers_poll(app);
         if (app->window)
             cl_window_reap_overlay(app->window);
@@ -151,6 +179,7 @@ bool cl_application_step(cl_application_t *app, bool wait)
         app->platform->ops->wait(app->platform, timeout < 0 ? 0 : timeout);
     }
     process_events(app);
+    cl_app_run_tasks(app);
     cl_app_timers_poll(app);
     if (app->window)
         cl_window_reap_overlay(app->window);
@@ -169,11 +198,54 @@ void cl_application_quit(cl_application_t *app, int exit_code)
 
 cl_result_t cl_application_post(cl_application_t *app, cl_task_fn fn, void *user)
 {
-    (void)app;
-    (void)fn;
-    (void)user;
-    /* Cross-thread task queue lands in Stage 7 (threading). */
-    return CL_ERROR_UNSUPPORTED;
+    cl_task_t *t;
+
+    if (!app || !fn)
+        return CL_ERROR_INVALID_ARGUMENT;
+    if (!app->task_mutex)
+        return CL_ERROR_UNSUPPORTED;
+    t = cl_alloc(&app->alloc, sizeof(*t));
+    if (!t)
+        return CL_ERROR_OUT_OF_MEMORY;
+    t->fn = fn;
+    t->user = user;
+    t->next = NULL;
+
+    cl_mutex_lock(app->task_mutex);
+    if (app->task_tail)
+        app->task_tail->next = t;
+    else
+        app->task_head = t;
+    app->task_tail = t;
+    cl_mutex_unlock(app->task_mutex);
+
+    /* Wake a blocked run loop so the task is drained promptly. */
+    if (app->platform->ops->wakeup)
+        app->platform->ops->wakeup(app->platform);
+    return CL_OK;
+}
+
+void cl_app_run_tasks(cl_application_t *app)
+{
+    cl_task_t *t;
+
+    if (!app->task_mutex)
+        return;
+    /* Detach the whole queue under the lock, then run tasks WITHOUT holding it
+     * so a task may post more work (drained on the next pass) without deadlock. */
+    cl_mutex_lock(app->task_mutex);
+    t = app->task_head;
+    app->task_head = NULL;
+    app->task_tail = NULL;
+    cl_mutex_unlock(app->task_mutex);
+
+    while (t) {
+        cl_task_t *next = t->next;
+
+        t->fn(t->user);
+        cl_free(&app->alloc, t);
+        t = next;
+    }
 }
 
 char *cl_app_clipboard_get(cl_application_t *app)
