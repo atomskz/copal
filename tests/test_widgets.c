@@ -24,6 +24,8 @@ static int failures;
 
 static int toggle_count;
 static bool last_state;
+static int value_count;
+static float last_value;
 
 static void on_toggle(cl_widget_t *w, bool checked, void *user)
 {
@@ -31,6 +33,14 @@ static void on_toggle(cl_widget_t *w, bool checked, void *user)
     (void)user;
     toggle_count++;
     last_state = checked;
+}
+
+static void on_value(cl_widget_t *w, float value, void *user)
+{
+    (void)w;
+    (void)user;
+    value_count++;
+    last_value = value;
 }
 
 static void press(cl_platform_t *p, cl_key_t key)
@@ -177,6 +187,202 @@ int main(void)
             cl_checkbox_set_checked(cb, true); /* no-op, same value */
             CHECK(toggle_count == before);
         }
+        cl_application_destroy(app);
+    }
+
+    /* --- RadioButton group exclusivity --- */
+    {
+        cl_platform_t *plat = cl_platform_mock_create(a);
+        cl_renderer_t *rend = cl_renderer_mock_create(a);
+        cl_application_desc_t ad = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app;
+        cl_window_t *win;
+        cl_widget_t *box;
+        cl_widget_t *r0;
+        cl_widget_t *r1;
+        cl_widget_t *r2;
+        cl_widget_t *other; /* different group, must stay independent */
+        cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
+        cl_rect_t rr;
+
+        ad.platform = plat;
+        ad.renderer = rend;
+        app = cl_application_create(&ad);
+        wd.width = 120;
+        wd.height = 160;
+        win = cl_window_create(app, &wd);
+        box = cl_vbox_create(app, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS,
+                                                     .spacing = 4 });
+        r0 = cl_radiobutton_create(
+            app, &(cl_radiobutton_desc_t){ CL_RADIOBUTTON_DESC_INIT_FIELDS,
+                                           .group = 1 });
+        r1 = cl_radiobutton_create(
+            app, &(cl_radiobutton_desc_t){ CL_RADIOBUTTON_DESC_INIT_FIELDS,
+                                           .group = 1 });
+        r2 = cl_radiobutton_create(
+            app, &(cl_radiobutton_desc_t){ CL_RADIOBUTTON_DESC_INIT_FIELDS,
+                                           .group = 1 });
+        other = cl_radiobutton_create(
+            app, &(cl_radiobutton_desc_t){ CL_RADIOBUTTON_DESC_INIT_FIELDS,
+                                           .group = 2, .selected = true });
+        cl_radiobutton_set_on_select(r0, on_toggle, NULL);
+        cl_radiobutton_set_on_select(r1, on_toggle, NULL);
+        cl_widget_add_child(box, r0);
+        cl_widget_add_child(box, r1);
+        cl_widget_add_child(box, r2);
+        cl_widget_add_child(box, other);
+        cl_window_set_content(win, box);
+        cl_application_step(app, false);
+
+        toggle_count = 0;
+        rr = cl_widget_rect(r0);
+        click(plat, rr.x + rr.w * 0.5f, rr.y + rr.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(cl_radiobutton_is_selected(r0));
+        CHECK(!cl_radiobutton_is_selected(r1));
+        CHECK(!cl_radiobutton_is_selected(r2));
+        CHECK(cl_radiobutton_is_selected(other)); /* group 2 untouched */
+        CHECK(toggle_count == 1);
+
+        rr = cl_widget_rect(r1);
+        click(plat, rr.x + rr.w * 0.5f, rr.y + rr.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(!cl_radiobutton_is_selected(r0));
+        CHECK(cl_radiobutton_is_selected(r1));
+        CHECK(toggle_count == 2);
+
+        /* set_selected selects + deselects the group but does not fire */
+        cl_radiobutton_set_selected(r2, true);
+        CHECK(cl_radiobutton_is_selected(r2));
+        CHECK(!cl_radiobutton_is_selected(r1));
+        CHECK(toggle_count == 2);
+
+        /* Space selects the focused radio */
+        CHECK(cl_widget_focus(r0));
+        press(plat, CL_KEY_SPACE);
+        cl_application_step(app, false);
+        CHECK(cl_radiobutton_is_selected(r0));
+        CHECK(!cl_radiobutton_is_selected(r2));
+        CHECK(cl_radiobutton_is_selected(other));
+
+        cl_application_destroy(app);
+    }
+
+    /* --- Slider value from click, keyboard, drag; set_value is silent --- */
+    {
+        cl_platform_t *plat = cl_platform_mock_create(a);
+        cl_renderer_t *rend = cl_renderer_mock_create(a);
+        cl_application_desc_t ad = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app;
+        cl_window_t *win;
+        cl_widget_t *sl;
+        cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
+
+        ad.platform = plat;
+        ad.renderer = rend;
+        app = cl_application_create(&ad);
+        wd.width = 120; /* track_left = 8, track_width = 104 */
+        wd.height = 40;
+        win = cl_window_create(app, &wd);
+        sl = cl_slider_create(
+            app, &(cl_slider_desc_t){ CL_SLIDER_DESC_INIT_FIELDS, .min = 0,
+                                      .max = 100, .value = 0 });
+        cl_slider_set_on_change(sl, on_value, NULL);
+        cl_window_set_content(win, sl);
+        cl_application_step(app, false);
+        CHECK(cl_widget_focus(sl));
+
+        value_count = 0;
+        click(plat, 60.0f, 20.0f); /* frac (60-8)/104 = 0.5 -> 50 */
+        cl_application_step(app, false);
+        CHECK(cl_slider_value(sl) == 50.0f);
+        CHECK(value_count == 1 && last_value == 50.0f);
+
+        press(plat, CL_KEY_RIGHT); /* step = (100-0)/20 = 5 -> 55 */
+        cl_application_step(app, false);
+        CHECK(cl_slider_value(sl) == 55.0f);
+
+        press(plat, CL_KEY_HOME);
+        cl_application_step(app, false);
+        CHECK(cl_slider_value(sl) == 0.0f);
+
+        press(plat, CL_KEY_END);
+        cl_application_step(app, false);
+        CHECK(cl_slider_value(sl) == 100.0f);
+
+        /* set_value clamps and is silent */
+        {
+            int before = value_count;
+
+            cl_slider_set_value(sl, 25.0f);
+            CHECK(cl_slider_value(sl) == 25.0f);
+            cl_slider_set_value(sl, 999.0f); /* clamps to max */
+            CHECK(cl_slider_value(sl) == 100.0f);
+            CHECK(value_count == before);
+        }
+
+        /* drag from the far left to the far right */
+        click(plat, 8.0f, 20.0f); /* value 0, begins drag */
+        cl_application_step(app, false);
+        CHECK(cl_slider_value(sl) == 0.0f);
+        {
+            cl_platform_event_t mv;
+
+            memset(&mv, 0, sizeof(mv));
+            mv.kind = CL_PEV_MOUSE_MOVE;
+            mv.pos.x = 112.0f; /* track_left + track_width */
+            mv.pos.y = 20.0f;
+            cl_platform_mock_push(plat, mv);
+        }
+        cl_application_step(app, false);
+        CHECK(cl_slider_value(sl) == 100.0f);
+
+        /* set_range re-derives the auto step for the new range */
+        cl_slider_set_range(sl, 0.0f, 10.0f);
+        CHECK(cl_slider_value(sl) == 10.0f); /* clamped from 100 */
+        cl_slider_set_value(sl, 5.0f);
+        press(plat, CL_KEY_RIGHT); /* step (10-0)/20 = 0.5 -> 5.5 */
+        cl_application_step(app, false);
+        CHECK(cl_slider_value(sl) == 5.5f);
+
+        cl_application_destroy(app);
+    }
+
+    /* --- Ungrouped radios (default/negative group) are independent --- */
+    {
+        cl_platform_t *plat = cl_platform_mock_create(a);
+        cl_renderer_t *rend = cl_renderer_mock_create(a);
+        cl_application_desc_t ad = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app;
+        cl_window_t *win;
+        cl_widget_t *box;
+        cl_widget_t *a0;
+        cl_widget_t *a1;
+        cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
+
+        ad.platform = plat;
+        ad.renderer = rend;
+        app = cl_application_create(&ad);
+        wd.width = 120;
+        wd.height = 80;
+        win = cl_window_create(app, &wd);
+        box = cl_vbox_create(app, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS });
+        a0 = cl_radiobutton_create( /* no .group -> default -1 (ungrouped) */
+            app, &(cl_radiobutton_desc_t){ CL_RADIOBUTTON_DESC_INIT_FIELDS });
+        a1 = cl_radiobutton_create(
+            app, &(cl_radiobutton_desc_t){ CL_RADIOBUTTON_DESC_INIT_FIELDS });
+        cl_widget_add_child(box, a0);
+        cl_widget_add_child(box, a1);
+        cl_window_set_content(win, box);
+        cl_application_step(app, false);
+
+        cl_radiobutton_set_selected(a0, true);
+        cl_radiobutton_set_selected(a1, true);
+        CHECK(cl_radiobutton_is_selected(a0)); /* independent: both stay on */
+        CHECK(cl_radiobutton_is_selected(a1));
+        cl_radiobutton_set_selected(a0, false);
+        CHECK(!cl_radiobutton_is_selected(a0));
+        CHECK(cl_radiobutton_is_selected(a1));
         cl_application_destroy(app);
     }
 

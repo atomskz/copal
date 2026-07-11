@@ -81,6 +81,8 @@ int main(int argc, char **argv)
     cl_widget_t *label;
     cl_widget_t *textbox;
     cl_widget_t *checks;
+    cl_widget_t *radios;
+    cl_widget_t *slider;
     cl_widget_t *scroll;
     cl_widget_t *scroll_body;
     cl_widget_t *button;
@@ -145,6 +147,26 @@ int main(int argc, char **argv)
                     app, &(cl_checkbox_desc_t){ CL_CHECKBOX_DESC_INIT_FIELDS,
                                                 .text = "Verbose" }));
 
+    radios = cl_hbox_create(
+        app, &(cl_hbox_desc_t){ CL_HBOX_DESC_INIT_FIELDS, .spacing = 16,
+                                .align_cross = CL_ALIGN_CENTER });
+    cl_widget_add_child(
+        radios,
+        cl_radiobutton_create(
+            app, &(cl_radiobutton_desc_t){ CL_RADIOBUTTON_DESC_INIT_FIELDS,
+                                           .text = "Small", .group = 1,
+                                           .selected = true }));
+    cl_widget_add_child(
+        radios, cl_radiobutton_create(
+                    app, &(cl_radiobutton_desc_t){
+                             CL_RADIOBUTTON_DESC_INIT_FIELDS, .text = "Large",
+                             .group = 1 }));
+
+    slider = cl_slider_create(
+        app, &(cl_slider_desc_t){ CL_SLIDER_DESC_INIT_FIELDS, .min = 0,
+                                  .max = 100, .value = 40 });
+    cl_widget_set_preferred_size(slider, (cl_size_t){ 240, 0 });
+
     scroll = cl_scrollview_create(
         app, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS });
     cl_widget_set_preferred_size(scroll, (cl_size_t){ 240, 120 });
@@ -168,6 +190,8 @@ int main(int argc, char **argv)
     cl_widget_add_child(root, label);
     cl_widget_add_child(root, textbox);
     cl_widget_add_child(root, checks);
+    cl_widget_add_child(root, radios);
+    cl_widget_add_child(root, slider);
     cl_widget_add_child(root, scroll);
     cl_widget_add_child(root, button);
     cl_window_set_content(win, root);

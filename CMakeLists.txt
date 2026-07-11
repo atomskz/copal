@@ -59,6 +59,8 @@ set(COPAL_SOURCES
     src/widgets/label.c
     src/widgets/button.c
     src/widgets/checkbox.c
+    src/widgets/radiobutton.c
+    src/widgets/slider.c
     src/widgets/textbox.c
     src/app/application.c
     src/app/window.c)

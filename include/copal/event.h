@@ -94,8 +94,11 @@ typedef bool (*cl_event_fn)(cl_widget_t *w, const cl_event_t *ev, void *user);
 typedef void (*cl_text_changed_fn)(cl_widget_t *w, const char *utf8,
                                    void *user);
 
-/* Toggle state changed (Checkbox); checked is the new state. */
+/* Toggle state changed (Checkbox / RadioButton); state is the new value. */
 typedef void (*cl_toggled_fn)(cl_widget_t *w, bool checked, void *user);
+
+/* Continuous value changed (Slider); value is the new value. */
+typedef void (*cl_value_fn)(cl_widget_t *w, float value, void *user);
 
 #ifdef __cplusplus
 }

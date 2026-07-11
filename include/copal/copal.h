@@ -23,6 +23,8 @@
 #include <copal/widgets/label.h>
 #include <copal/widgets/button.h>
 #include <copal/widgets/checkbox.h>
+#include <copal/widgets/radiobutton.h>
+#include <copal/widgets/slider.h>
 #include <copal/widgets/textbox.h>
 #include <copal/widgets/scrollview.h>
 
