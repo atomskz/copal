@@ -121,12 +121,7 @@ void cl_window_render(cl_window_t *win)
     cl_application_t *app = win->app;
     struct cl_paint_context ctx;
 
-    if (!win->content) {
-        win->dirty = false;
-        return;
-    }
-
-    if (win->layout_dirty) {
+    if (win->content && win->layout_dirty) {
         cl_constraints_t c;
 
         c.min = (cl_size_t){ 0, 0 };
@@ -137,10 +132,13 @@ void cl_window_render(cl_window_t *win)
         win->layout_dirty = false;
     }
 
-    app->renderer->ops->begin_frame(app->renderer, win->size, win->scale);
+    app->renderer->ops->begin_frame(app->renderer, win->size, win->scale,
+                                    cl_theme_color(app->theme,
+                                                   CL_COLOR_BACKGROUND));
     ctx.renderer = app->renderer;
     ctx.theme = app->theme;
-    cl_widget_do_paint(win->content, &ctx);
+    if (win->content)
+        cl_widget_do_paint(win->content, &ctx);
     app->renderer->ops->end_frame(app->renderer);
     app->platform->ops->present(app->platform);
     win->dirty = false;

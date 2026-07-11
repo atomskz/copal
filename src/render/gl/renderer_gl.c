@@ -310,7 +310,8 @@ static void set_proj(gl_renderer_t *r, float w, float h)
     r->proj[15] = 1.0f;
 }
 
-static void gl_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale)
+static void gl_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
+                           cl_color_t clear)
 {
     gl_renderer_t *r = (gl_renderer_t *)rr;
 
@@ -327,7 +328,8 @@ static void gl_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale)
     set_proj(r, size.w, size.h);
     r->gl.Viewport(0, 0, (GLsizei)r->fb_w, (GLsizei)r->fb_h);
     r->gl.Disable(GL_SCISSOR_TEST);
-    r->gl.ClearColor(0.96f, 0.96f, 0.97f, 1.0f);
+    r->gl.ClearColor((float)clear.r / 255.0f, (float)clear.g / 255.0f,
+                     (float)clear.b / 255.0f, (float)clear.a / 255.0f);
     r->gl.Clear(GL_COLOR_BUFFER_BIT);
     r->gl.Enable(GL_BLEND);
     r->gl.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

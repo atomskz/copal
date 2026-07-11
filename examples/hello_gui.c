@@ -39,6 +39,15 @@ static void on_close(cl_widget_t *w, void *user)
     cl_application_quit((cl_application_t *)user, 0);
 }
 
+static void on_dark_toggle(cl_widget_t *w, bool checked, void *user)
+{
+    cl_application_t *app = user;
+
+    cl_theme_set_variant(cl_application_theme(app),
+                         checked ? CL_THEME_DARK : CL_THEME_LIGHT);
+    cl_widget_invalidate(w); /* repaint the window with the new palette */
+}
+
 /* Try $COPAL_FONT, then a few common system fonts across platforms. */
 static cl_font_t *load_default_font(cl_application_t *app)
 {
@@ -81,6 +90,7 @@ int main(int argc, char **argv)
     cl_widget_t *label;
     cl_widget_t *textbox;
     cl_widget_t *checks;
+    cl_widget_t *dark;
     cl_widget_t *radios;
     cl_widget_t *slider;
     cl_widget_t *scroll;
@@ -146,6 +156,11 @@ int main(int argc, char **argv)
         checks, cl_checkbox_create(
                     app, &(cl_checkbox_desc_t){ CL_CHECKBOX_DESC_INIT_FIELDS,
                                                 .text = "Verbose" }));
+    dark = cl_checkbox_create(
+        app, &(cl_checkbox_desc_t){ CL_CHECKBOX_DESC_INIT_FIELDS,
+                                    .text = "Dark mode" });
+    cl_checkbox_set_on_toggle(dark, on_dark_toggle, app);
+    cl_widget_add_child(checks, dark);
 
     radios = cl_hbox_create(
         app, &(cl_hbox_desc_t){ CL_HBOX_DESC_INIT_FIELDS, .spacing = 16,

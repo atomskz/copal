@@ -11,6 +11,7 @@ typedef struct mock_renderer {
     const cl_allocator_t *a;
     cl_mock_command_t cmds[CL_MOCK_MAX_COMMANDS];
     size_t count;
+    cl_color_t clear;
     cl_rect_t clip_stack[CL_MOCK_CLIP_STACK];
     size_t clip_depth;
 } mock_renderer_t;
@@ -45,11 +46,13 @@ static void mock_record(mock_renderer_t *m, cl_mock_command_t *cmd)
         m->cmds[m->count++] = *cmd;
 }
 
-static void mock_begin_frame(cl_renderer_t *r, cl_size_t size, float scale)
+static void mock_begin_frame(cl_renderer_t *r, cl_size_t size, float scale,
+                             cl_color_t clear)
 {
     mock_renderer_t *m = (mock_renderer_t *)r;
     (void)scale;
     m->count = 0;
+    m->clear = clear;
     m->clip_depth = 0;
     m->clip_stack[0] = (cl_rect_t){ 0.0f, 0.0f, size.w, size.h };
 }
@@ -178,4 +181,9 @@ const cl_mock_command_t *cl_renderer_mock_get(cl_renderer_t *r, size_t i)
     mock_renderer_t *m = (mock_renderer_t *)r;
 
     return i < m->count ? &m->cmds[i] : NULL;
+}
+
+cl_color_t cl_renderer_mock_clear_color(cl_renderer_t *r)
+{
+    return ((mock_renderer_t *)r)->clear;
 }

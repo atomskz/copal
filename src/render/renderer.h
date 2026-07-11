@@ -9,7 +9,9 @@
 typedef struct cl_renderer cl_renderer_t;
 
 typedef struct cl_renderer_ops {
-    void (*begin_frame)(cl_renderer_t *r, cl_size_t size, float scale);
+    /* Begin a frame and clear it to `clear`. */
+    void (*begin_frame)(cl_renderer_t *r, cl_size_t size, float scale,
+                        cl_color_t clear);
     void (*end_frame)(cl_renderer_t *r);
     void (*fill_rect)(cl_renderer_t *r, cl_rect_t rect, cl_color_t color);
     void (*fill_round_rect)(cl_renderer_t *r, cl_rect_t rect, float radius,
