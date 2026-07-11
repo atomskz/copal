@@ -29,12 +29,17 @@ typedef struct cl_application cl_application_t;
  * scrolled into view automatically; cl_scrollview_scroll_to_widget() does the
  * same on demand.
  *
- * Not yet implemented (documented limitations): smooth/animated scrolling.
+ * With `smooth` set, wheel scrolling eases toward its target over a few frames
+ * (driven by a timer) instead of jumping; dragging, paging, scroll_to and
+ * scroll-to-focus stay instant. cl_scrollview_scroll_x/y() report the current
+ * (possibly animating) offset. Smooth scrolling needs a platform clock; without
+ * one it falls back to instant.
  */
 typedef struct cl_scrollview_desc {
     uint32_t abi_version;
     size_t struct_size;
     bool horizontal; /* allow horizontal overflow and scrolling */
+    bool smooth;     /* animate wheel scrolling instead of jumping */
 } cl_scrollview_desc_t;
 
 #define CL_SCROLLVIEW_DESC_INIT_FIELDS \

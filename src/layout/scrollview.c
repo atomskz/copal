@@ -1,15 +1,19 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <copal/widgets/scrollview.h>
 #include <copal/widget_impl.h>
+#include <copal/timer.h>
 
 #include "widget/widget_internal.h"
 #include "core/foundation/foundation_internal.h"
 
-#define SB_SIZE 12.0f     /* scrollbar gutter thickness */
+#define SB_SIZE 12.0f      /* scrollbar gutter thickness */
 #define SB_MIN_THUMB 24.0f /* minimum thumb length */
 #define SB_INSET 2.0f      /* thumb inset within the track */
 #define WHEEL_STEP 40.0f   /* pixels scrolled per wheel notch */
 #define SV_DEFAULT 160.0f  /* default viewport size when none is set */
+#define SMOOTH_TICK_MS 16  /* ~60 Hz animation cadence */
+#define SMOOTH_FACTOR 0.3f /* fraction of the remaining distance per tick */
+#define SMOOTH_SNAP 1.0f   /* within this many px, snap to the target and stop */
 
 typedef enum sv_drag {
     SV_DRAG_NONE,
@@ -19,15 +23,19 @@ typedef enum sv_drag {
 
 typedef struct cl_scrollview {
     cl_widget_t base;
-    float scroll_x;
+    float scroll_x; /* current (possibly animating) offset */
     float scroll_y;
+    float target_x; /* smooth-scroll destination (== scroll when settled) */
+    float target_y;
     float content_w; /* laid-out content width (== view_w unless horizontal) */
     float content_h; /* last measured content height */
     float view_w;    /* content-area width (excludes the vertical gutter) */
     float view_h;    /* content-area height (excludes the horizontal gutter) */
     bool horizontal; /* allow horizontal overflow and scrolling */
+    bool smooth;     /* animate wheel scrolling toward the target */
     sv_drag_t drag;  /* which thumb, if any, is being dragged */
     float drag_off;  /* pointer coord - thumb start, on the drag axis */
+    cl_timer_t *anim; /* repeating animation timer, or NULL when settled */
 } cl_scrollview_t;
 
 static cl_size_t scrollview_measure(cl_widget_t *w, cl_constraints_t c);
@@ -39,8 +47,10 @@ static bool scrollview_wheel(cl_widget_t *w, const cl_event_t *ev);
 static bool scrollview_mouse_down(cl_widget_t *w, const cl_event_t *ev);
 static bool scrollview_mouse_move(cl_widget_t *w, const cl_event_t *ev);
 static bool scrollview_mouse_up(cl_widget_t *w, const cl_event_t *ev);
+static void scrollview_destroy(cl_widget_t *w);
 
 static const cl_widget_vtable_t scrollview_vtable = {
+    .destroy = scrollview_destroy,
     .measure = scrollview_measure,
     .arrange = scrollview_arrange,
     .paint = scrollview_paint,
@@ -86,19 +96,23 @@ static bool sv_scroll_y_on(const cl_scrollview_t *sv)
     return sv->content_h > sv->view_h;
 }
 
+static float sv_clampf(float v, float max)
+{
+    if (v < 0.0f)
+        return 0.0f;
+    return v > max ? max : v;
+}
+
+/* Clamp both the current offset and the smooth-scroll target to [0, max]. */
 static void sv_clamp(cl_scrollview_t *sv)
 {
     float mx = sv_max_scroll_x(sv);
     float my = sv_max_scroll_y(sv);
 
-    if (sv->scroll_x < 0.0f)
-        sv->scroll_x = 0.0f;
-    if (sv->scroll_x > mx)
-        sv->scroll_x = mx;
-    if (sv->scroll_y < 0.0f)
-        sv->scroll_y = 0.0f;
-    if (sv->scroll_y > my)
-        sv->scroll_y = my;
+    sv->scroll_x = sv_clampf(sv->scroll_x, mx);
+    sv->scroll_y = sv_clampf(sv->scroll_y, my);
+    sv->target_x = sv_clampf(sv->target_x, mx);
+    sv->target_y = sv_clampf(sv->target_y, my);
 }
 
 /* Re-place the content child at the current scroll offset without remeasuring. */
@@ -112,6 +126,63 @@ static void sv_reposition(cl_scrollview_t *sv)
                          (cl_rect_t){ sv->base.rect.x - sv->scroll_x,
                                       sv->base.rect.y - sv->scroll_y,
                                       sv->content_w, sv->content_h });
+}
+
+/* ---- smooth scrolling --------------------------------------------------- */
+
+static void sv_stop_anim(cl_scrollview_t *sv)
+{
+    if (sv->anim) {
+        cl_timer_cancel(sv->anim);
+        sv->anim = NULL;
+    }
+}
+
+/* Commit an instant offset: stop any animation and settle target == current. */
+static void sv_commit(cl_scrollview_t *sv)
+{
+    sv_stop_anim(sv);
+    sv->target_x = sv->scroll_x;
+    sv->target_y = sv->scroll_y;
+    sv_clamp(sv);
+    sv_reposition(sv);
+    cl_widget_invalidate(&sv->base);
+}
+
+/* Ease the current offset toward the target each tick; stop once settled. */
+static void sv_tick(cl_timer_t *t, void *user)
+{
+    cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, user);
+    float dx = sv->target_x - sv->scroll_x;
+    float dy = sv->target_y - sv->scroll_y;
+    float ax = dx < 0.0f ? -dx : dx;
+    float ay = dy < 0.0f ? -dy : dy;
+
+    if (ax < SMOOTH_SNAP && ay < SMOOTH_SNAP) {
+        sv->scroll_x = sv->target_x;
+        sv->scroll_y = sv->target_y;
+        cl_timer_cancel(t);
+        sv->anim = NULL;
+    } else {
+        sv->scroll_x += dx * SMOOTH_FACTOR;
+        sv->scroll_y += dy * SMOOTH_FACTOR;
+    }
+    sv_reposition(sv);
+    cl_widget_invalidate(&sv->base);
+}
+
+/* Start (or keep) the animation toward the current target. */
+static void sv_anim_start(cl_scrollview_t *sv)
+{
+    if (!sv->anim)
+        sv->anim = cl_timer_create(sv->base.app, SMOOTH_TICK_MS, true, sv_tick,
+                                   &sv->base);
+    if (!sv->anim) { /* no clock (e.g. custom backend): settle instantly */
+        sv->scroll_x = sv->target_x;
+        sv->scroll_y = sv->target_y;
+        sv_reposition(sv);
+        cl_widget_invalidate(&sv->base);
+    }
 }
 
 static float sv_thumb_h(const cl_scrollview_t *sv)
@@ -324,9 +395,7 @@ static void sv_reveal_rect(cl_scrollview_t *sv, cl_rect_t target)
         return;
     sv->scroll_x += dx;
     sv->scroll_y += dy;
-    sv_clamp(sv);
-    sv_reposition(sv);
-    cl_widget_invalidate(&sv->base);
+    sv_commit(sv); /* reveal is instant, even in smooth mode */
 }
 
 static void scrollview_reveal(cl_widget_t *w, cl_rect_t target)
@@ -353,11 +422,11 @@ static bool sv_has_vertical_ancestor(const cl_widget_t *w)
 static bool scrollview_wheel(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_scrollview_t *sv = CL_WIDGET_CAST(cl_scrollview, w);
-    float before_x = sv->scroll_x;
-    float before_y = sv->scroll_y;
+    float before_x = sv->target_x;
+    float before_y = sv->target_y;
 
     if (sv_scroll_y_on(sv))
-        sv->scroll_y -= ev->data.wheel.dy * WHEEL_STEP;
+        sv->target_y -= ev->data.wheel.dy * WHEEL_STEP;
     if (sv_scroll_x_on(sv)) {
         float dx = ev->data.wheel.dx;
 
@@ -369,13 +438,19 @@ static bool scrollview_wheel(cl_widget_t *w, const cl_event_t *ev)
          */
         if (dx == 0.0f && !sv_scroll_y_on(sv) && !sv_has_vertical_ancestor(w))
             dx = ev->data.wheel.dy;
-        sv->scroll_x -= dx * WHEEL_STEP;
+        sv->target_x -= dx * WHEEL_STEP;
     }
     sv_clamp(sv);
-    if (sv->scroll_x == before_x && sv->scroll_y == before_y)
+    if (sv->target_x == before_x && sv->target_y == before_y)
         return false; /* nothing moved: bubble to an outer container */
-    sv_reposition(sv);
-    cl_widget_invalidate(w);
+    if (sv->smooth) {
+        sv_anim_start(sv); /* ease toward the new target */
+    } else {
+        sv->scroll_x = sv->target_x;
+        sv->scroll_y = sv->target_y;
+        sv_reposition(sv);
+        cl_widget_invalidate(w);
+    }
     return true;
 }
 
@@ -398,9 +473,7 @@ static bool scrollview_mouse_down(cl_widget_t *w, const cl_event_t *ev)
             sv->drag_off = y - ty;
         } else { /* page towards the click */
             sv->scroll_y += (y < ty ? -sv->view_h : sv->view_h);
-            sv_clamp(sv);
-            sv_reposition(sv);
-            cl_widget_invalidate(w);
+            sv_commit(sv);
         }
         return true;
     }
@@ -415,9 +488,7 @@ static bool scrollview_mouse_down(cl_widget_t *w, const cl_event_t *ev)
             sv->drag_off = x - tx;
         } else { /* page towards the click */
             sv->scroll_x += (x < tx ? -sv->view_w : sv->view_w);
-            sv_clamp(sv);
-            sv_reposition(sv);
-            cl_widget_invalidate(w);
+            sv_commit(sv);
         }
         return true;
     }
@@ -436,9 +507,7 @@ static bool scrollview_mouse_move(cl_widget_t *w, const cl_event_t *ev)
             return true; /* degenerate track: nothing to drag */
         ty = ev->data.mouse.pos.y - sv->drag_off - sv->base.rect.y;
         sv->scroll_y = (ty / travel) * sv_max_scroll_y(sv);
-        sv_clamp(sv);
-        sv_reposition(sv);
-        cl_widget_invalidate(w);
+        sv_commit(sv);
         return true;
     }
     if (sv->drag == SV_DRAG_H) {
@@ -449,9 +518,7 @@ static bool scrollview_mouse_move(cl_widget_t *w, const cl_event_t *ev)
             return true;
         tx = ev->data.mouse.pos.x - sv->drag_off - sv->base.rect.x;
         sv->scroll_x = (tx / travel) * sv_max_scroll_x(sv);
-        sv_clamp(sv);
-        sv_reposition(sv);
-        cl_widget_invalidate(w);
+        sv_commit(sv);
         return true;
     }
     return false;
@@ -485,10 +552,17 @@ cl_widget_t *cl_scrollview_create(cl_application_t *app,
     if (!w)
         return NULL;
     sv = CL_WIDGET_CAST(cl_scrollview, w);
-    if (desc)
+    if (desc) {
         sv->horizontal = desc->horizontal;
+        sv->smooth = desc->smooth;
+    }
     w->flags |= CL_WF_CLIP;
     return w;
+}
+
+static void scrollview_destroy(cl_widget_t *w)
+{
+    sv_stop_anim(CL_WIDGET_CAST(cl_scrollview, w));
 }
 
 void cl_scrollview_set_content(cl_widget_t *sv_w, cl_widget_t *content)
@@ -503,8 +577,11 @@ void cl_scrollview_set_content(cl_widget_t *sv_w, cl_widget_t *content)
         return;
     if (old)
         cl_widget_destroy(old);
+    sv_stop_anim(sv);
     sv->scroll_x = 0.0f;
     sv->scroll_y = 0.0f;
+    sv->target_x = 0.0f;
+    sv->target_y = 0.0f;
     sv->drag = SV_DRAG_NONE;
     if (content) {
         /*
@@ -532,9 +609,7 @@ void cl_scrollview_scroll_to(cl_widget_t *sv_w, float y)
     if (!sv)
         return;
     sv->scroll_y = y;
-    sv_clamp(sv);
-    sv_reposition(sv);
-    cl_widget_invalidate(sv_w);
+    sv_commit(sv);
 }
 
 void cl_scrollview_scroll_to_x(cl_widget_t *sv_w, float x)
@@ -544,9 +619,7 @@ void cl_scrollview_scroll_to_x(cl_widget_t *sv_w, float x)
     if (!sv)
         return;
     sv->scroll_x = x;
-    sv_clamp(sv);
-    sv_reposition(sv);
-    cl_widget_invalidate(sv_w);
+    sv_commit(sv);
 }
 
 float cl_scrollview_scroll_y(cl_widget_t *sv_w)

@@ -226,7 +226,8 @@ int main(int argc, char **argv)
     cl_combobox_add_item(combo, "Cherry");
 
     scroll = cl_scrollview_create(
-        app, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS });
+        app, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS,
+                                      .smooth = true });
     cl_widget_set_preferred_size(scroll, (cl_size_t){ 240, 120 });
     scroll_body = cl_vbox_create(
         app, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS, .spacing = 4 });

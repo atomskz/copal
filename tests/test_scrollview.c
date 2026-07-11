@@ -730,6 +730,153 @@ int main(void)
         cl_application_destroy(app7);
     }
 
+    /* Smooth scrolling eases toward the wheel target over several ticks instead
+     * of jumping, settles exactly on the target, and yields to an instant op. */
+    {
+        cl_platform_t *p8 = cl_platform_mock_create(a);
+        cl_renderer_t *r8 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad8 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app8;
+        cl_font_t *font8;
+        cl_window_t *w8;
+        cl_widget_t *sv8;
+        cl_widget_t *body8;
+        cl_window_desc_t wd8 = CL_WINDOW_DESC_INIT;
+        cl_point_t at = { 20.0f, 20.0f };
+        float prev;
+
+        ad8.platform = p8;
+        ad8.renderer = r8;
+        app8 = cl_application_create(&ad8);
+        font8 = load_any_font(app8);
+        if (!font8) {
+            cl_application_destroy(app8);
+            if (failures == 0)
+                printf("all scrollview tests passed\n");
+            return failures == 0 ? 0 : 1;
+        }
+        cl_theme_set_font(cl_application_theme(app8), font8);
+        wd8.width = 240;
+        wd8.height = 160;
+        w8 = cl_window_create(app8, &wd8);
+        sv8 = cl_scrollview_create(
+            app8, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS,
+                                           .smooth = true });
+        body8 = cl_vbox_create(
+            app8, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS, .spacing = 4 });
+        for (i = 0; i < 20; i++)
+            cl_widget_add_child(
+                body8, cl_label_create(
+                           app8, &(cl_label_desc_t){ CL_LABEL_DESC_INIT_FIELDS,
+                                                     .text = "smooth row" }));
+        cl_scrollview_set_content(sv8, body8);
+        cl_window_set_content(w8, sv8);
+        cl_application_step(app8, false);
+
+        /* Wheel down: the target is 40, but the current offset stays 0 until the
+         * animation timer ticks (proves it is not the instant path). */
+        wheel(p8, at, -1.0f);
+        cl_application_step(app8, false);
+        CHECK(cl_scrollview_scroll_y(sv8) == 0.0f);
+
+        /* One tick eases partway; the next moves further (monotonic approach). */
+        cl_platform_mock_advance(p8, 16);
+        cl_application_step(app8, false);
+        prev = cl_scrollview_scroll_y(sv8);
+        CHECK(prev > 0.0f && prev < 40.0f);
+        cl_platform_mock_advance(p8, 16);
+        cl_application_step(app8, false);
+        CHECK(cl_scrollview_scroll_y(sv8) > prev);
+
+        /* It settles exactly on the target and then stops moving. */
+        for (i = 0; i < 40 && cl_scrollview_scroll_y(sv8) != 40.0f; i++) {
+            cl_platform_mock_advance(p8, 16);
+            cl_application_step(app8, false);
+        }
+        CHECK(cl_scrollview_scroll_y(sv8) == 40.0f);
+        cl_platform_mock_advance(p8, 200);
+        cl_application_step(app8, false);
+        CHECK(cl_scrollview_scroll_y(sv8) == 40.0f); /* animation stopped */
+
+        /* An instant scroll_to during a fresh animation snaps and cancels it. */
+        wheel(p8, at, -1.0f); /* new target 80, animating from 40 */
+        cl_application_step(app8, false);
+        cl_platform_mock_advance(p8, 16);
+        cl_application_step(app8, false);
+        CHECK(cl_scrollview_scroll_y(sv8) > 40.0f &&
+              cl_scrollview_scroll_y(sv8) < 80.0f);
+        cl_scrollview_scroll_to(sv8, 12.0f);
+        CHECK(cl_scrollview_scroll_y(sv8) == 12.0f);
+        cl_platform_mock_advance(p8, 200);
+        cl_application_step(app8, false);
+        CHECK(cl_scrollview_scroll_y(sv8) == 12.0f); /* no drift after override */
+
+        cl_font_release(font8);
+        cl_application_destroy(app8);
+    }
+
+    /* Destroying a scrollview mid-animation must cancel its timer, so a later
+     * poll cannot tick a freed widget (ASan/UBSan catches the use-after-free). */
+    {
+        cl_platform_t *p9 = cl_platform_mock_create(a);
+        cl_renderer_t *r9 = cl_renderer_mock_create(a);
+        cl_application_desc_t ad9 = CL_APPLICATION_DESC_INIT;
+        cl_application_t *app9;
+        cl_font_t *font9;
+        cl_window_t *w9;
+        cl_widget_t *root9;
+        cl_widget_t *sv9;
+        cl_widget_t *body9;
+        cl_window_desc_t wd9 = CL_WINDOW_DESC_INIT;
+
+        ad9.platform = p9;
+        ad9.renderer = r9;
+        app9 = cl_application_create(&ad9);
+        font9 = load_any_font(app9);
+        if (!font9) {
+            cl_application_destroy(app9);
+            if (failures == 0)
+                printf("all scrollview tests passed\n");
+            return failures == 0 ? 0 : 1;
+        }
+        cl_theme_set_font(cl_application_theme(app9), font9);
+        wd9.width = 240;
+        wd9.height = 160;
+        w9 = cl_window_create(app9, &wd9);
+        root9 = cl_vbox_create(app9,
+                               &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS });
+        sv9 = cl_scrollview_create(
+            app9, &(cl_scrollview_desc_t){ CL_SCROLLVIEW_DESC_INIT_FIELDS,
+                                           .smooth = true });
+        cl_widget_set_preferred_size(sv9, (cl_size_t){ 200, 120 });
+        body9 = cl_vbox_create(app9,
+                               &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS });
+        for (i = 0; i < 20; i++)
+            cl_widget_add_child(
+                body9, cl_label_create(
+                           app9, &(cl_label_desc_t){ CL_LABEL_DESC_INIT_FIELDS,
+                                                     .text = "row" }));
+        cl_scrollview_set_content(sv9, body9);
+        cl_widget_add_child(root9, sv9);
+        cl_window_set_content(w9, root9);
+        cl_application_step(app9, false);
+
+        wheel(p9, (cl_point_t){ 20.0f, 20.0f }, -1.0f);
+        cl_application_step(app9, false);
+        cl_platform_mock_advance(p9, 16);
+        cl_application_step(app9, false); /* animating: the timer is live */
+        cl_widget_destroy(sv9);           /* must cancel the animation timer */
+        /* Poll again: a dangling timer would tick the freed scrollview here.
+         * Reaching the end clean (no ASan abort) is the assertion. */
+        cl_platform_mock_advance(p9, 16);
+        cl_application_step(app9, false);
+        cl_platform_mock_advance(p9, 16);
+        cl_application_step(app9, false);
+
+        cl_font_release(font9);
+        cl_application_destroy(app9);
+    }
+
     if (failures == 0)
         printf("all scrollview tests passed\n");
     return failures == 0 ? 0 : 1;
