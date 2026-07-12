@@ -44,8 +44,10 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
         return NULL;
     memset(win, 0, sizeof(*win));
     win->app = app;
-    win->size.w = (float)desc->width;
-    win->size.h = (float)desc->height;
+    /* Ask the platform for the size it actually created: the SDL backends
+     * default width/height <= 0 to 640x480, and layout must agree with the
+     * real surface (SDL sends no initial RESIZE to correct a stale 0x0). */
+    win->size = app->platform->ops->drawable_size(app->platform);
     win->scale = app->platform->ops->scale(app->platform);
     if (win->scale <= 0.0f)
         win->scale = 1.0f;
