@@ -81,6 +81,16 @@ void cl_window_show(cl_window_t *win)
 
 void cl_window_set_content(cl_window_t *win, cl_widget_t *root)
 {
+    if (win->content == root)
+        return;
+    /* The window owns its root: replacing destroys the previous subtree
+     * (mirrors cl_scrollview_set_content). */
+    if (win->content) {
+        cl_widget_t *old = win->content;
+
+        win->content = NULL; /* clear first: destroy may re-enter the window */
+        cl_widget_destroy(old);
+    }
     win->content = root;
     if (root)
         cl_widget_set_window(root, win);

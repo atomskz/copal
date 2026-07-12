@@ -39,6 +39,12 @@ CL_API cl_window_t *cl_window_create(cl_application_t *app,
 CL_API void cl_window_destroy(cl_window_t *win);
 
 CL_API void cl_window_show(cl_window_t *win);
+/**
+ * cl_window_set_content() - set the window's root widget.
+ *
+ * The window takes ownership of @root; setting a new root destroys any
+ * previous content subtree. NULL clears (and destroys) the content.
+ */
 CL_API void cl_window_set_content(cl_window_t *win, cl_widget_t *root);
 CL_API cl_widget_t *cl_window_content(cl_window_t *win);
 CL_API void cl_window_set_title(cl_window_t *win, const char *utf8);

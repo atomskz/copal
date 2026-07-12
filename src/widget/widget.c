@@ -93,6 +93,8 @@ void cl_widget_set_window(cl_widget_t *w, cl_window_t *win)
             cl_window_set_focus(old, NULL);
         if (old->mouse_target == w)
             old->mouse_target = NULL;
+        if (old->content == w)
+            old->content = NULL; /* the root itself is being detached */
         cl_window_owner_destroyed(old, w);   /* tear down a popup w opened */
         cl_window_tooltip_target_gone(old, w); /* drop its hover tooltip */
     }
