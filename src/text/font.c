@@ -255,6 +255,8 @@ cl_size_t cl_text_measure_bytes(cl_font_t *font, const char *utf8, size_t len,
     if (!utf8)
         return size;
 
+    /* cl_utf8_next_n() returns 0 at a NUL byte: an embedded NUL ends the
+     * measurement early, matching what draw_text() would render. */
     while (i < len && (n = cl_utf8_next_n(utf8 + i, len - i, &cp)) != 0) {
         i += n;
         size.w += advance_px(font, cp);

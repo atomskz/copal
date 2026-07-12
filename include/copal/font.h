@@ -78,8 +78,13 @@ CL_API cl_size_t cl_text_measure(cl_font_t *font, const char *utf8,
                                  float max_width);
 
 /**
- * cl_text_measure_bytes() - measure exactly @len bytes of UTF-8 (not
- * NUL-terminated). Useful for caret positioning in editable text.
+ * cl_text_measure_bytes() - measure up to @len bytes of UTF-8 (the buffer
+ * need not be NUL-terminated). Useful for caret positioning in editable
+ * text.
+ *
+ * An embedded NUL byte ends the measurement early, mirroring rendering:
+ * draw_text() consumes a NUL-terminated string, so bytes past a NUL never
+ * reach the screen and are not counted here either.
  */
 CL_API cl_size_t cl_text_measure_bytes(cl_font_t *font, const char *utf8,
                                        size_t len, float max_width);

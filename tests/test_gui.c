@@ -97,6 +97,10 @@ int main(void)
         free(b);
     }
 
+    /* An embedded NUL ends the measurement early (mirrors rendering). */
+    CHECK(cl_text_measure_bytes(font, "ab\0cd", 5, CL_UNBOUNDED).w ==
+          cl_text_measure_bytes(font, "ab", 2, CL_UNBOUNDED).w);
+
     wd.title = "test";
     wd.width = 320;
     wd.height = 240;
