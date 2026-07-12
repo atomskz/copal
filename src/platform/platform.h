@@ -18,6 +18,7 @@ typedef enum cl_platform_event_kind {
     CL_PEV_NONE,
     CL_PEV_QUIT,
     CL_PEV_RESIZE,
+    CL_PEV_EXPOSE, /* surface contents lost/damaged: repaint */
     CL_PEV_MOUSE_DOWN,
     CL_PEV_MOUSE_UP,
     CL_PEV_MOUSE_MOVE,

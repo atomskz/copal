@@ -159,6 +159,13 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                     s->size = out->size;
                     return true;
                 }
+                if (e.window.event == SDL_WINDOWEVENT_EXPOSED) {
+                    /* The OS/compositor damaged the surface (restore from
+                     * minimise, overlapped software window): repaint even
+                     * though no widget marked itself dirty. */
+                    out->kind = CL_PEV_EXPOSE;
+                    return true;
+                }
                 break;
 
             case SDL_MOUSEBUTTONDOWN:

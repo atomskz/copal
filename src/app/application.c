@@ -205,6 +205,11 @@ static void process_events(cl_application_t *app)
                     cl_window_resize(app->window, ev.size);
                 break;
 
+            case CL_PEV_EXPOSE:
+                if (app->window)
+                    cl_window_mark_dirty(app->window);
+                break;
+
             case CL_PEV_MOUSE_DOWN:
             case CL_PEV_MOUSE_UP:
             case CL_PEV_MOUSE_MOVE:
