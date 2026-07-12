@@ -4,6 +4,7 @@
 #include <copal/application.h>
 #include <copal/allocator.h>
 
+#include <stdio.h>
 #include <string.h>
 
 #include "app/app_internal.h"
@@ -199,6 +200,26 @@ static uint32_t cp_at(const cl_textbox_t *tb, size_t i)
 static bool cp_is_space(uint32_t cp)
 {
     return cp == ' ' || cp == '\t' || cp == '\n' || cp == '\r';
+}
+
+/* Start of the previous word: skip spaces backwards, then the word. */
+static size_t word_prev(const cl_textbox_t *tb, size_t i)
+{
+    while (i > 0 && cp_is_space(cp_at(tb, prev_boundary(tb->buf, i))))
+        i = prev_boundary(tb->buf, i);
+    while (i > 0 && !cp_is_space(cp_at(tb, prev_boundary(tb->buf, i))))
+        i = prev_boundary(tb->buf, i);
+    return i;
+}
+
+/* Start of the next word: skip the current word, then the spaces. */
+static size_t word_next(const cl_textbox_t *tb, size_t i)
+{
+    while (i < tb->len && !cp_is_space(cp_at(tb, i)))
+        i = next_boundary(tb->buf, tb->len, i);
+    while (i < tb->len && cp_is_space(cp_at(tb, i)))
+        i = next_boundary(tb->buf, tb->len, i);
+    return i;
 }
 
 /* Select the word (or whitespace run) around byte offset `off`. */
@@ -1209,8 +1230,8 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
     switch (key) {
         case CL_KEY_LEFT:
             edit_break(tb);
-            if (ctrl) { /* word motion not yet implemented: let it bubble */
-                handled = false;
+            if (ctrl) { /* word motion (Shift extends the selection) */
+                move_cursor(tb, word_prev(tb, tb->cursor), shift);
             } else if (has_selection(tb) && !shift) {
                 sel_range(tb, &lo, &hi);
                 move_cursor(tb, lo, false);
@@ -1221,8 +1242,8 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
 
         case CL_KEY_RIGHT:
             edit_break(tb);
-            if (ctrl) {
-                handled = false;
+            if (ctrl) { /* word motion (Shift extends the selection) */
+                move_cursor(tb, word_next(tb, tb->cursor), shift);
             } else if (has_selection(tb) && !shift) {
                 sel_range(tb, &lo, &hi);
                 move_cursor(tb, hi, false);
