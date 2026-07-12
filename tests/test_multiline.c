@@ -28,20 +28,8 @@ static int failures;
 
 static cl_font_t *load_any_font(cl_application_t *app)
 {
-    static const char *paths[] = {
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-    };
-    size_t i;
-
-    for (i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
-        cl_font_t *f = cl_font_load_file(app, paths[i], 16.0f);
-
-        if (f)
-            return f;
-    }
-    return NULL;
+    /* Honours COPAL_FONT (set it in CI), then probes the system fonts. */
+    return cl_font_load_system(app, 16.0f);
 }
 
 static void key(cl_platform_t *p, cl_key_t k, cl_key_mods_t mods)
