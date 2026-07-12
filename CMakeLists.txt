@@ -7,25 +7,27 @@ project(copal
     HOMEPAGE_URL "https://example.invalid/copal"
     LANGUAGES C)
 
-# ---------------------------------------------------------------------------
-# Options
-# ---------------------------------------------------------------------------
-option(COPAL_BUILD_SHARED      "Build copal as a shared library"    OFF)
-option(COPAL_BUILD_EXAMPLES    "Build examples"                     ON)
-option(COPAL_BUILD_TESTS       "Build tests"                        ON)
-option(COPAL_ENABLE_SDL        "Enable SDL2 platform backend"       OFF) # Stage 6
-option(COPAL_ENABLE_OPENGL     "Enable OpenGL renderer backend"     OFF) # Stage 6
-option(COPAL_FETCH_SDL2        "Download and build SDL2 via FetchContent" OFF)
-option(COPAL_ENABLE_SANITIZERS "Enable ASan/UBSan"                  OFF)
-option(COPAL_ENABLE_COVERAGE   "Instrument for gcov/llvm-cov coverage" OFF)
-option(COPAL_ENABLE_INSTALL    "Enable install rules"               ON)
-
 # Detect whether we are the top-level project (for add_subdirectory use).
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(COPAL_IS_TOP_LEVEL ON)
 else()
     set(COPAL_IS_TOP_LEVEL OFF)
 endif()
+
+# ---------------------------------------------------------------------------
+# Options
+# ---------------------------------------------------------------------------
+# Examples, tests and install rules default to OFF when copal is embedded via
+# add_subdirectory - the host project can still opt in explicitly.
+option(COPAL_BUILD_SHARED      "Build copal as a shared library"    OFF)
+option(COPAL_BUILD_EXAMPLES    "Build examples"                     ${COPAL_IS_TOP_LEVEL})
+option(COPAL_BUILD_TESTS       "Build tests"                        ${COPAL_IS_TOP_LEVEL})
+option(COPAL_ENABLE_SDL        "Enable SDL2 platform backend"       OFF) # Stage 6
+option(COPAL_ENABLE_OPENGL     "Enable OpenGL renderer backend"     OFF) # Stage 6
+option(COPAL_FETCH_SDL2        "Download and build SDL2 via FetchContent" OFF)
+option(COPAL_ENABLE_SANITIZERS "Enable ASan/UBSan"                  OFF)
+option(COPAL_ENABLE_COVERAGE   "Instrument for gcov/llvm-cov coverage" OFF)
+option(COPAL_ENABLE_INSTALL    "Enable install rules"               ${COPAL_IS_TOP_LEVEL})
 
 include(GNUInstallDirs)
 include(cmake/CompilerWarnings.cmake)
