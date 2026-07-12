@@ -383,12 +383,17 @@ void cl_widget_reveal(cl_widget_t *w)
 
 cl_widget_t *cl_widget_hit(cl_widget_t *w, cl_point_t p)
 {
+    const cl_widget_vtable_t *vt = w->cls->vtable;
     cl_widget_t *c;
     cl_widget_t *found = NULL;
 
     if (!(w->flags & CL_WF_VISIBLE))
         return NULL;
     if (!cl_rect_contains(w->rect, p))
+        return NULL;
+    /* A custom hit_test refines the shape within the rect (the rect test
+     * above stays as the coarse bound); a miss skips the whole subtree. */
+    if (vt && vt->hit_test && !vt->hit_test(w, p))
         return NULL;
     /*
      * Children are clipped to widget_clip_rect(): a point inside the widget but

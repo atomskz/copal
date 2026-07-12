@@ -54,6 +54,11 @@ typedef struct cl_widget_vtable {
      * cannot reveal children; cl_widget_reveal() then skips it.
      */
     void (*reveal)(cl_widget_t *w, cl_rect_t target);
+    /*
+     * Refine hit-testing inside the rect (non-rectangular shapes); return
+     * false for a miss. A miss skips the widget and its whole subtree. A
+     * NULL slot accepts every point inside the rect.
+     */
     bool (*hit_test)(cl_widget_t *w, cl_point_t p);
     bool (*on_event)(cl_widget_t *w, const cl_event_t *ev);
     bool (*mouse_down)(cl_widget_t *w, const cl_event_t *ev);
