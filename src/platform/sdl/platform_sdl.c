@@ -157,6 +157,16 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                     out->size.w = (float)e.window.data1;
                     out->size.h = (float)e.window.data2;
                     s->size = out->size;
+                    /* Refresh the DPI scale: the window may have moved to a
+                     * monitor with a different scale (GL path only; the
+                     * software surface is always 1:1). */
+                    if (s->glctx && e.window.data1 > 0) {
+                        int dw = e.window.data1;
+                        int dh = e.window.data2;
+
+                        SDL_GL_GetDrawableSize(s->window, &dw, &dh);
+                        s->scale = (float)dw / (float)e.window.data1;
+                    }
                     return true;
                 }
                 if (e.window.event == SDL_WINDOWEVENT_EXPOSED) {

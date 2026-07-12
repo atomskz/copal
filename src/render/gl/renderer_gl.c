@@ -48,6 +48,7 @@ typedef struct gl_renderer {
     float proj[16];
     cl_size_t vp;   /* logical viewport size */
     float scale;    /* logical -> framebuffer pixel scale */
+    float cache_scale; /* device scale the cached glyphs were rasterized at */
     int fb_w, fb_h; /* framebuffer size in physical px (matches glViewport) */
     cl_rect_t clip_stack[CL_GL_CLIP_STACK];
     int clip_depth;
@@ -283,7 +284,10 @@ static glyph_t *get_glyph(gl_renderer_t *r, cl_font_t *font, uint32_t cp,
 {
     struct gl_api *gl = &r->gl;
     const stbtt_fontinfo *info = cl_font_info(font);
-    float scale = cl_font_pixel_scale(font);
+    float lscale = cl_font_pixel_scale(font);
+    /* Rasterize at device resolution: at scale > 1 a logical-size bitmap
+     * magnified by GL_LINEAR comes out blurry. */
+    float rscale = lscale * (r->scale > 0.0f ? r->scale : 1.0f);
     unsigned char *bmp;
     glyph_t *g;
     unsigned slot;
@@ -305,7 +309,7 @@ static glyph_t *get_glyph(gl_renderer_t *r, cl_font_t *font, uint32_t cp,
         return NULL;
     }
 
-    bmp = stbtt_GetCodepointBitmap(info, 0, scale, (int)cp, &w, &h, &xoff,
+    bmp = stbtt_GetCodepointBitmap(info, 0, rscale, (int)cp, &w, &h, &xoff,
                                    &yoff);
     stbtt_GetCodepointHMetrics(info, (int)cp, &adv, &lsb);
 
@@ -328,8 +332,8 @@ static glyph_t *get_glyph(gl_renderer_t *r, cl_font_t *font, uint32_t cp,
     memset(g, 0, sizeof(*g));
     g->font = font;
     g->cp = cp;
-    g->advance = (float)adv * scale;
-    g->xoff = xoff;
+    g->advance = (float)adv * lscale; /* advance stays in logical px */
+    g->xoff = xoff;                   /* bitmap geometry is in device px */
     g->yoff = yoff;
 
     if (bmp && w > 0 && h > 0 && r->pen_y + h + 1 <= ATLAS_H) {
@@ -373,9 +377,15 @@ static void gl_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
         return;
 
     r->vp = size;
-    r->scale = scale;
-    r->fb_w = (int)(size.w * scale);
-    r->fb_h = (int)(size.h * scale);
+    r->scale = scale > 0.0f ? scale : 1.0f;
+    /* Glyphs are rasterized at the device scale: a DPI change (moving the
+     * window to another monitor) invalidates every cached bitmap. */
+    if (r->scale != r->cache_scale) {
+        gl_cache_reset(r);
+        r->cache_scale = r->scale;
+    }
+    r->fb_w = (int)(size.w * r->scale);
+    r->fb_h = (int)(size.h * r->scale);
     r->clip_depth = 0;
     set_proj(r, size.w, size.h);
     r->gl.Viewport(0, 0, (GLsizei)r->fb_w, (GLsizei)r->fb_h);
@@ -579,10 +589,12 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
         if (!g)
             continue; /* unrasterizable: skip it, keep drawing the string */
         if (g->w > 0 && g->h > 0 && nv <= MAX_TEXT_GLYPHS * 24 - 24) {
-            float x0 = penx + (float)g->xoff;
-            float y0 = baseline + (float)g->yoff;
-            float x1 = x0 + (float)g->w;
-            float y1 = y0 + (float)g->h;
+            /* Bitmap geometry is device px; the projection is logical. */
+            float inv = 1.0f / (r->scale > 0.0f ? r->scale : 1.0f);
+            float x0 = penx + (float)g->xoff * inv;
+            float y0 = baseline + (float)g->yoff * inv;
+            float x1 = x0 + (float)g->w * inv;
+            float y1 = y0 + (float)g->h * inv;
             const float quad[24] = {
                 x0, y0, g->u0, g->v0, x1, y0, g->u1, g->v0,
                 x1, y1, g->u1, g->v1, x0, y0, g->u0, g->v0,

@@ -139,6 +139,9 @@ void cl_window_mark_layout_dirty(cl_window_t *win)
 void cl_window_resize(cl_window_t *win, cl_size_t size)
 {
     win->size = size;
+    win->scale = win->app->platform->ops->scale(win->app->platform);
+    if (win->scale <= 0.0f)
+        win->scale = 1.0f;
     win->layout_dirty = true;
     win->dirty = true;
 }
