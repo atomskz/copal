@@ -191,6 +191,50 @@ static void test_disabled(void)
     cl_application_destroy(app);
 }
 
+/* ---- hover applies the widget cursor --------------------------------------- */
+
+static void test_cursor(void)
+{
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .width = 200, .height = 200 };
+    cl_vbox_desc_t vd = { CL_VBOX_DESC_INIT_FIELDS,
+                          .align_cross = CL_ALIGN_STRETCH };
+    cl_textbox_desc_t td = { CL_TEXTBOX_DESC_INIT_FIELDS };
+    cl_platform_t *plat = cl_platform_mock_create(cl_allocator_default());
+    cl_application_t *app;
+    cl_window_t *win;
+    cl_widget_t *box;
+    cl_widget_t *tb;
+    cl_platform_event_t pe = { 0 };
+    cl_rect_t r;
+
+    ad.platform = plat;
+    ad.renderer = cl_renderer_mock_create(cl_allocator_default());
+    app = cl_application_create(&ad);
+    win = cl_window_create(app, &wd);
+    box = cl_vbox_create(app, &vd);
+    tb = cl_textbox_create(app, &td);
+    CHECK(cl_widget_cursor(tb) == CL_CURSOR_IBEAM); /* the default */
+    cl_widget_add_child(box, tb);
+    cl_window_set_content(win, box);
+    cl_application_step(app, false);
+
+    r = cl_widget_rect(tb);
+    pe.kind = CL_PEV_MOUSE_MOVE;
+    pe.pos = (cl_point_t){ r.x + 4, r.y + 4 };
+    cl_platform_mock_push(plat, pe);
+    cl_application_step(app, false);
+    CHECK(cl_platform_mock_cursor(plat) == CL_CURSOR_IBEAM);
+
+    pe.pos = (cl_point_t){ 190, 190 }; /* empty area below the textbox */
+    cl_platform_mock_push(plat, pe);
+    cl_application_step(app, false);
+    CHECK(cl_platform_mock_cursor(plat) == CL_CURSOR_DEFAULT);
+
+    cl_application_destroy(app);
+}
+
 /* ---- destroying widgets from callbacks (deferred destruction) ------------- */
 
 static void kill_widget(cl_widget_t *w, void *user)
@@ -527,6 +571,7 @@ int main(void)
     test_window_lifecycle();
     test_disabled();
     test_button_hover();
+    test_cursor();
     test_destroy_from_callback();
     test_log_callback();
     test_custom_widget();

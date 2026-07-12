@@ -18,6 +18,7 @@ typedef struct mock_platform {
     uint64_t now_ms;     /* monotonic clock, advanced only by the test harness */
     int last_wait_timeout; /* timeout passed to the most recent wait() */
     size_t dropped;      /* events lost to a full queue */
+    cl_cursor_t cursor;  /* last shape set (introspection) */
 } mock_platform_t;
 
 static cl_result_t mock_create_window(cl_platform_t *p,
@@ -88,6 +89,11 @@ static void mock_wakeup(cl_platform_t *p)
     (void)p;
 }
 
+static void mock_set_cursor(cl_platform_t *p, cl_cursor_t cursor)
+{
+    ((mock_platform_t *)p)->cursor = cursor;
+}
+
 static void mock_start_text_input(cl_platform_t *p,
                                   cl_platform_window_t *win, bool enable)
 {
@@ -147,6 +153,7 @@ static const cl_platform_ops_t mock_ops = {
     .present = mock_present,
     .wakeup = mock_wakeup,
     .start_text_input = mock_start_text_input,
+    .set_cursor = mock_set_cursor,
     .clipboard_get = mock_clipboard_get,
     .clipboard_set = mock_clipboard_set,
     .destroy = mock_destroy,
@@ -197,4 +204,9 @@ cl_size_t cl_platform_mock_min_size(cl_platform_t *p)
 size_t cl_platform_mock_dropped_events(cl_platform_t *p)
 {
     return ((mock_platform_t *)p)->dropped;
+}
+
+cl_cursor_t cl_platform_mock_cursor(cl_platform_t *p)
+{
+    return ((mock_platform_t *)p)->cursor;
 }

@@ -27,6 +27,9 @@
   `cl_paint_draw_image`, операции SPI `draw_image`/`evict_image` во всех трёх
   рендерах (GL — кэш текстур, software — масштабируемый блит с блендингом,
   mock — запись команды) и виджет `cl_imageview`.
+- Курсоры мыши: `cl_cursor_t` (default/ibeam/hand/crosshair/size),
+  `cl_widget_set_cursor` (форма наследуется от ближайшего предка),
+  операция SPI `set_cursor`; textbox по умолчанию показывает I-beam.
 - `cl_key_t` расширен: цифровой ряд `CL_KEY_0..9`, `CL_KEY_F1..F12`,
   `CL_KEY_PAGE_UP`/`CL_KEY_PAGE_DOWN` (замаплены в SDL-бэкенде).
 

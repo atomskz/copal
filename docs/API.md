@@ -427,6 +427,8 @@ cl_rect_t cl_widget_rect(cl_widget_t *w);                  /* назначенн
 void      cl_widget_set_visible(cl_widget_t *w, bool v);
 bool      cl_widget_is_visible(cl_widget_t *w);
 void      cl_widget_set_enabled(cl_widget_t *w, bool e);
+void      cl_widget_set_cursor(cl_widget_t *w, cl_cursor_t cursor); /* форма при hover */
+cl_cursor_t cl_widget_cursor(cl_widget_t *w);
 bool      cl_widget_is_enabled(cl_widget_t *w);
 
 /* Layout-атрибуты ребёнка (читают box-контейнеры):

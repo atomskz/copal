@@ -20,6 +20,7 @@ typedef struct sdl_platform {
     SDL_Surface *surface; /* window surface locked for software drawing */
     cl_size_t size;       /* logical px */
     float scale;
+    SDL_Cursor *cursors[CL_CURSOR__COUNT]; /* lazily created system cursors */
 } sdl_platform_t;
 
 static cl_mouse_button_t map_button(Uint8 b)
@@ -330,6 +331,27 @@ static void sdl_start_text_input(cl_platform_t *p, cl_platform_window_t *win,
         SDL_StopTextInput();
 }
 
+static void sdl_set_cursor(cl_platform_t *p, cl_cursor_t cursor)
+{
+    sdl_platform_t *s = (sdl_platform_t *)p;
+    SDL_SystemCursor id;
+
+    if ((int)cursor < 0 || cursor >= CL_CURSOR__COUNT)
+        cursor = CL_CURSOR_DEFAULT;
+    switch (cursor) {
+        case CL_CURSOR_IBEAM:     id = SDL_SYSTEM_CURSOR_IBEAM;     break;
+        case CL_CURSOR_HAND:      id = SDL_SYSTEM_CURSOR_HAND;      break;
+        case CL_CURSOR_CROSSHAIR: id = SDL_SYSTEM_CURSOR_CROSSHAIR; break;
+        case CL_CURSOR_SIZE_H:    id = SDL_SYSTEM_CURSOR_SIZEWE;    break;
+        case CL_CURSOR_SIZE_V:    id = SDL_SYSTEM_CURSOR_SIZENS;    break;
+        default:                  id = SDL_SYSTEM_CURSOR_ARROW;     break;
+    }
+    if (!s->cursors[cursor])
+        s->cursors[cursor] = SDL_CreateSystemCursor(id);
+    if (s->cursors[cursor])
+        SDL_SetCursor(s->cursors[cursor]);
+}
+
 static void sdl_set_ime_rect(cl_platform_t *p, cl_platform_window_t *win,
                              cl_rect_t rect)
 {
@@ -390,10 +412,23 @@ static uint64_t sdl_now_ms(cl_platform_t *p)
 #endif
 }
 
+static void sdl_free_cursors(sdl_platform_t *s)
+{
+    int i;
+
+    for (i = 0; i < CL_CURSOR__COUNT; i++) {
+        if (s->cursors[i]) {
+            SDL_FreeCursor(s->cursors[i]);
+            s->cursors[i] = NULL;
+        }
+    }
+}
+
 static void sdl_destroy(cl_platform_t *p)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
+    sdl_free_cursors(s);
     sdl_destroy_window(p, NULL);
     /* Only drop our own SDL_InitSubSystem reference. copal is a library: a
      * full SDL_Quit() would tear down EVERY subsystem (audio, joysticks, ...)
@@ -415,6 +450,7 @@ static const cl_platform_ops_t sdl_ops = {
     .present = sdl_present,
     .wakeup = sdl_wakeup,
     .start_text_input = sdl_start_text_input,
+    .set_cursor = sdl_set_cursor,
     .set_ime_rect = sdl_set_ime_rect,
     .clipboard_get = sdl_clipboard_get,
     .clipboard_set = sdl_clipboard_set,
@@ -541,6 +577,7 @@ static void sdl_destroy_soft(cl_platform_t *p)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
+    sdl_free_cursors(s);
     sdl_destroy_window(p, NULL);
     /* Only drop our own SDL_InitSubSystem reference. copal is a library: a
      * full SDL_Quit() would tear down EVERY subsystem (audio, joysticks, ...)
@@ -562,6 +599,7 @@ static const cl_platform_ops_t sdl_ops_soft = {
     .present = sdl_present_soft,
     .wakeup = sdl_wakeup,
     .start_text_input = sdl_start_text_input,
+    .set_cursor = sdl_set_cursor,
     .set_ime_rect = sdl_set_ime_rect,
     .clipboard_get = sdl_clipboard_get,
     .clipboard_set = sdl_clipboard_set,

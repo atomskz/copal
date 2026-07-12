@@ -1608,6 +1608,7 @@ cl_widget_t *cl_textbox_create(cl_application_t *app,
         return NULL;
     tb = CL_WIDGET_CAST(cl_textbox, w);
     w->flags |= CL_WF_FOCUSABLE;
+    w->cursor = CL_CURSOR_IBEAM; /* text edit affordance */
 
     /* buffer always holds at least a NUL */
     if (!ensure_cap(tb, 1)) {

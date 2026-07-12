@@ -27,6 +27,17 @@ typedef struct cl_constraints {
     cl_size_t max;
 } cl_constraints_t;
 
+/* Mouse cursor shapes (mapped to system cursors by the platform backend). */
+typedef enum cl_cursor {
+    CL_CURSOR_DEFAULT = 0, /* arrow */
+    CL_CURSOR_IBEAM,
+    CL_CURSOR_HAND,
+    CL_CURSOR_CROSSHAIR,
+    CL_CURSOR_SIZE_H, /* horizontal resize */
+    CL_CURSOR_SIZE_V, /* vertical resize */
+    CL_CURSOR__COUNT
+} cl_cursor_t;
+
 /* Alignment along an axis. */
 typedef enum cl_align {
     CL_ALIGN_START,

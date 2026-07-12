@@ -514,6 +514,28 @@ void cl_window_render(cl_window_t *win)
     win->dirty = false;
 }
 
+/* The effective cursor of a widget: its own shape, or the nearest ancestor's
+ * non-default one (a container can set a cursor for a whole subtree). */
+static cl_cursor_t effective_cursor(cl_widget_t *w)
+{
+    for (; w; w = w->parent) {
+        if ((cl_cursor_t)w->cursor != CL_CURSOR_DEFAULT)
+            return (cl_cursor_t)w->cursor;
+    }
+    return CL_CURSOR_DEFAULT;
+}
+
+static void window_apply_cursor(cl_window_t *win, cl_cursor_t cursor)
+{
+    cl_platform_t *p = win->app->platform;
+
+    if (win->cursor == cursor)
+        return;
+    win->cursor = cursor;
+    if (p->ops->set_cursor)
+        p->ops->set_cursor(p, cursor);
+}
+
 /* Reconcile the hovered widget on pointer motion: leave the old, enter the
  * new. Skipped while dragging (pointer capture freezes hover). */
 static void window_update_hover(cl_window_t *win, cl_widget_t *w)
@@ -525,6 +547,7 @@ static void window_update_hover(cl_window_t *win, cl_widget_t *w)
     win->hover = w;
     if (w)
         cl_widget_send_hover(w, true);
+    window_apply_cursor(win, effective_cursor(w));
 }
 
 void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,

@@ -305,6 +305,17 @@ bool cl_widget_is_enabled(cl_widget_t *w)
     return (w->flags & CL_WF_ENABLED) != 0;
 }
 
+void cl_widget_set_cursor(cl_widget_t *w, cl_cursor_t cursor)
+{
+    if (w)
+        w->cursor = (uint32_t)cursor;
+}
+
+cl_cursor_t cl_widget_cursor(cl_widget_t *w)
+{
+    return w ? (cl_cursor_t)w->cursor : CL_CURSOR_DEFAULT;
+}
+
 void cl_widget_set_preferred_size(cl_widget_t *w, cl_size_t s)
 {
     w->pref_size = s;

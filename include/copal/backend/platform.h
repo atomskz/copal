@@ -113,6 +113,9 @@ typedef struct cl_platform_ops {
     void (*wakeup)(cl_platform_t *p);
     void (*start_text_input)(cl_platform_t *p, cl_platform_window_t *win,
                              bool enable);
+    /* Show a system cursor shape (process-wide, follows the pointer).
+     * Optional: NULL when the backend has no cursors. */
+    void (*set_cursor)(cl_platform_t *p, cl_cursor_t cursor);
     /* Position the IME candidate window near the caret (logical px). NULL if
      * the backend has no IME. */
     void (*set_ime_rect)(cl_platform_t *p, cl_platform_window_t *win,

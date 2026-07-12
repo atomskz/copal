@@ -66,6 +66,7 @@ struct cl_window {
     bool overlay_closing;       /* deferred-close flag for the overlay */
     cl_widget_t *mouse_target;   /* weak; basic pointer capture */
     cl_widget_t *hover;          /* weak; widget under the pointer */
+    cl_cursor_t cursor;          /* shape currently applied to the platform */
     cl_widget_t *focus;          /* weak; keyboard focus */
     bool focus_reveal_pending;   /* reveal focus once the next layout is fresh */
     cl_widget_t *tooltip;        /* owned; the shown tooltip bubble, or NULL */

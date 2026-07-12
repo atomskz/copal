@@ -40,6 +40,13 @@ CL_API void cl_widget_set_visible(cl_widget_t *w, bool v);
 CL_API bool cl_widget_is_visible(cl_widget_t *w);
 CL_API void cl_widget_set_enabled(cl_widget_t *w, bool e);
 CL_API bool cl_widget_is_enabled(cl_widget_t *w);
+/*
+ * Mouse cursor shown while the pointer hovers this widget. CL_CURSOR_DEFAULT
+ * defers to the nearest ancestor with a non-default cursor (so a container
+ * can set one for a whole subtree). The textbox defaults to CL_CURSOR_IBEAM.
+ */
+CL_API void cl_widget_set_cursor(cl_widget_t *w, cl_cursor_t cursor);
+CL_API cl_cursor_t cl_widget_cursor(cl_widget_t *w);
 /* Per-child layout attributes, consumed by the box containers (vbox/hbox):
  * - preferred_size overrides the widget's own measure on each axis > 0;
  * - flex > 0 receives that share of the leftover main-axis space (grow

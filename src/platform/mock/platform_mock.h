@@ -24,4 +24,7 @@ cl_size_t cl_platform_mock_min_size(cl_platform_t *p);
 /* Events dropped because the scripted queue was full (should stay 0). */
 size_t cl_platform_mock_dropped_events(cl_platform_t *p);
 
+/* The cursor shape most recently applied through set_cursor. */
+cl_cursor_t cl_platform_mock_cursor(cl_platform_t *p);
+
 #endif /* CL_PLATFORM_MOCK_H */

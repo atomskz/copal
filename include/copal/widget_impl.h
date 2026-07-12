@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#define CL_WIDGET_RESERVED 24
+#define CL_WIDGET_RESERVED 20
 
 enum cl_widget_flags {
     CL_WF_VISIBLE = 1u << 0,
@@ -118,6 +118,7 @@ struct cl_widget {
     cl_align_t align_v;
     float flex;             /* main-axis growth weight in boxes; 0 = fixed */
     uint32_t flags;
+    uint32_t cursor; /* cl_cursor_t shown while hovered (widget.h) */
     void *userdata;
     char *tooltip; /* owned UTF-8 hover text, or NULL (cl_widget_set_tooltip) */
     unsigned char reserved[CL_WIDGET_RESERVED];
