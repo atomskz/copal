@@ -45,8 +45,6 @@ typedef struct cl_application_desc {
     uint32_t abi_version;
     size_t struct_size;
     const cl_allocator_t *allocator; /* NULL -> built-in malloc */
-    cl_log_fn log_fn;
-    void *log_user;
     cl_platform_t *platform; /* injected backend; ownership transfers to app */
     cl_renderer_t *renderer; /* injected backend; ownership transfers to app */
     cl_render_backend_t render_backend; /* built-in backend choice (0 = AUTO) */

@@ -35,6 +35,7 @@ static cl_font_t *font_from_data(const cl_allocator_t *a, unsigned char *data,
     /* Smaller than an sfnt offset table cannot be a font, and stb_truetype
      * reads the first tags unconditionally. */
     if (len < 12) {
+        cl_log(CL_LOG_WARN, "font: data too short to be a font");
         cl_set_last_error(CL_ERROR_FONT);
         cl_free(a, data);
         return NULL;
@@ -53,6 +54,7 @@ static cl_font_t *font_from_data(const cl_allocator_t *a, unsigned char *data,
      * past the buffer (fontstart wraps to 0xFFFFFFFF). */
     offset = stbtt_GetFontOffsetForIndex(data, 0);
     if (offset < 0 || !stbtt_InitFont(&f->info, data, offset)) {
+        cl_log(CL_LOG_WARN, "font: data is not a supported font");
         cl_set_last_error(CL_ERROR_FONT);
         cl_free(a, data);
         cl_free(a, f);
@@ -120,6 +122,7 @@ cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
     }
     fp = fopen(path, "rb");
     if (!fp) {
+        cl_log(CL_LOG_WARN, "font: cannot open '%s'", path);
         cl_set_last_error(CL_ERROR_FONT);
         return NULL;
     }

@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <copal/error.h>
 
+#include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #include "foundation_internal.h"
 
@@ -45,4 +47,21 @@ void cl_set_log_callback(cl_log_fn fn, void *user)
 {
     g_log_fn = fn;
     g_log_user = user;
+}
+
+void cl_log(cl_log_level_t level, const char *fmt, ...)
+{
+    char msg[256];
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+    if (g_log_fn) {
+        g_log_fn(level, msg, g_log_user);
+        return;
+    }
+    /* No sink installed: keep problems visible. */
+    if (level >= CL_LOG_WARN)
+        fprintf(stderr, "copal: %s\n", msg);
 }

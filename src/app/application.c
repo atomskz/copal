@@ -44,8 +44,6 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
     app->alloc = *a;
     app->platform = desc->platform;
     app->renderer = desc->renderer;
-    app->log_fn = desc->log_fn;
-    app->log_user = desc->log_user;
 
 #if defined(CL_ENABLE_SDL)
     {
@@ -91,6 +89,8 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
 #endif
 
     if (!app->platform || !app->renderer) {
+        cl_log(CL_LOG_ERROR, "application: no usable %s backend",
+               !app->platform ? "platform" : "renderer");
         cl_set_last_error(CL_ERROR_UNSUPPORTED);
         cl_free(a, app);
         return NULL;

@@ -35,7 +35,14 @@ CL_API cl_result_t cl_last_error(void);
 /** cl_result_string() - static human-readable description of a result code. */
 CL_API const char *cl_result_string(cl_result_t result);
 
-/** cl_set_log_callback() - install a process-wide log callback (NULL disables). */
+/**
+ * cl_set_log_callback() - install a process-wide log callback (NULL removes).
+ *
+ * Receives the library's diagnostics (backend init failures, GL shader
+ * errors, rejected fonts, ...). Without a callback, WARN and ERROR messages
+ * go to stderr. Install it before the first copal call and before spawning
+ * threads; the sink itself is not synchronised.
+ */
 CL_API void cl_set_log_callback(cl_log_fn fn, void *user);
 
 #ifdef __cplusplus

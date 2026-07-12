@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "platform/sdl/platform_sdl.h"
+#include "core/foundation/foundation_internal.h"
 
 #include <string.h>
 
@@ -428,9 +429,10 @@ static bool sdl_lock_framebuffer(cl_platform_t *p, cl_pixmap_t *out)
 
         if (!warned) {
             warned = true;
-            SDL_Log("copal: software backend needs a 32-bit window surface "
-                    "(got %d-byte); nothing will be drawn",
-                    surf->format->BytesPerPixel);
+            cl_log(CL_LOG_ERROR,
+                   "software backend needs a 32-bit window surface "
+                   "(got %d-byte); nothing will be drawn",
+                   surf->format->BytesPerPixel);
         }
         return false;
     }

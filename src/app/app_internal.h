@@ -26,8 +26,6 @@ struct cl_application {
     cl_mutex_t *task_mutex; /* guards the cross-thread task queue */
     cl_task_t *task_head;   /* FIFO of posted tasks (guarded) */
     cl_task_t *task_tail;
-    cl_log_fn log_fn;
-    void *log_user;
     bool quit;
     int exit_code;
 };

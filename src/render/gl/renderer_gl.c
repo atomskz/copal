@@ -131,7 +131,7 @@ static GLuint compile_shader(struct gl_api *gl, GLenum type, const char *src)
         char log[512];
 
         gl->GetShaderInfoLog(s, (GLsizei)sizeof(log), NULL, log);
-        fprintf(stderr, "copal gl: shader compile failed: %s\n", log);
+        cl_log(CL_LOG_ERROR, "gl: shader compile failed: %s", log);
         gl->DeleteShader(s);
         return 0;
     }
@@ -163,7 +163,7 @@ static GLuint link_program(struct gl_api *gl, const char *vs, const char *fs)
         char log[512];
 
         gl->GetProgramInfoLog(p, (GLsizei)sizeof(log), NULL, log);
-        fprintf(stderr, "copal gl: link failed: %s\n", log);
+        cl_log(CL_LOG_ERROR, "gl: link failed: %s", log);
         gl->DeleteProgram(p);
         return 0;
     }
@@ -178,7 +178,7 @@ static void gl_init(gl_renderer_t *r)
 
     r->init = true;
     if (!cl_gl_load(gl, gl_get, r->platform)) {
-        fprintf(stderr, "copal gl: failed to load GL functions\n");
+        cl_log(CL_LOG_ERROR, "gl: failed to load GL functions");
         return;
     }
 

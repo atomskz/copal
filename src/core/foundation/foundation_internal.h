@@ -11,6 +11,15 @@
 void cl_set_last_error(cl_result_t result);
 
 /*
+ * Diagnostics channel: formats the message and hands it to the process-wide
+ * cl_set_log_callback() sink; without one, WARN and ERROR go to stderr.
+ */
+#if defined(__GNUC__)
+__attribute__((format(printf, 2, 3)))
+#endif
+void cl_log(cl_log_level_t level, const char *fmt, ...);
+
+/*
  * Decode one UTF-8 codepoint from @s into @cp. Returns the number of bytes
  * consumed, or 0 at the terminating NUL. Invalid sequences yield U+FFFD and
  * consume one byte. @s must be NUL-terminated.
