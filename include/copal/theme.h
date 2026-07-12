@@ -35,7 +35,8 @@ typedef enum cl_theme_variant {
     CL_THEME_DARK
 } cl_theme_variant_t;
 
-/* Reusable text style; NULL font/align fall back to theme defaults. */
+/* Reusable text style. A NULL font falls back to the theme font; align is a
+ * plain value (CL_ALIGN_START by default, there is no "unset"). */
 typedef struct cl_text_style {
     cl_font_t *font;
     cl_color_t color;

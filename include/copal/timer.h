@@ -22,7 +22,9 @@ typedef void (*cl_timer_fn)(cl_timer_t *timer, void *user);
  * Timers fire their callback from the application's event loop (cl_application_run
  * or cl_application_step), on the same thread, in between event dispatch and
  * rendering. Timing is best-effort: a firing may be late (never early), and a
- * repeating timer that falls behind coalesces missed ticks into one.
+ * repeating timer that falls behind coalesces missed ticks into one. When
+ * several timers are due in the same poll, their relative firing order is
+ * unspecified (do not rely on creation order or deadlines to break ties).
  *
  * A timer is owned by the application: it is freed by cl_timer_cancel() or, if
  * still alive, when the application is destroyed. The handle stays valid until
