@@ -8,12 +8,15 @@
 #include "theme/theme_internal.h"
 #include "core/foundation/foundation_internal.h"
 
-#if defined(CL_ENABLE_SDL) && defined(CL_ENABLE_OPENGL)
-/* Built-in native backends (provided by the SDL/GL/soft backend TUs). */
-cl_platform_t *cl_platform_sdl_create(const cl_allocator_t *a);
+#if defined(CL_ENABLE_SDL)
+/* SDL software backend (no OpenGL dependency). */
 cl_platform_t *cl_platform_sdl_soft_create(const cl_allocator_t *a);
-cl_renderer_t *cl_renderer_gl_create(const cl_allocator_t *a, cl_platform_t *p);
 cl_renderer_t *cl_renderer_soft_create(const cl_allocator_t *a, cl_platform_t *p);
+#endif
+#if defined(CL_ENABLE_OPENGL)
+/* OpenGL window + renderer. */
+cl_platform_t *cl_platform_sdl_create(const cl_allocator_t *a);
+cl_renderer_t *cl_renderer_gl_create(const cl_allocator_t *a, cl_platform_t *p);
 #endif
 
 struct cl_task {
@@ -44,12 +47,15 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
     app->log_fn = desc->log_fn;
     app->log_user = desc->log_user;
 
-#if defined(CL_ENABLE_SDL) && defined(CL_ENABLE_OPENGL)
+#if defined(CL_ENABLE_SDL)
     {
         bool software = desc->render_backend == CL_RENDER_SOFTWARE;
 
-        /* AUTO defaults to GL but honours a COPAL_RENDER=software override, so
-         * software can be selected at runtime (e.g. over RDP or in CI). */
+#if !defined(CL_ENABLE_OPENGL)
+        software = true; /* no OpenGL renderer compiled into this build */
+#endif
+        /* AUTO defaults to GL (when built) but honours a COPAL_RENDER=software
+         * override, so software can be selected at runtime (e.g. over RDP). */
         if (desc->render_backend == CL_RENDER_AUTO) {
             const char *env = getenv("COPAL_RENDER");
 
@@ -59,16 +65,23 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
         if (software) {
             if (!app->platform)
                 app->platform = cl_platform_sdl_soft_create(&app->alloc);
-            if (!app->renderer && app->platform)
+            /* The soft renderer needs a lockable CPU framebuffer; don't bind it
+             * to an injected platform that cannot supply one (renderer stays
+             * NULL -> CL_ERROR_UNSUPPORTED below). */
+            if (!app->renderer && app->platform &&
+                app->platform->ops->lock_framebuffer)
                 app->renderer =
                     cl_renderer_soft_create(&app->alloc, app->platform);
-        } else {
+        }
+#if defined(CL_ENABLE_OPENGL)
+        else {
             if (!app->platform)
                 app->platform = cl_platform_sdl_create(&app->alloc);
             if (!app->renderer && app->platform)
                 app->renderer =
                     cl_renderer_gl_create(&app->alloc, app->platform);
         }
+#endif
     }
 #endif
 

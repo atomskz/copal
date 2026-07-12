@@ -105,8 +105,11 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 target_link_libraries(copal PUBLIC Threads::Threads)
 
-# Native backends: SDL2 platform + OpenGL renderer. Enable both together.
-if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
+# Native backend: SDL2 platform. The SDL platform (including the OpenGL-free
+# software window) needs only SDL2; the OpenGL renderer is added on top when
+# COPAL_ENABLE_OPENGL is also set. So COPAL_ENABLE_SDL alone yields a working
+# software-rendering build with no GL/driver dependency.
+if(COPAL_ENABLE_SDL)
     # SDL2 comes from either a system/vcpkg package (find_package) or, when
     # COPAL_FETCH_SDL2 is set, is downloaded and built as a subproject. The
     # latter needs no local SDL2 install and is the easy path on Windows.
@@ -124,16 +127,21 @@ if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
     else()
         find_package(SDL2 REQUIRED)
     endif()
-    find_package(OpenGL REQUIRED)
-    target_sources(copal PRIVATE
-        src/platform/sdl/platform_sdl.c
-        src/render/gl/gl_loader.c
-        src/render/gl/renderer_gl.c)
-    target_compile_definitions(copal PRIVATE CL_ENABLE_SDL CL_ENABLE_OPENGL)
-    target_link_libraries(copal PRIVATE SDL2::SDL2 OpenGL::GL)
-elseif(COPAL_ENABLE_SDL OR COPAL_ENABLE_OPENGL)
-    message(WARNING "COPAL_ENABLE_SDL and COPAL_ENABLE_OPENGL must be enabled "
-                    "together; native backend disabled.")
+    target_sources(copal PRIVATE src/platform/sdl/platform_sdl.c)
+    target_compile_definitions(copal PRIVATE CL_ENABLE_SDL)
+    target_link_libraries(copal PRIVATE SDL2::SDL2)
+
+    if(COPAL_ENABLE_OPENGL)
+        find_package(OpenGL REQUIRED)
+        target_sources(copal PRIVATE
+            src/render/gl/gl_loader.c
+            src/render/gl/renderer_gl.c)
+        target_compile_definitions(copal PRIVATE CL_ENABLE_OPENGL)
+        target_link_libraries(copal PRIVATE OpenGL::GL)
+    endif()
+elseif(COPAL_ENABLE_OPENGL)
+    message(WARNING "COPAL_ENABLE_OPENGL requires COPAL_ENABLE_SDL; "
+                    "OpenGL renderer disabled.")
 endif()
 
 target_compile_definitions(copal PRIVATE COPAL_BUILDING)

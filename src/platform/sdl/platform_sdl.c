@@ -411,8 +411,19 @@ static bool sdl_lock_framebuffer(cl_platform_t *p, cl_pixmap_t *out)
     if (!s->window)
         return false;
     surf = SDL_GetWindowSurface(s->window); /* re-created on resize */
-    if (!surf || surf->format->BytesPerPixel != 4)
+    if (!surf)
         return false;
+    if (surf->format->BytesPerPixel != 4) {
+        static bool warned;
+
+        if (!warned) {
+            warned = true;
+            SDL_Log("copal: software backend needs a 32-bit window surface "
+                    "(got %d-byte); nothing will be drawn",
+                    surf->format->BytesPerPixel);
+        }
+        return false;
+    }
     if (SDL_MUSTLOCK(surf) && SDL_LockSurface(surf) != 0)
         return false;
     s->surface = surf;

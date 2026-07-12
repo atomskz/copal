@@ -7,8 +7,8 @@
 # version, needing no backends.
 add_subdirectory(test_version)
 
-# The GUI examples require the SDL2 + OpenGL backends.
-if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
+# The GUI examples need the SDL2 backend (software or, if built, OpenGL).
+if(COPAL_ENABLE_SDL)
     # Helpers shared by the GUI examples (font loading, headless run helper,
     # LSan suppressions), linked into each of them.
     add_library(copal_example_common STATIC common/example_util.c)

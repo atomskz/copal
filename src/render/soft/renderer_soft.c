@@ -179,6 +179,14 @@ static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
     r->w = pm.w;
     r->h = pm.h;
     r->pitch = pm.pitch;
+    /* We access the buffer as uint32_t; a misaligned base/pitch would be UB.
+     * Fail closed (like the lock failure) rather than risk it. */
+    if (((uintptr_t)r->px & 3u) || (r->pitch & 3)) {
+        if (r->platform->ops->unlock_framebuffer)
+            r->platform->ops->unlock_framebuffer(r->platform);
+        r->px = NULL;
+        return;
+    }
     r->rsh = mask_shift(pm.r_mask);
     r->gsh = mask_shift(pm.g_mask);
     r->bsh = mask_shift(pm.b_mask);
@@ -356,22 +364,37 @@ static void soft_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
         if (!g)
             break;
         if (g->cov) {
-            int gx0 = (int)floorf((penx + (float)g->xoff) * r->scale);
-            int gy0 = (int)floorf((baseline + (float)g->yoff) * r->scale);
-            int sx, sy;
+            float gx = penx + (float)g->xoff; /* logical top-left of bitmap */
+            float gy = baseline + (float)g->yoff;
+            int px0 = (int)floorf(gx * r->scale);
+            int py0 = (int)floorf(gy * r->scale);
+            int px1 = (int)ceilf((gx + (float)g->w) * r->scale);
+            int py1 = (int)ceilf((gy + (float)g->h) * r->scale);
+            int ix, iy;
 
-            for (sy = 0; sy < g->h; sy++) {
-                int iy = gy0 + sy;
+            if (px0 < cx0)
+                px0 = cx0;
+            if (py0 < cy0)
+                py0 = cy0;
+            if (px1 > cx1)
+                px1 = cx1;
+            if (py1 > cy1)
+                py1 = cy1;
+            /* Walk the glyph's physical footprint, sampling the (logical) glyph
+             * bitmap per pixel, so text honours the device scale like the SDF
+             * primitives do. At scale == 1 this is a straight 1:1 blit. */
+            for (iy = py0; iy < py1; iy++) {
+                int ty = (int)(((float)iy + 0.5f) / r->scale - gy);
 
-                if (iy < cy0 || iy >= cy1)
+                if (ty < 0 || ty >= g->h)
                     continue;
-                for (sx = 0; sx < g->w; sx++) {
-                    int ix = gx0 + sx;
+                for (ix = px0; ix < px1; ix++) {
+                    int tx = (int)(((float)ix + 0.5f) / r->scale - gx);
                     float cov;
 
-                    if (ix < cx0 || ix >= cx1)
+                    if (tx < 0 || tx >= g->w)
                         continue;
-                    cov = (float)g->cov[sy * g->w + sx] / 255.0f;
+                    cov = (float)g->cov[ty * g->w + tx] / 255.0f;
                     if (cov > 0.0f)
                         blend_px(r, ix, iy, color, cov);
                 }
