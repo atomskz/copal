@@ -316,6 +316,32 @@ static float measure_span(cl_font_t *font, const char *p, size_t n)
     return font ? cl_text_measure_bytes(font, p, n, CL_UNBOUNDED).w : 0.0f;
 }
 
+/*
+ * Draw exactly @n bytes of @s. The renderer consumes NUL-terminated strings,
+ * so copy the span out (stack for the common case) instead of temporarily
+ * poking a NUL into the text buffer: paint must not mutate widget state.
+ */
+static void draw_span(cl_paint_context_t *ctx, cl_font_t *font,
+                      const cl_allocator_t *a, const char *s, size_t n,
+                      cl_point_t pos, cl_color_t col)
+{
+    char stack[256];
+    char *tmp = stack;
+
+    if (n == 0)
+        return;
+    if (n + 1 > sizeof(stack)) {
+        tmp = cl_alloc(a, n + 1);
+        if (!tmp)
+            return; /* skip the span this frame rather than crash */
+    }
+    memcpy(tmp, s, n);
+    tmp[n] = '\0';
+    cl_paint_draw_text(ctx, font, tmp, pos, col);
+    if (tmp != stack)
+        cl_free(a, tmp);
+}
+
 static bool lines_reserve(cl_textbox_t *tb, size_t need)
 {
     size_t nc;
@@ -933,34 +959,24 @@ static void textbox_paint_multi(cl_widget_t *w, cl_paint_context_t *ctx,
             float px = text_x + caret_cx;
             float pw = cl_text_measure(font, tb->preedit, CL_UNBOUNDED).w;
 
-            if (tb->cursor > L.start) {
-                char s1 = tb->buf[tb->cursor];
-
-                tb->buf[tb->cursor] = '\0';
-                cl_paint_draw_text(ctx, font, tb->buf + L.start,
-                                   (cl_point_t){ text_x, ly }, text_col);
-                tb->buf[tb->cursor] = s1;
-            }
+            if (tb->cursor > L.start)
+                draw_span(ctx, font, cl_application_allocator(w->app),
+                          tb->buf + L.start, tb->cursor - L.start,
+                          (cl_point_t){ text_x, ly }, text_col);
             cl_paint_draw_text(ctx, font, tb->preedit,
                                (cl_point_t){ px, ly }, text_col);
             cl_paint_fill_rect(ctx,
                                (cl_rect_t){ px, ly + lh - 2.0f, pw, 1.0f },
                                text_col);
-            if (end > tb->cursor) {
-                char s2 = tb->buf[end];
-
-                tb->buf[end] = '\0';
-                cl_paint_draw_text(ctx, font, tb->buf + tb->cursor,
-                                   (cl_point_t){ px + pw, ly }, text_col);
-                tb->buf[end] = s2;
-            }
+            if (end > tb->cursor)
+                draw_span(ctx, font, cl_application_allocator(w->app),
+                          tb->buf + tb->cursor, end - tb->cursor,
+                          (cl_point_t){ px + pw, ly }, text_col);
         } else if (L.len > 0) {
-            char saved = tb->buf[end];
-
-            tb->buf[end] = '\0'; /* draw exactly this line, then restore */
-            cl_paint_draw_text(ctx, font, tb->buf + L.start,
-                               (cl_point_t){ text_x, ly }, text_col);
-            tb->buf[end] = saved;
+            /* draw exactly this line */
+            draw_span(ctx, font, cl_application_allocator(w->app),
+                      tb->buf + L.start, L.len,
+                      (cl_point_t){ text_x, ly }, text_col);
         }
     }
 
@@ -1055,16 +1071,12 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
         cl_color_t tc = cl_paint_theme_color(ctx, CL_COLOR_TEXT);
         float px = text_x + caret_x(tb, font, tb->cursor);
         float pw = cl_text_measure(font, tb->preedit, CL_UNBOUNDED).w;
-        char saved = tb->buf[tb->cursor];
         size_t pb;
 
         /* buffer text before the caret, the composition (underlined), then the
          * remaining buffer text shifted right by the composition width */
-        tb->buf[tb->cursor] = '\0';
-        if (tb->buf[0])
-            cl_paint_draw_text(ctx, font, tb->buf,
-                               (cl_point_t){ text_x, text_y }, tc);
-        tb->buf[tb->cursor] = saved;
+        draw_span(ctx, font, cl_application_allocator(w->app), tb->buf,
+                  tb->cursor, (cl_point_t){ text_x, text_y }, tc);
         cl_paint_draw_text(ctx, font, tb->preedit,
                            (cl_point_t){ px, text_y }, tc);
         cl_paint_fill_rect(ctx, (cl_rect_t){ px, text_y + lh - 2.0f, pw, 1.0f },
