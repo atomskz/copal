@@ -121,6 +121,18 @@ CL_API bool cl_widget_is_a(cl_widget_t *w, const cl_widget_class_t *cls);
     ((name##_t *)cl_widget_check_cast((w), &name##_class))
 #define CL_WIDGET_CAST_UNCHECKED(name, w) ((name##_t *)(w))
 
+/*
+ * Container plumbing: measure/arrange a child from the parent's own
+ * measure/arrange slots. The wrappers apply the NULL-slot defaults, honour
+ * the child's preferred size, record child->measured and assign child->rect
+ * — call them instead of invoking the child's vtable directly.
+ */
+CL_API cl_size_t cl_widget_do_measure(cl_widget_t *child, cl_constraints_t c);
+CL_API void cl_widget_do_arrange(cl_widget_t *child, cl_rect_t rect);
+
+/** cl_widget_reveal() - scroll scrollable ancestors until w is visible. */
+CL_API void cl_widget_reveal(cl_widget_t *w);
+
 #ifdef __cplusplus
 }
 #endif

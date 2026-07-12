@@ -20,13 +20,12 @@ bool cl_desc_abi_check(uint32_t abi_version, size_t struct_size,
     (!(desc) || cl_desc_abi_check((desc)->abi_version, (desc)->struct_size, \
                                   sizeof(type)))
 
-/* Layout / paint / input plumbing, driven by the window (window.c). */
-cl_size_t cl_widget_do_measure(cl_widget_t *w, cl_constraints_t c);
-void cl_widget_do_arrange(cl_widget_t *w, cl_rect_t rect);
+/* Layout / paint / input plumbing, driven by the window (window.c).
+ * do_measure/do_arrange/reveal are public (widget_impl.h): custom containers
+ * need them too. */
 void cl_widget_do_paint(cl_widget_t *w, cl_paint_context_t *ctx);
 cl_widget_t *cl_widget_hit(cl_widget_t *w, cl_point_t p);
 bool cl_widget_dispatch(cl_widget_t *w, const cl_event_t *ev);
-void cl_widget_reveal(cl_widget_t *w); /* scroll ancestors to reveal w */
 void cl_widget_set_window(cl_widget_t *w, cl_window_t *win);
 
 #endif /* CL_WIDGET_INTERNAL_H */
