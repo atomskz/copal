@@ -26,6 +26,10 @@ typedef struct cl_font_metrics {
  * @path:    filesystem path to a .ttf/.otf file.
  * @size_px: nominal pixel size.
  *
+ * Data that is not a font is rejected (NULL, CL_ERROR_FONT), but the parser
+ * (stb_truetype) does not bounds-check a *truncated* real font against the
+ * buffer length, so fonts must come from a trusted source.
+ *
  * Return: a font handle, or NULL on error (see cl_last_error()).
  */
 CL_API cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,

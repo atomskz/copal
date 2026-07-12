@@ -23,13 +23,22 @@ struct cl_font {
 };
 
 static cl_font_t *font_from_data(const cl_allocator_t *a, unsigned char *data,
-                                 float size_px)
+                                 size_t len, float size_px)
 {
     cl_font_t *f;
+    int offset;
     int asc;
     int desc;
     int gap;
     int i;
+
+    /* Smaller than an sfnt offset table cannot be a font, and stb_truetype
+     * reads the first tags unconditionally. */
+    if (len < 12) {
+        cl_set_last_error(CL_ERROR_FONT);
+        cl_free(a, data);
+        return NULL;
+    }
 
     f = cl_alloc(a, sizeof(*f));
     if (!f) {
@@ -40,7 +49,10 @@ static cl_font_t *font_from_data(const cl_allocator_t *a, unsigned char *data,
     f->a = a;
     f->data = data;
 
-    if (!stbtt_InitFont(&f->info, data, stbtt_GetFontOffsetForIndex(data, 0))) {
+    /* -1 means "not a font": passing it to stbtt_InitFont would read ~4 GB
+     * past the buffer (fontstart wraps to 0xFFFFFFFF). */
+    offset = stbtt_GetFontOffsetForIndex(data, 0);
+    if (offset < 0 || !stbtt_InitFont(&f->info, data, offset)) {
         cl_set_last_error(CL_ERROR_FONT);
         cl_free(a, data);
         cl_free(a, f);
@@ -90,7 +102,7 @@ cl_font_t *cl_font_load_memory(cl_application_t *app, const void *data,
     if (!buf)
         return NULL;
     memcpy(buf, data, len);
-    return font_from_data(a, buf, size_px);
+    return font_from_data(a, buf, len, size_px);
 }
 
 cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
@@ -130,7 +142,7 @@ cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
         cl_set_last_error(CL_ERROR_FONT);
         return NULL;
     }
-    return font_from_data(a, buf, size_px);
+    return font_from_data(a, buf, (size_t)size, size_px);
 }
 
 void cl_font_release(cl_font_t *font)
