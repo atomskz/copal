@@ -336,8 +336,10 @@ static void sdl_destroy(cl_platform_t *p)
         SDL_GL_DeleteContext(s->glctx);
     if (s->window)
         SDL_DestroyWindow(s->window);
+    /* Only drop our own SDL_InitSubSystem reference. copal is a library: a
+     * full SDL_Quit() would tear down EVERY subsystem (audio, joysticks, ...)
+     * of a host application that uses SDL itself. */
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
-    SDL_Quit();
     cl_free(s->a, s);
 }
 
@@ -471,8 +473,10 @@ static void sdl_destroy_soft(cl_platform_t *p)
 
     if (s->window)
         SDL_DestroyWindow(s->window);
+    /* Only drop our own SDL_InitSubSystem reference. copal is a library: a
+     * full SDL_Quit() would tear down EVERY subsystem (audio, joysticks, ...)
+     * of a host application that uses SDL itself. */
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
-    SDL_Quit();
     cl_free(s->a, s);
 }
 
