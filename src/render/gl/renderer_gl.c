@@ -238,10 +238,14 @@ static void gl_init(gl_renderer_t *r)
     gl->GenTextures(1, &r->atlas);
     gl->BindTexture(GL_TEXTURE_2D, r->atlas);
     gl->PixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    zero = calloc(ATLAS_W * ATLAS_H, 1);
+    /* NULL data is valid here (uninitialised texels): glyphs sample only the
+     * rects they upload, so a failed scratch allocation is not fatal. */
+    zero = cl_alloc(r->a, ATLAS_W * ATLAS_H);
+    if (zero)
+        memset(zero, 0, ATLAS_W * ATLAS_H);
     gl->TexImage2D(GL_TEXTURE_2D, 0, GL_R8, ATLAS_W, ATLAS_H, 0, GL_RED,
                    GL_UNSIGNED_BYTE, zero);
-    free(zero);
+    cl_free(r->a, zero);
     gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
