@@ -33,6 +33,18 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
         return NULL;
     }
 
+    /* Injected backends carry an ops-level handshake (copal/backend/*.h):
+     * refuse a table shaped by different headers before calling through it. */
+    if ((desc->platform &&
+         (desc->platform->ops->struct_size != sizeof(cl_platform_ops_t) ||
+          desc->platform->ops->abi_version != COPAL_VERSION)) ||
+        (desc->renderer &&
+         (desc->renderer->ops->struct_size != sizeof(cl_renderer_ops_t) ||
+          desc->renderer->ops->abi_version != COPAL_VERSION))) {
+        cl_set_last_error(CL_ERROR_ABI_MISMATCH);
+        return NULL;
+    }
+
     a = desc->allocator ? desc->allocator : cl_allocator_default();
     app = cl_alloc(a, sizeof(*app));
     if (!app)

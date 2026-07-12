@@ -473,6 +473,8 @@ static void soft_destroy(cl_renderer_t *rr)
 }
 
 static const cl_renderer_ops_t soft_ops = {
+    .struct_size = sizeof(cl_renderer_ops_t),
+    .abi_version = COPAL_VERSION,
     .begin_frame = soft_begin_frame,
     .end_frame = soft_end_frame,
     .fill_rect = soft_fill_rect,

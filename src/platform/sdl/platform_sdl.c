@@ -375,6 +375,8 @@ static void sdl_destroy(cl_platform_t *p)
 }
 
 static const cl_platform_ops_t sdl_ops = {
+    .struct_size = sizeof(cl_platform_ops_t),
+    .abi_version = COPAL_VERSION,
     .create_window = sdl_create_window,
     .destroy_window = sdl_destroy_window,
     .set_title = sdl_set_title,
@@ -512,6 +514,8 @@ static void sdl_destroy_soft(cl_platform_t *p)
 }
 
 static const cl_platform_ops_t sdl_ops_soft = {
+    .struct_size = sizeof(cl_platform_ops_t),
+    .abi_version = COPAL_VERSION,
     .create_window = sdl_create_window_soft,
     .destroy_window = sdl_destroy_window,
     .set_title = sdl_set_title,

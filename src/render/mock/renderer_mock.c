@@ -152,6 +152,8 @@ static void mock_destroy(cl_renderer_t *r)
 }
 
 static const cl_renderer_ops_t mock_ops = {
+    .struct_size = sizeof(cl_renderer_ops_t),
+    .abi_version = COPAL_VERSION,
     .begin_frame = mock_begin_frame,
     .end_frame = mock_end_frame,
     .fill_rect = mock_fill_rect,

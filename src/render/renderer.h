@@ -2,44 +2,11 @@
 #ifndef CL_RENDERER_INTERNAL_H
 #define CL_RENDERER_INTERNAL_H
 
-/* Renderer abstraction (ARCHITECTURE §3.3). */
-#include <copal/types.h>
-#include <copal/font.h>
-
-typedef struct cl_renderer cl_renderer_t;
-
-typedef struct cl_renderer_ops {
-    /* Begin a frame and clear it to `clear`. */
-    void (*begin_frame)(cl_renderer_t *r, cl_size_t size, float scale,
-                        cl_color_t clear);
-    void (*end_frame)(cl_renderer_t *r);
-    void (*fill_rect)(cl_renderer_t *r, cl_rect_t rect, cl_color_t color);
-    void (*fill_round_rect)(cl_renderer_t *r, cl_rect_t rect, float radius,
-                            cl_color_t color);
-    void (*stroke_round_rect)(cl_renderer_t *r, cl_rect_t rect, float radius,
-                              float width, cl_color_t color);
-    void (*draw_text)(cl_renderer_t *r, cl_font_t *font, const char *utf8,
-                      cl_point_t pos, cl_color_t color);
-    /*
-     * Clip stack. push_clip intersects rect with the current clip and makes it
-     * the active scissor; pop_clip restores the previous one. Calls nest and
-     * must be balanced. Coordinates are absolute logical pixels.
-     */
-    void (*push_clip)(cl_renderer_t *r, cl_rect_t rect);
-    void (*pop_clip)(cl_renderer_t *r);
-    /*
-     * Drop every cached glyph derived from `font` (called by
-     * cl_font_release: the caches key by the raw pointer, and a later font
-     * could reuse the address). May be coarse - resetting the whole cache is
-     * fine. NULL slot = no glyph cache. Never called inside a frame.
-     */
-    void (*evict_font)(cl_renderer_t *r, cl_font_t *font);
-    void (*destroy)(cl_renderer_t *r);
-} cl_renderer_ops_t;
-
-/* Concrete backends embed this as their first member. */
-struct cl_renderer {
-    const cl_renderer_ops_t *ops;
-};
+/*
+ * The renderer SPI is public since 0.2 (custom backends inject through
+ * cl_application_desc_t); this internal header remains as the include point
+ * for in-tree code. See ARCHITECTURE §3.3 and §13.
+ */
+#include <copal/backend/renderer.h>
 
 #endif /* CL_RENDERER_INTERNAL_H */

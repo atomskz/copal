@@ -105,9 +105,10 @@ Core не линкует SDL/GL: символы SDL/GL присутствуют 
 - Версия (`version.c`): `CL_VERSION_*`, `cl_version_runtime/string`.
 - Зависимостей нет; тестируется в изоляции.
 
-### 3.2 Platform interface (`src/platform/platform.h`, `src/platform/`)
+### 3.2 Platform interface (`copal/backend/platform.h`, `src/platform/`)
 Таблица операций `cl_platform_ops_t` (ops-указатели, backend наследует
-`cl_platform_t` первым полем):
+`cl_platform_t` первым полем; SPI публичный — устанавливаемый заголовок с
+ABI-рукопожатием `struct_size`/`abi_version`, §13):
 - окно: `create_window`, `destroy_window` (откат нативного окна при провале
   `cl_window_create`; опционален), `set_title`, `drawable_size`, `scale`;
 - события: `poll`/`wait` → `cl_platform_event_t` (нейтральный тип, в т. ч.
@@ -137,9 +138,10 @@ GL: `lock_framebuffer` = `SDL_GetWindowSurface`, `present` = `SDL_UpdateWindowSu
    radius)`, `stroke_round_rect(r, radius, width)`, `draw_text(font, utf8, pos,
    color)`, `push_clip`/`pop_clip`; плюс read-доступ к теме (`theme`,
    `theme_color`). Устройство/кадр/GPU-ресурсы недоступны.
-2. **Внутренний device/frame-интерфейс** (`renderer.h`) — принадлежит App/Window:
+2. **Device/frame-интерфейс** (`copal/backend/renderer.h`; SPI публичный, с
+   ABI-рукопожатием `struct_size`/`abi_version`, §13) — принадлежит App/Window:
    `begin_frame(size, scale)`/`end_frame`, управление GPU-ресурсами, загрузка
-   глифов в атлас.
+   глифов в атлас. Авторам виджетов по-прежнему недоступен.
 Реализации: **GL** (`render/gl`: GL 3.3 core, собственный загрузчик `gl_loader.c`
 поверх `third_party/GL`+`KHR`, SDF-шейдер для скруглений/AA, glyph-атлас);
 **Software/CPU** (`render/soft/renderer_soft.c`: те же 9 операций на CPU — тот же
@@ -458,8 +460,16 @@ stb_truetype растеризует глифы, но не делает shaping, 
 
 - Пользовательский виджет: включить `widget_impl.h`, встроить базу первым полем,
   заполнить статические `cl_widget_class_t` + `cl_widget_vtable_t` (C и C++).
-- Пользовательский renderer / platform (реализовать ops-таблицу и инъектировать
-  через `cl_application_desc_t`), allocator, тема.
+- Пользовательский renderer / platform: SPI опубликован в устанавливаемых
+  заголовках `copal/backend/platform.h` и `copal/backend/renderer.h`
+  (не входят в зонтичный `copal.h`). Бэкенд встраивает `cl_platform_t` /
+  `cl_renderer_t` первым полем своей структуры, заполняет статическую
+  ops-таблицу — её первые поля `struct_size`/`abi_version` образуют
+  ABI-рукопожатие: `cl_application_create()` отклоняет таблицу, собранную
+  против других заголовков, с `CL_ERROR_ABI_MISMATCH` — и инъектирует
+  объект через `cl_application_desc_t`. Владение переходит приложению только
+  при успешном create (см. application.h).
+- Allocator, тема.
 
 ## 14. Жизненные циклы
 

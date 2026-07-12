@@ -220,6 +220,36 @@ static void test_log_callback(void)
     cl_application_destroy(app);
 }
 
+/* ---- backend SPI handshake ------------------------------------------------ */
+
+static void test_backend_abi(void)
+{
+    /* An ops table from "different headers": wrong size / wrong version. */
+    static const cl_platform_ops_t bad_size_ops = {
+        .struct_size = sizeof(cl_platform_ops_t) - 8,
+        .abi_version = COPAL_VERSION,
+    };
+    static const cl_platform_ops_t bad_ver_ops = {
+        .struct_size = sizeof(cl_platform_ops_t),
+        .abi_version = COPAL_VERSION + 1,
+    };
+    cl_platform_t bad = { &bad_size_ops };
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_renderer_t *rend = cl_renderer_mock_create(cl_allocator_default());
+
+    ad.renderer = rend;
+    ad.platform = &bad;
+    CHECK(cl_application_create(&ad) == NULL);
+    CHECK(cl_last_error() == CL_ERROR_ABI_MISMATCH);
+
+    bad.ops = &bad_ver_ops;
+    CHECK(cl_application_create(&ad) == NULL);
+    CHECK(cl_last_error() == CL_ERROR_ABI_MISMATCH);
+
+    /* the injected renderer stays with the caller on failure */
+    rend->ops->destroy(rend);
+}
+
 /* ---- a custom widget through the public extension API -------------------- */
 
 typedef struct cl_probe {
@@ -306,6 +336,7 @@ static void test_custom_widget(void)
 int main(void)
 {
     test_on_close();
+    test_backend_abi();
     test_run_exit_code();
     test_window_lifecycle();
     test_disabled();

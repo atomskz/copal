@@ -125,6 +125,8 @@ static void mock_destroy(cl_platform_t *p)
 }
 
 static const cl_platform_ops_t mock_ops = {
+    .struct_size = sizeof(cl_platform_ops_t),
+    .abi_version = COPAL_VERSION,
     .create_window = mock_create_window,
     .set_title = mock_set_title,
     .drawable_size = mock_drawable_size,
