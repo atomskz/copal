@@ -9,6 +9,7 @@ typedef struct mock_platform {
     cl_platform_t base;
     const cl_allocator_t *a;
     cl_size_t size;
+    cl_size_t min_size; /* stored for test introspection */
     float scale;
     cl_platform_event_t queue[CL_MOCK_QUEUE];
     size_t head;
@@ -25,6 +26,8 @@ static cl_result_t mock_create_window(cl_platform_t *p,
 
     m->size.w = (float)desc->width;
     m->size.h = (float)desc->height;
+    m->min_size.w = (float)desc->min_width;
+    m->min_size.h = (float)desc->min_height;
     return CL_OK;
 }
 
@@ -168,4 +171,9 @@ void cl_platform_mock_advance(cl_platform_t *p, uint64_t ms)
 int cl_platform_mock_last_wait_timeout(cl_platform_t *p)
 {
     return ((mock_platform_t *)p)->last_wait_timeout;
+}
+
+cl_size_t cl_platform_mock_min_size(cl_platform_t *p)
+{
+    return ((mock_platform_t *)p)->min_size;
 }

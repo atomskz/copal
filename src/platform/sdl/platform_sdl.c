@@ -108,6 +108,11 @@ static cl_result_t sdl_create_window(cl_platform_t *p,
     SDL_GL_MakeCurrent(s->window, s->glctx);
     SDL_GL_SetSwapInterval(1);
 
+    if (desc->min_width > 0 || desc->min_height > 0)
+        SDL_SetWindowMinimumSize(s->window,
+                                 desc->min_width > 0 ? desc->min_width : 1,
+                                 desc->min_height > 0 ? desc->min_height : 1);
+
     s->size.w = (float)w;
     s->size.h = (float)h;
     SDL_GL_GetDrawableSize(s->window, &dw, &dh);
@@ -387,6 +392,11 @@ static cl_result_t sdl_create_window_soft(cl_platform_t *p,
                                  w, h, flags);
     if (!s->window)
         return CL_ERROR_PLATFORM;
+
+    if (desc->min_width > 0 || desc->min_height > 0)
+        SDL_SetWindowMinimumSize(s->window,
+                                 desc->min_width > 0 ? desc->min_width : 1,
+                                 desc->min_height > 0 ? desc->min_height : 1);
 
     /* The window surface is at logical size (no HighDPI in the MVP soft path). */
     s->size.w = (float)w;

@@ -18,4 +18,7 @@ void cl_platform_mock_advance(cl_platform_t *p, uint64_t ms);
 /* The timeout the most recent wait() was called with (-1 = block forever). */
 int cl_platform_mock_last_wait_timeout(cl_platform_t *p);
 
+/* The min_width/min_height the window was created with (introspection). */
+cl_size_t cl_platform_mock_min_size(cl_platform_t *p);
+
 #endif /* CL_PLATFORM_MOCK_H */
