@@ -16,8 +16,8 @@ void cl_widget_init_base(cl_widget_t *w, cl_application_t *app,
     w->cls = cls;
     w->app = app;
     w->flags = CL_WF_VISIBLE | CL_WF_ENABLED;
-    w->align_h = CL_ALIGN_START;
-    w->align_v = CL_ALIGN_START;
+    w->align_h = CL_ALIGN_AUTO; /* defer to the container's align_cross */
+    w->align_v = CL_ALIGN_AUTO;
     w->generation = 0;
 }
 
@@ -322,6 +322,12 @@ cl_size_t cl_widget_do_measure(cl_widget_t *w, cl_constraints_t c)
         sz = w->cls->vtable->measure(w, c);
     else
         sz = w->pref_size;
+    /* An explicit preferred size wins over the widget's own measure on
+     * each axis where it is set (> 0). */
+    if (w->pref_size.w > 0.0f)
+        sz.w = w->pref_size.w;
+    if (w->pref_size.h > 0.0f)
+        sz.h = w->pref_size.h;
     w->measured = sz;
     return sz;
 }

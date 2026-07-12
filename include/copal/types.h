@@ -35,7 +35,8 @@ typedef enum cl_align {
     CL_ALIGN_START,
     CL_ALIGN_CENTER,
     CL_ALIGN_END,
-    CL_ALIGN_STRETCH
+    CL_ALIGN_STRETCH,
+    CL_ALIGN_AUTO /* per-child value: defer to the container's alignment */
 } cl_align_t;
 
 typedef enum cl_orientation {

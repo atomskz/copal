@@ -39,6 +39,13 @@ CL_API void cl_widget_set_visible(cl_widget_t *w, bool v);
 CL_API bool cl_widget_is_visible(cl_widget_t *w);
 CL_API void cl_widget_set_enabled(cl_widget_t *w, bool e);
 CL_API bool cl_widget_is_enabled(cl_widget_t *w);
+/* Per-child layout attributes, consumed by the box containers (vbox/hbox):
+ * - preferred_size overrides the widget's own measure on each axis > 0;
+ * - flex > 0 receives that share of the leftover main-axis space (grow
+ *   only; 0 = fixed);
+ * - align overrides the container's cross-axis align_cross for this child
+ *   (the CL_ALIGN_AUTO default defers to the container); the main-axis
+ *   component is ignored by boxes. */
 CL_API void cl_widget_set_preferred_size(cl_widget_t *w, cl_size_t s);
 CL_API void cl_widget_set_margin(cl_widget_t *w, cl_insets_t m);
 CL_API void cl_widget_set_align(cl_widget_t *w, cl_align_t h, cl_align_t v);

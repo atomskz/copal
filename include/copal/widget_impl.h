@@ -86,11 +86,11 @@ struct cl_widget {
     cl_widget_t *next_sibling;
     cl_rect_t rect;         /* absolute, assigned by arrange */
     cl_size_t measured;
-    cl_size_t pref_size;
+    cl_size_t pref_size;    /* overrides measure per axis where > 0 */
     cl_insets_t margin;
-    cl_align_t align_h;
+    cl_align_t align_h;     /* cross-axis override; CL_ALIGN_AUTO = container */
     cl_align_t align_v;
-    float flex;
+    float flex;             /* main-axis growth weight in boxes; 0 = fixed */
     uint32_t flags;
     uint32_t generation;
     void *userdata;

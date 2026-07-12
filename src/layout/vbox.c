@@ -61,10 +61,31 @@ static void vbox_arrange(cl_widget_t *w, cl_rect_t rect)
     float x0 = rect.x + self->padding.left;
     float content_w = rect.w - self->padding.left - self->padding.right;
     float y = rect.y + self->padding.top;
+    float used_h = self->padding.top + self->padding.bottom;
+    float total_flex = 0.0f;
+    float leftover;
+    int n = 0;
     bool first = true;
+
+    /* First pass: natural main-axis extent and the sum of flex weights, to
+     * split any leftover height between flexible children. */
+    for (ch = w->first_child; ch; ch = ch->next_sibling) {
+        if (!(ch->flags & CL_WF_VISIBLE))
+            continue;
+        used_h += ch->measured.h + ch->margin.top + ch->margin.bottom;
+        if (ch->flex > 0.0f)
+            total_flex += ch->flex;
+        n++;
+    }
+    if (n > 1)
+        used_h += self->spacing * (float)(n - 1);
+    leftover = rect.h - used_h;
+    if (leftover < 0.0f || total_flex <= 0.0f)
+        leftover = 0.0f; /* grow only: never shrink below measured */
 
     for (ch = w->first_child; ch; ch = ch->next_sibling) {
         cl_size_t cs;
+        cl_align_t cross;
         float avail_w;
         float cw;
         float cx;
@@ -76,9 +97,12 @@ static void vbox_arrange(cl_widget_t *w, cl_rect_t rect)
         first = false;
 
         cs = ch->measured;
+        if (ch->flex > 0.0f && leftover > 0.0f)
+            cs.h += leftover * (ch->flex / total_flex);
         avail_w = content_w - ch->margin.left - ch->margin.right;
         cw = cs.w;
-        switch (self->align_cross) {
+        cross = ch->align_h != CL_ALIGN_AUTO ? ch->align_h : self->align_cross;
+        switch (cross) {
             case CL_ALIGN_STRETCH:
                 cw = avail_w;
                 cx = x0 + ch->margin.left;
