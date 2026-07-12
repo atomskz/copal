@@ -21,7 +21,8 @@ typedef struct mock_platform {
 } mock_platform_t;
 
 static cl_result_t mock_create_window(cl_platform_t *p,
-                                      const cl_window_desc_t *desc)
+                                      const cl_window_desc_t *desc,
+                                      cl_platform_window_t **out)
 {
     mock_platform_t *m = (mock_platform_t *)p;
 
@@ -29,22 +30,29 @@ static cl_result_t mock_create_window(cl_platform_t *p,
     m->size.h = (float)desc->height;
     m->min_size.w = (float)desc->min_width;
     m->min_size.h = (float)desc->min_height;
+    /* Single-window backend: the platform itself stands in for the handle. */
+    *out = (cl_platform_window_t *)m;
     return CL_OK;
 }
 
-static void mock_set_title(cl_platform_t *p, const char *utf8)
+static void mock_set_title(cl_platform_t *p, cl_platform_window_t *win,
+                           const char *utf8)
 {
     (void)p;
+    (void)win;
     (void)utf8;
 }
 
-static cl_size_t mock_drawable_size(cl_platform_t *p)
+static cl_size_t mock_drawable_size(cl_platform_t *p,
+                                    cl_platform_window_t *win)
 {
+    (void)win;
     return ((mock_platform_t *)p)->size;
 }
 
-static float mock_scale(cl_platform_t *p)
+static float mock_scale(cl_platform_t *p, cl_platform_window_t *win)
 {
+    (void)win;
     return ((mock_platform_t *)p)->scale;
 }
 
@@ -69,9 +77,10 @@ static uint64_t mock_now_ms(cl_platform_t *p)
     return ((mock_platform_t *)p)->now_ms;
 }
 
-static void mock_present(cl_platform_t *p)
+static void mock_present(cl_platform_t *p, cl_platform_window_t *win)
 {
     (void)p;
+    (void)win;
 }
 
 static void mock_wakeup(cl_platform_t *p)
@@ -79,9 +88,11 @@ static void mock_wakeup(cl_platform_t *p)
     (void)p;
 }
 
-static void mock_start_text_input(cl_platform_t *p, bool enable)
+static void mock_start_text_input(cl_platform_t *p,
+                                  cl_platform_window_t *win, bool enable)
 {
     (void)p;
+    (void)win;
     (void)enable;
 }
 

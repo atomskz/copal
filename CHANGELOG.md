@@ -13,6 +13,9 @@
   `copal/backend/platform.h` и `copal/backend/renderer.h`; ops-таблицы
   начинаются с ABI-рукопожатия `struct_size`/`abi_version`, инжектированный
   бэкенд с чужой таблицей отклоняется `CL_ERROR_ABI_MISMATCH`.
+- SPI платформы подготовлен к мульти-окну: оконные операции принимают
+  непрозрачный `cl_platform_window_t*` (create_window возвращает хэндл),
+  события несут `window_id`.
 
 ## [0.1.0] — 2026-07-12
 

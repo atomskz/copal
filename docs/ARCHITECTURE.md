@@ -109,8 +109,12 @@ Core не линкует SDL/GL: символы SDL/GL присутствуют 
 Таблица операций `cl_platform_ops_t` (ops-указатели, backend наследует
 `cl_platform_t` первым полем; SPI публичный — устанавливаемый заголовок с
 ABI-рукопожатием `struct_size`/`abi_version`, §13):
-- окно: `create_window`, `destroy_window` (откат нативного окна при провале
-  `cl_window_create`; опционален), `set_title`, `drawable_size`, `scale`;
+- окно: `create_window` (возвращает непрозрачный `cl_platform_window_t*`),
+  `destroy_window` (откат нативного окна при провале `cl_window_create`;
+  опционален), `set_title`, `drawable_size`, `scale` — оконные операции
+  принимают хэндл окна, а события несут `window_id` (задел под мульти-окно:
+  SPI не придётся ломать второй раз; single-window бэкенды вправе
+  игнорировать параметр и обязаны принимать NULL как «единственное окно»);
 - события: `poll`/`wait` → `cl_platform_event_t` (нейтральный тип, в т. ч.
   `CL_PEV_TEXT_EDIT` для IME и `CL_PEV_EXPOSE` при повреждении поверхности;
   мышиные события несут модификаторы и счётчик кликов); `present`;

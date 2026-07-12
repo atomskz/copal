@@ -48,6 +48,7 @@ void cl_app_timers_free_all(cl_application_t *app); /* free all at shutdown */
 
 struct cl_window {
     cl_application_t *app;      /* weak */
+    cl_platform_window_t *native; /* backend window handle (create_window) */
     cl_widget_t *content;       /* owned */
     cl_widget_t *overlay;       /* owned; active popup, or NULL */
     cl_widget_t *overlay_owner; /* weak; widget that opened the popup, or NULL */

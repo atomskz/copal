@@ -33,7 +33,7 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
         return NULL;
     }
 
-    /* Injected backends carry an ops-level handshake (copal/backend/*.h):
+    /* Injected backends carry an ops-level handshake (copal/backend/):
      * refuse a table shaped by different headers before calling through it. */
     if ((desc->platform &&
          (desc->platform->ops->struct_size != sizeof(cl_platform_ops_t) ||
@@ -380,7 +380,10 @@ void cl_app_clipboard_set(cl_application_t *app, const char *utf8)
 void cl_app_set_ime_rect(cl_application_t *app, cl_rect_t rect)
 {
     if (app->platform->ops->set_ime_rect)
-        app->platform->ops->set_ime_rect(app->platform, rect);
+        app->platform->ops->set_ime_rect(app->platform,
+                                         app->window ? app->window->native
+                                                     : NULL,
+                                         rect);
 }
 
 cl_theme_t *cl_application_theme(cl_application_t *app)

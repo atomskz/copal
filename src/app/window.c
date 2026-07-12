@@ -15,6 +15,7 @@ static void tooltip_dismiss(cl_window_t *win); /* defined with the hover layer *
 cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *desc)
 {
     cl_window_t *win;
+    cl_platform_window_t *native = NULL;
     cl_result_t r;
 
     if (!app)
@@ -29,11 +30,11 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
         return NULL;
     }
 
-    r = app->platform->ops->create_window(app->platform, desc);
+    r = app->platform->ops->create_window(app->platform, desc, &native);
     /* CL_RENDER_AUTO promises "OpenGL if available": when the GL window
      * cannot be created (no driver, headless, RDP), retry in software. */
     if (r != CL_OK && cl_app_software_fallback(app))
-        r = app->platform->ops->create_window(app->platform, desc);
+        r = app->platform->ops->create_window(app->platform, desc, &native);
     if (r != CL_OK) {
         cl_set_last_error(r);
         return NULL;
@@ -43,22 +44,23 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
     if (!win) {
         /* roll the native window back so the single slot stays reusable */
         if (app->platform->ops->destroy_window)
-            app->platform->ops->destroy_window(app->platform);
+            app->platform->ops->destroy_window(app->platform, native);
         return NULL;
     }
     memset(win, 0, sizeof(*win));
     win->app = app;
+    win->native = native;
     /* Ask the platform for the size it actually created: the SDL backends
      * default width/height <= 0 to 640x480, and layout must agree with the
      * real surface (SDL sends no initial RESIZE to correct a stale 0x0). */
-    win->size = app->platform->ops->drawable_size(app->platform);
-    win->scale = app->platform->ops->scale(app->platform);
+    win->size = app->platform->ops->drawable_size(app->platform, native);
+    win->scale = app->platform->ops->scale(app->platform, native);
     if (win->scale <= 0.0f)
         win->scale = 1.0f;
     win->dirty = true;
     win->layout_dirty = true;
     app->window = win;
-    app->platform->ops->start_text_input(app->platform, true);
+    app->platform->ops->start_text_input(app->platform, native, true);
     return win;
 }
 
@@ -115,7 +117,7 @@ cl_widget_t *cl_window_content(cl_window_t *win)
 
 void cl_window_set_title(cl_window_t *win, const char *utf8)
 {
-    win->app->platform->ops->set_title(win->app->platform, utf8);
+    win->app->platform->ops->set_title(win->app->platform, win->native, utf8);
 }
 
 cl_size_t cl_window_size(cl_window_t *win)
@@ -143,7 +145,8 @@ void cl_window_mark_layout_dirty(cl_window_t *win)
 void cl_window_resize(cl_window_t *win, cl_size_t size)
 {
     win->size = size;
-    win->scale = win->app->platform->ops->scale(win->app->platform);
+    win->scale = win->app->platform->ops->scale(win->app->platform,
+                                                 win->native);
     if (win->scale <= 0.0f)
         win->scale = 1.0f;
     win->layout_dirty = true;
@@ -414,7 +417,7 @@ void cl_window_render(cl_window_t *win)
     if (win->tooltip)
         cl_widget_do_paint(win->tooltip, &ctx); /* tooltip paints on top */
     app->renderer->ops->end_frame(app->renderer);
-    app->platform->ops->present(app->platform);
+    app->platform->ops->present(app->platform, win->native);
     win->dirty = false;
 }
 

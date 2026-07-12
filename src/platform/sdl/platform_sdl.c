@@ -76,7 +76,8 @@ static cl_key_mods_t map_mods(Uint16 m)
 }
 
 static cl_result_t sdl_create_window(cl_platform_t *p,
-                                     const cl_window_desc_t *desc)
+                                     const cl_window_desc_t *desc,
+                                     cl_platform_window_t **out)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
     Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI;
@@ -118,15 +119,18 @@ static cl_result_t sdl_create_window(cl_platform_t *p,
     s->size.h = (float)h;
     SDL_GL_GetDrawableSize(s->window, &dw, &dh);
     s->scale = w > 0 ? (float)dw / (float)w : 1.0f;
+    /* Single-window backend: the platform itself stands in for the handle. */
+    *out = (cl_platform_window_t *)s;
     return CL_OK;
 }
 
 /* Shared by the GL and software backends (glctx/surface stay NULL in the
  * latter). Also the rollback path of a failed cl_window_create. */
-static void sdl_destroy_window(cl_platform_t *p)
+static void sdl_destroy_window(cl_platform_t *p, cl_platform_window_t *win)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
+    (void)win; /* single-window backend */
     s->surface = NULL; /* owned by the window; dies with it */
     if (s->glctx) {
         SDL_GL_DeleteContext(s->glctx);
@@ -138,21 +142,25 @@ static void sdl_destroy_window(cl_platform_t *p)
     }
 }
 
-static void sdl_set_title(cl_platform_t *p, const char *utf8)
+static void sdl_set_title(cl_platform_t *p, cl_platform_window_t *win,
+                          const char *utf8)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
+    (void)win;
     if (s->window)
         SDL_SetWindowTitle(s->window, utf8 ? utf8 : "");
 }
 
-static cl_size_t sdl_drawable_size(cl_platform_t *p)
+static cl_size_t sdl_drawable_size(cl_platform_t *p, cl_platform_window_t *win)
 {
+    (void)win;
     return ((sdl_platform_t *)p)->size;
 }
 
-static float sdl_scale(cl_platform_t *p)
+static float sdl_scale(cl_platform_t *p, cl_platform_window_t *win)
 {
+    (void)win;
     return ((sdl_platform_t *)p)->scale;
 }
 
@@ -162,6 +170,7 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
     SDL_Event e;
 
     while (SDL_PollEvent(&e)) {
+        out->window_id = 0; /* process-wide unless a case fills it below */
         switch (e.type) {
             case SDL_QUIT:
                 out->kind = CL_PEV_QUIT;
@@ -171,6 +180,7 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                 if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
                     e.window.event == SDL_WINDOWEVENT_RESIZED) {
                     out->kind = CL_PEV_RESIZE;
+                    out->window_id = e.window.windowID;
                     out->size.w = (float)e.window.data1;
                     out->size.h = (float)e.window.data2;
                     s->size = out->size;
@@ -187,6 +197,7 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                     return true;
                 }
                 if (e.window.event == SDL_WINDOWEVENT_EXPOSED) {
+                    out->window_id = e.window.windowID;
                     /* The OS/compositor damaged the surface (restore from
                      * minimise, overlapped software window): repaint even
                      * though no widget marked itself dirty. */
@@ -199,6 +210,7 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
             case SDL_MOUSEBUTTONUP:
                 out->kind = e.type == SDL_MOUSEBUTTONDOWN ? CL_PEV_MOUSE_DOWN
                                                           : CL_PEV_MOUSE_UP;
+                out->window_id = e.button.windowID;
                 out->pos.x = (float)e.button.x;
                 out->pos.y = (float)e.button.y;
                 out->button = map_button(e.button.button);
@@ -208,6 +220,7 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
 
             case SDL_MOUSEMOTION:
                 out->kind = CL_PEV_MOUSE_MOVE;
+                out->window_id = e.motion.windowID;
                 out->pos.x = (float)e.motion.x;
                 out->pos.y = (float)e.motion.y;
                 out->mods = map_mods(SDL_GetModState());
@@ -222,6 +235,7 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
 
                 SDL_GetMouseState(&mx, &my);
                 out->kind = CL_PEV_MOUSE_WHEEL;
+                out->window_id = e.wheel.windowID;
                 out->pos.x = (float)mx;
                 out->pos.y = (float)my;
                 out->wheel_x = (float)e.wheel.x * dir;
@@ -234,18 +248,21 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
             case SDL_KEYUP:
                 out->kind = e.type == SDL_KEYDOWN ? CL_PEV_KEY_DOWN
                                                   : CL_PEV_KEY_UP;
+                out->window_id = e.key.windowID;
                 out->key = map_key(e.key.keysym.sym);
                 out->mods = map_mods(e.key.keysym.mod);
                 return true;
 
             case SDL_TEXTINPUT:
                 out->kind = CL_PEV_TEXT_INPUT;
+                out->window_id = e.text.windowID;
                 memcpy(out->text, e.text.text, sizeof(out->text));
                 out->text[sizeof(out->text) - 1] = '\0';
                 return true;
 
             case SDL_TEXTEDITING:
                 out->kind = CL_PEV_TEXT_EDIT;
+                out->window_id = e.edit.windowID;
                 memcpy(out->text, e.edit.text, sizeof(out->text));
                 out->text[sizeof(out->text) - 1] = '\0';
                 out->edit_cursor = e.edit.start;
@@ -277,10 +294,11 @@ static void sdl_wait(cl_platform_t *p, int timeout_ms)
         SDL_WaitEventTimeout(NULL, timeout_ms);
 }
 
-static void sdl_present(cl_platform_t *p)
+static void sdl_present(cl_platform_t *p, cl_platform_window_t *win)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
+    (void)win;
     if (s->window)
         SDL_GL_SwapWindow(s->window);
 }
@@ -295,20 +313,24 @@ static void sdl_wakeup(cl_platform_t *p)
     SDL_PushEvent(&e);
 }
 
-static void sdl_start_text_input(cl_platform_t *p, bool enable)
+static void sdl_start_text_input(cl_platform_t *p, cl_platform_window_t *win,
+                                 bool enable)
 {
     (void)p;
+    (void)win; /* SDL2 text input is process-wide */
     if (enable)
         SDL_StartTextInput();
     else
         SDL_StopTextInput();
 }
 
-static void sdl_set_ime_rect(cl_platform_t *p, cl_rect_t rect)
+static void sdl_set_ime_rect(cl_platform_t *p, cl_platform_window_t *win,
+                             cl_rect_t rect)
 {
     SDL_Rect r;
 
     (void)p;
+    (void)win;
     r.x = (int)rect.x;
     r.y = (int)rect.y;
     r.w = (int)rect.w;
@@ -366,7 +388,7 @@ static void sdl_destroy(cl_platform_t *p)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
-    sdl_destroy_window(p);
+    sdl_destroy_window(p, NULL);
     /* Only drop our own SDL_InitSubSystem reference. copal is a library: a
      * full SDL_Quit() would tear down EVERY subsystem (audio, joysticks, ...)
      * of a host application that uses SDL itself. */
@@ -418,7 +440,8 @@ cl_platform_t *cl_platform_sdl_create(const cl_allocator_t *a)
 /* ---- software backend (no OpenGL; draws into the window's surface) ------- */
 
 static cl_result_t sdl_create_window_soft(cl_platform_t *p,
-                                          const cl_window_desc_t *desc)
+                                          const cl_window_desc_t *desc,
+                                          cl_platform_window_t **out)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
     Uint32 flags = 0;
@@ -443,22 +466,27 @@ static cl_result_t sdl_create_window_soft(cl_platform_t *p,
     s->size.w = (float)w;
     s->size.h = (float)h;
     s->scale = 1.0f;
+    /* Single-window backend: the platform itself stands in for the handle. */
+    *out = (cl_platform_window_t *)s;
     return CL_OK;
 }
 
-static void sdl_present_soft(cl_platform_t *p)
+static void sdl_present_soft(cl_platform_t *p, cl_platform_window_t *win)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
+    (void)win;
     if (s->window)
         SDL_UpdateWindowSurface(s->window);
 }
 
-static bool sdl_lock_framebuffer(cl_platform_t *p, cl_pixmap_t *out)
+static bool sdl_lock_framebuffer(cl_platform_t *p, cl_platform_window_t *win,
+                                 cl_pixmap_t *out)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
     SDL_Surface *surf;
 
+    (void)win; /* NULL selects the only window (see backend/platform.h) */
     if (!s->window)
         return false;
     surf = SDL_GetWindowSurface(s->window); /* re-created on resize */
@@ -490,10 +518,12 @@ static bool sdl_lock_framebuffer(cl_platform_t *p, cl_pixmap_t *out)
     return true;
 }
 
-static void sdl_unlock_framebuffer(cl_platform_t *p)
+static void sdl_unlock_framebuffer(cl_platform_t *p,
+                                   cl_platform_window_t *win)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
+    (void)win;
     if (s->surface) {
         if (SDL_MUSTLOCK(s->surface))
             SDL_UnlockSurface(s->surface);
@@ -505,7 +535,7 @@ static void sdl_destroy_soft(cl_platform_t *p)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
-    sdl_destroy_window(p);
+    sdl_destroy_window(p, NULL);
     /* Only drop our own SDL_InitSubSystem reference. copal is a library: a
      * full SDL_Quit() would tear down EVERY subsystem (audio, joysticks, ...)
      * of a host application that uses SDL itself. */

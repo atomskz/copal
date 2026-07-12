@@ -36,10 +36,12 @@ typedef struct stub_platform {
     uint32_t a_mask; /* 0 = opaque surface (no alpha channel) */
 } stub_platform_t;
 
-static bool stub_lock(cl_platform_t *p, cl_pixmap_t *out)
+static bool stub_lock(cl_platform_t *p, cl_platform_window_t *win,
+                      cl_pixmap_t *out)
 {
     stub_platform_t *s = (stub_platform_t *)p;
 
+    (void)win;
     out->pixels = s->px;
     out->w = W;
     out->h = H;
@@ -51,9 +53,10 @@ static bool stub_lock(cl_platform_t *p, cl_pixmap_t *out)
     return true;
 }
 
-static void stub_unlock(cl_platform_t *p)
+static void stub_unlock(cl_platform_t *p, cl_platform_window_t *win)
 {
     (void)p;
+    (void)win;
 }
 
 static const cl_platform_ops_t stub_ops = {

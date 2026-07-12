@@ -29,6 +29,14 @@ extern "C" {
 
 typedef struct cl_platform cl_platform_t;
 
+/*
+ * Backend-defined native window handle, returned by create_window and passed
+ * back to every window-scoped op. Single-window backends may ignore the
+ * parameter; they must also accept NULL as "the (only) window" - the built-in
+ * software renderer locks the framebuffer without knowing the handle.
+ */
+typedef struct cl_platform_window cl_platform_window_t;
+
 typedef enum cl_platform_event_kind {
     CL_PEV_NONE,
     CL_PEV_QUIT,
@@ -46,6 +54,12 @@ typedef enum cl_platform_event_kind {
 
 typedef struct cl_platform_event {
     cl_platform_event_kind_t kind;
+    /*
+     * Backend id of the source window (0 when unknown or for process-wide
+     * events such as CL_PEV_QUIT). Single-window applications may ignore it;
+     * it exists so a multi-window 0.3 will not have to reshape the SPI.
+     */
+    uint32_t window_id;
     cl_size_t size;           /* CL_PEV_RESIZE (logical px) */
     cl_point_t pos;           /* mouse events (logical px) */
     cl_mouse_button_t button; /* mouse button events */
@@ -79,25 +93,30 @@ typedef struct cl_platform_ops {
     size_t struct_size;
     uint32_t abi_version;
 
-    cl_result_t (*create_window)(cl_platform_t *p, const cl_window_desc_t *desc);
+    /* Create the native window and store its handle in *out. */
+    cl_result_t (*create_window)(cl_platform_t *p, const cl_window_desc_t *desc,
+                                 cl_platform_window_t **out);
     /*
-     * Tear down the native window created by create_window, so a failed
+     * Tear down a native window created by create_window, so a failed
      * cl_window_create can be rolled back and the slot reused. Optional
      * (NULL when the backend keeps no per-window state); must tolerate
      * being called with no window.
      */
-    void (*destroy_window)(cl_platform_t *p);
-    void (*set_title)(cl_platform_t *p, const char *utf8);
-    cl_size_t (*drawable_size)(cl_platform_t *p);
-    float (*scale)(cl_platform_t *p);
+    void (*destroy_window)(cl_platform_t *p, cl_platform_window_t *win);
+    void (*set_title)(cl_platform_t *p, cl_platform_window_t *win,
+                      const char *utf8);
+    cl_size_t (*drawable_size)(cl_platform_t *p, cl_platform_window_t *win);
+    float (*scale)(cl_platform_t *p, cl_platform_window_t *win);
     bool (*poll)(cl_platform_t *p, cl_platform_event_t *out);
     void (*wait)(cl_platform_t *p, int timeout_ms);
-    void (*present)(cl_platform_t *p);
+    void (*present)(cl_platform_t *p, cl_platform_window_t *win);
     void (*wakeup)(cl_platform_t *p);
-    void (*start_text_input)(cl_platform_t *p, bool enable);
+    void (*start_text_input)(cl_platform_t *p, cl_platform_window_t *win,
+                             bool enable);
     /* Position the IME candidate window near the caret (logical px). NULL if
      * the backend has no IME. */
-    void (*set_ime_rect)(cl_platform_t *p, cl_rect_t rect);
+    void (*set_ime_rect)(cl_platform_t *p, cl_platform_window_t *win,
+                         cl_rect_t rect);
     /*
      * Clipboard. clipboard_get returns a NUL-terminated UTF-8 copy allocated
      * with a (caller frees with a), or NULL if empty/unavailable. clipboard_set
@@ -119,8 +138,9 @@ typedef struct cl_platform_ops {
      * (fills *out; returns false if unavailable) and unlock it; present() then
      * blits it to the screen. NULL for GPU backends.
      */
-    bool (*lock_framebuffer)(cl_platform_t *p, cl_pixmap_t *out);
-    void (*unlock_framebuffer)(cl_platform_t *p);
+    bool (*lock_framebuffer)(cl_platform_t *p, cl_platform_window_t *win,
+                             cl_pixmap_t *out);
+    void (*unlock_framebuffer)(cl_platform_t *p, cl_platform_window_t *win);
 } cl_platform_ops_t;
 
 /* Concrete backends embed this as their first member. */

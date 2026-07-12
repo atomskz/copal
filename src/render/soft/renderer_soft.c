@@ -175,7 +175,7 @@ static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
     r->px = NULL;
     r->clip_depth = 0;
     if (!r->platform->ops->lock_framebuffer ||
-        !r->platform->ops->lock_framebuffer(r->platform, &pm))
+        !r->platform->ops->lock_framebuffer(r->platform, NULL, &pm))
         return;
     r->px = pm.pixels;
     r->w = pm.w;
@@ -185,7 +185,7 @@ static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
      * Fail closed (like the lock failure) rather than risk it. */
     if (((uintptr_t)r->px & 3u) || (r->pitch & 3)) {
         if (r->platform->ops->unlock_framebuffer)
-            r->platform->ops->unlock_framebuffer(r->platform);
+            r->platform->ops->unlock_framebuffer(r->platform, NULL);
         r->px = NULL;
         return;
     }
@@ -212,7 +212,7 @@ static void soft_end_frame(cl_renderer_t *rr)
     soft_renderer_t *r = (soft_renderer_t *)rr;
 
     if (r->px && r->platform->ops->unlock_framebuffer)
-        r->platform->ops->unlock_framebuffer(r->platform);
+        r->platform->ops->unlock_framebuffer(r->platform, NULL);
     r->px = NULL;
 }
 
