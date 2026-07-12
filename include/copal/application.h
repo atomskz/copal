@@ -43,13 +43,18 @@ typedef enum cl_render_backend {
  * (dependency injection, ARCHITECTURE §3.9). If NULL, a built-in SDL2 backend
  * is used when compiled in (COPAL_ENABLE_SDL/OPENGL); otherwise
  * cl_application_create() fails with CL_ERROR_UNSUPPORTED.
+ *
+ * Ownership of injected backends transfers to the application only when
+ * cl_application_create() succeeds (they are then destroyed by
+ * cl_application_destroy). When it returns NULL, injected backends are NOT
+ * destroyed - they stay with the caller, who may retry or free them.
  */
 typedef struct cl_application_desc {
     uint32_t abi_version;
     size_t struct_size;
     const cl_allocator_t *allocator; /* NULL -> built-in malloc */
-    cl_platform_t *platform; /* injected backend; ownership transfers to app */
-    cl_renderer_t *renderer; /* injected backend; ownership transfers to app */
+    cl_platform_t *platform; /* injected backend; see ownership note above */
+    cl_renderer_t *renderer; /* injected backend; see ownership note above */
     cl_render_backend_t render_backend; /* built-in backend choice (0 = AUTO) */
 } cl_application_desc_t;
 

@@ -97,23 +97,31 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
         cl_log(CL_LOG_ERROR, "application: no usable %s backend",
                !app->platform ? "platform" : "renderer");
         cl_set_last_error(CL_ERROR_UNSUPPORTED);
-        cl_free(a, app);
-        return NULL;
+        goto fail;
     }
 
     app->theme = cl_theme_default(app);
-    if (!app->theme) {
-        cl_free(a, app);
-        return NULL;
-    }
+    if (!app->theme)
+        goto fail;
 
     app->task_mutex = cl_mutex_create(&app->alloc);
-    if (!app->task_mutex) {
-        cl_theme_free(app->theme);
-        cl_free(a, app);
-        return NULL;
-    }
+    if (!app->task_mutex)
+        goto fail;
     return app;
+
+fail:
+    /* Unwind in reverse creation order. Backends the library created are
+     * destroyed; injected ones stay with the caller (application.h). */
+    if (app->theme)
+        cl_theme_free(app->theme);
+    if (app->renderer && app->renderer != desc->renderer &&
+        app->renderer->ops->destroy)
+        app->renderer->ops->destroy(app->renderer);
+    if (app->platform && app->platform != desc->platform &&
+        app->platform->ops->destroy)
+        app->platform->ops->destroy(app->platform);
+    cl_free(a, app);
+    return NULL;
 }
 
 bool cl_app_software_fallback(cl_application_t *app)

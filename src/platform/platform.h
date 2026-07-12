@@ -56,6 +56,13 @@ typedef struct cl_pixmap {
 
 typedef struct cl_platform_ops {
     cl_result_t (*create_window)(cl_platform_t *p, const cl_window_desc_t *desc);
+    /*
+     * Tear down the native window created by create_window, so a failed
+     * cl_window_create can be rolled back and the slot reused. Optional
+     * (NULL when the backend keeps no per-window state); must tolerate
+     * being called with no window.
+     */
+    void (*destroy_window)(cl_platform_t *p);
     void (*set_title)(cl_platform_t *p, const char *utf8);
     cl_size_t (*drawable_size)(cl_platform_t *p);
     float (*scale)(cl_platform_t *p);

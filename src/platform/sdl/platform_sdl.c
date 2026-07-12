@@ -121,6 +121,23 @@ static cl_result_t sdl_create_window(cl_platform_t *p,
     return CL_OK;
 }
 
+/* Shared by the GL and software backends (glctx/surface stay NULL in the
+ * latter). Also the rollback path of a failed cl_window_create. */
+static void sdl_destroy_window(cl_platform_t *p)
+{
+    sdl_platform_t *s = (sdl_platform_t *)p;
+
+    s->surface = NULL; /* owned by the window; dies with it */
+    if (s->glctx) {
+        SDL_GL_DeleteContext(s->glctx);
+        s->glctx = NULL;
+    }
+    if (s->window) {
+        SDL_DestroyWindow(s->window);
+        s->window = NULL;
+    }
+}
+
 static void sdl_set_title(cl_platform_t *p, const char *utf8)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
@@ -349,10 +366,7 @@ static void sdl_destroy(cl_platform_t *p)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
-    if (s->glctx)
-        SDL_GL_DeleteContext(s->glctx);
-    if (s->window)
-        SDL_DestroyWindow(s->window);
+    sdl_destroy_window(p);
     /* Only drop our own SDL_InitSubSystem reference. copal is a library: a
      * full SDL_Quit() would tear down EVERY subsystem (audio, joysticks, ...)
      * of a host application that uses SDL itself. */
@@ -362,6 +376,7 @@ static void sdl_destroy(cl_platform_t *p)
 
 static const cl_platform_ops_t sdl_ops = {
     .create_window = sdl_create_window,
+    .destroy_window = sdl_destroy_window,
     .set_title = sdl_set_title,
     .drawable_size = sdl_drawable_size,
     .scale = sdl_scale,
@@ -488,8 +503,7 @@ static void sdl_destroy_soft(cl_platform_t *p)
 {
     sdl_platform_t *s = (sdl_platform_t *)p;
 
-    if (s->window)
-        SDL_DestroyWindow(s->window);
+    sdl_destroy_window(p);
     /* Only drop our own SDL_InitSubSystem reference. copal is a library: a
      * full SDL_Quit() would tear down EVERY subsystem (audio, joysticks, ...)
      * of a host application that uses SDL itself. */
@@ -499,6 +513,7 @@ static void sdl_destroy_soft(cl_platform_t *p)
 
 static const cl_platform_ops_t sdl_ops_soft = {
     .create_window = sdl_create_window_soft,
+    .destroy_window = sdl_destroy_window,
     .set_title = sdl_set_title,
     .drawable_size = sdl_drawable_size,
     .scale = sdl_scale,

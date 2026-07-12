@@ -40,8 +40,12 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
     }
 
     win = cl_alloc(&app->alloc, sizeof(*win));
-    if (!win)
+    if (!win) {
+        /* roll the native window back so the single slot stays reusable */
+        if (app->platform->ops->destroy_window)
+            app->platform->ops->destroy_window(app->platform);
         return NULL;
+    }
     memset(win, 0, sizeof(*win));
     win->app = app;
     /* Ask the platform for the size it actually created: the SDL backends
