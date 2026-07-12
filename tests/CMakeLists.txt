@@ -9,6 +9,15 @@ function(copal_add_test name)
     add_executable(test_${name} test_${name}.c)
     # copal::mocks carries copal::copal and the internal src/ include path.
     target_link_libraries(test_${name} PRIVATE copal::mocks)
+    # On Windows the library may pull in a shared SDL2: put its DLL beside
+    # the test binary (same recipe as the examples).
+    if(WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
+        add_custom_command(TARGET test_${name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E
+                    $<IF:$<BOOL:$<TARGET_RUNTIME_DLLS:test_${name}>>,copy_if_different,true>
+                    $<TARGET_RUNTIME_DLLS:test_${name}> $<TARGET_FILE_DIR:test_${name}>
+            COMMAND_EXPAND_LISTS)
+    endif()
     copal_set_warnings(test_${name})
     if(COPAL_ENABLE_SANITIZERS)
         copal_enable_sanitizers(test_${name})

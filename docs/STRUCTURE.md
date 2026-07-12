@@ -13,9 +13,11 @@
 ```text
 copal/
 ├── CMakeLists.txt                 корневой; target copal (alias copal::copal), опции, install
+├── README.md CHANGELOG.md         описание проекта; история версий
 ├── COPYING                        полный текст GPL-3.0
 ├── .clang-format .editorconfig .gitattributes   стиль/атрибуты (LF, UTF-8, 4 пробела, 80 колонок)
 ├── .githooks/pre-commit           clang-format-проверка коммита
+├── .github/workflows/ci.yml       CI: Linux gcc/clang × mock|SDL+GL|SDL-soft (ASan/UBSan), shared, Windows MSVC
 ├── cmake/
 │   ├── CompilerWarnings.cmake      warnings (-Wall -Wextra -Wpedantic -Wshadow …) + sanitizers
 │   ├── copalConfig.cmake.in        package config для find_package(copal); find_dependency(Threads)
@@ -187,7 +189,7 @@ Headless-сборка (mock-бэкенды, без SDL/GL) — по умолча
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
-ctest --test-dir build --output-on-failure     # 14 сьютов
+ctest --test-dir build --output-on-failure     # 17 сьютов + smoke-прогоны
 ./build/examples/test_version/test_version
 ```
 

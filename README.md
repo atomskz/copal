@@ -1,5 +1,7 @@
 # copal
 
+[![CI](https://github.com/atomskz/copal/actions/workflows/ci.yml/badge.svg)](https://github.com/atomskz/copal/actions/workflows/ci.yml)
+
 Лёгкая кроссплатформенная GUI-библиотека на C11 для Windows и Linux.
 Окна и ввод — через SDL2; отрисовка — OpenGL 3.3 core **или** встроенный
 CPU-растеризатор (software), выбирается на этапе сборки и в рантайме.

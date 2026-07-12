@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: linux ${{ matrix.cc }} ${{ matrix.config.name }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+        config:
+          - { name: mock, args: "" }
+          - { name: sdl-gl,
+              args: "-DCOPAL_ENABLE_SDL=ON -DCOPAL_ENABLE_OPENGL=ON" }
+          - { name: sdl-software,
+              args: "-DCOPAL_ENABLE_SDL=ON" }
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core libsdl2-dev
+
+      # Debug + ASan/UBSan across the whole matrix: the white-box suite and
+      # the headless example smoke runs all execute sanitized.
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCOPAL_ENABLE_SANITIZERS=ON
+          ${{ matrix.config.args }}
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # The shared library disables the white-box suite (it needs the static
+  # library); this job guards the build itself plus the example smoke runs.
+  linux-shared:
+    name: linux gcc sdl-gl shared
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core libsdl2-dev
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCOPAL_BUILD_SHARED=ON
+          -DCOPAL_ENABLE_SDL=ON -DCOPAL_ENABLE_OPENGL=ON
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    name: windows msvc sdl-gl
+    runs-on: windows-2022
+    env:
+      # The test suites take their font from COPAL_FONT (no DejaVu here).
+      COPAL_FONT: C:\Windows\Fonts\arial.ttf
+    steps:
+      - uses: actions/checkout@v4
+
+      # SDL2 is built from source (COPAL_FETCH_SDL2, pinned commit); cache it
+      # keyed on the pin recorded in CMakeLists.txt.
+      - name: Cache SDL2 sources
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: sdl2-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCOPAL_ENABLE_SDL=ON -DCOPAL_ENABLE_OPENGL=ON
+          -DCOPAL_FETCH_SDL2=ON
+
+      - name: Build
+        run: cmake --build build --config Debug
+
+      - name: Test
+        run: ctest --test-dir build -C Debug --output-on-failure
