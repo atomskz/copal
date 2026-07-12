@@ -33,6 +33,7 @@ static int failures;
 typedef struct stub_platform {
     cl_platform_t base;
     uint32_t *px;
+    uint32_t a_mask; /* 0 = opaque surface (no alpha channel) */
 } stub_platform_t;
 
 static bool stub_lock(cl_platform_t *p, cl_pixmap_t *out)
@@ -46,7 +47,7 @@ static bool stub_lock(cl_platform_t *p, cl_pixmap_t *out)
     out->r_mask = 0x00FF0000u;
     out->g_mask = 0x0000FF00u;
     out->b_mask = 0x000000FFu;
-    out->a_mask = 0xFF000000u;
+    out->a_mask = s->a_mask;
     return true;
 }
 
@@ -104,6 +105,7 @@ int main(void)
     memset(&stub, 0, sizeof(stub));
     stub.base.ops = &stub_ops;
     stub.px = buf;
+    stub.a_mask = 0xFF000000u;
     r = cl_renderer_soft_create(a, &stub.base);
     CHECK(r != NULL);
     if (!r)
@@ -132,6 +134,50 @@ int main(void)
     r->ops->end_frame(r);
     CHECK(is_rgb(at(buf, 20, 20), fill)); /* centre */
     CHECK(is_rgb(at(buf, 0, 0), bg));     /* corner rounded off -> bg */
+
+    /* Source-over blending: a 50%-alpha white fill over the dark bg must land
+     * halfway between them (+-1 for rounding). */
+    {
+        cl_color_t half = { 255, 255, 255, 128 };
+        uint32_t p;
+        int ch;
+
+        r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+        r->ops->fill_rect(r, (cl_rect_t){ 0, 0, W, H }, half);
+        r->ops->end_frame(r);
+        p = at(buf, 30, 30);
+        ch = (int)((p >> 16) & 0xFFu); /* red: 10 + (255-10)*128/255 ~ 133 */
+        CHECK(ch >= 131 && ch <= 135);
+        ch = (int)(p & 0xFFu);         /* blue: 30 + (255-30)*128/255 ~ 143 */
+        CHECK(ch >= 141 && ch <= 145);
+    }
+
+    /* Device scale 2: logical coordinates land at doubled physical pixels. */
+    r->ops->begin_frame(r, (cl_size_t){ W / 2, H / 2 }, 2.0f, bg);
+    r->ops->fill_rect(r, (cl_rect_t){ 4, 4, 8, 6 }, fill);
+    r->ops->end_frame(r);
+    CHECK(is_rgb(at(buf, 9, 9), fill));   /* inside 8..24 x 8..20 */
+    CHECK(is_rgb(at(buf, 23, 19), fill)); /* far physical corner */
+    CHECK(is_rgb(at(buf, 7, 7), bg));     /* just outside */
+    CHECK(is_rgb(at(buf, 24, 20), bg));
+
+    /* Stroke: border pixels painted, the interior left untouched. */
+    r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+    r->ops->stroke_round_rect(r, (cl_rect_t){ 8, 8, 30, 24 }, 0.0f, 2.0f,
+                              fill);
+    r->ops->end_frame(r);
+    CHECK(is_rgb(at(buf, 8, 20), fill));  /* on the 2px left border */
+    CHECK(is_rgb(at(buf, 23, 20), bg));   /* interior stays bg */
+    CHECK(is_rgb(at(buf, 4, 20), bg));    /* outside stays bg */
+
+    /* An opaque surface (a_mask == 0) must render the same colours. */
+    stub.a_mask = 0;
+    r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+    r->ops->fill_rect(r, (cl_rect_t){ 10, 10, 20, 16 }, fill);
+    r->ops->end_frame(r);
+    CHECK(is_rgb(at(buf, 20, 18), fill));
+    CHECK(is_rgb(at(buf, 5, 5), bg));
+    stub.a_mask = 0xFF000000u;
 
     /* Text (optional font): drawing must change some pixels vs the bg. */
     {
