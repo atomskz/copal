@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/foundation/foundation_internal.h"
+#include "core/foundation/mutex_internal.h"
 
 static int failures;
 
@@ -44,6 +45,19 @@ static void test_allocator(void)
     p = cl_realloc(NULL, p, 128);
     CHECK(p != NULL);
     cl_free(NULL, p);
+}
+
+static void test_mutex(void)
+{
+    cl_mutex_t *m = cl_mutex_create(NULL); /* NULL selects default allocator */
+
+    CHECK(m != NULL);
+    if (m) {
+        cl_mutex_lock(m);
+        cl_mutex_unlock(m);
+        cl_mutex_destroy(m);
+    }
+    cl_mutex_destroy(NULL); /* NULL is ignored */
 }
 
 static void test_types(void)
@@ -124,6 +138,7 @@ int main(void)
     test_version();
     test_error();
     test_allocator();
+    test_mutex();
     test_types();
     test_utf8();
 

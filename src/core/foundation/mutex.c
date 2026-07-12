@@ -3,6 +3,8 @@
 
 #include <copal/allocator.h>
 
+#include "core/foundation/foundation_internal.h"
+
 #if defined(_WIN32)
 #  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
@@ -14,8 +16,11 @@ struct cl_mutex {
 
 cl_mutex_t *cl_mutex_create(const cl_allocator_t *a)
 {
-    cl_mutex_t *m = cl_alloc(a, sizeof(*m));
+    cl_mutex_t *m;
 
+    if (!a)
+        a = cl_allocator_default();
+    m = cl_alloc(a, sizeof(*m));
     if (!m)
         return NULL;
     m->a = *a;
@@ -54,13 +59,17 @@ struct cl_mutex {
 
 cl_mutex_t *cl_mutex_create(const cl_allocator_t *a)
 {
-    cl_mutex_t *m = cl_alloc(a, sizeof(*m));
+    cl_mutex_t *m;
 
+    if (!a)
+        a = cl_allocator_default();
+    m = cl_alloc(a, sizeof(*m));
     if (!m)
         return NULL;
     m->a = *a;
     if (pthread_mutex_init(&m->m, NULL) != 0) {
         cl_free(a, m);
+        cl_set_last_error(CL_ERROR_PLATFORM);
         return NULL;
     }
     return m;
