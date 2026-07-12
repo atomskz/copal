@@ -41,4 +41,25 @@ if(COPAL_ENABLE_SDL)
 
     add_subdirectory(helloworld)
     add_subdirectory(calc)
+
+    # Headless smoke runs: each example renders 3 frames against the dummy
+    # video driver and exits. `helloworld` without a flag also exercises the
+    # AUTO -> software fallback (no GL context on the dummy driver).
+    if(COPAL_BUILD_TESTS AND COPAL_IS_TOP_LEVEL)
+        function(copal_add_example_smoke test_name target)
+            add_test(NAME ${test_name} COMMAND ${target} ${ARGN})
+            set_tests_properties(${test_name} PROPERTIES
+                TIMEOUT 60
+                ENVIRONMENT "COPAL_MAX_FRAMES=3;SDL_VIDEODRIVER=dummy")
+        endfunction()
+
+        copal_add_example_smoke(example_helloworld_soft helloworld --software)
+        copal_add_example_smoke(example_helloworld_auto helloworld)
+        copal_add_example_smoke(example_calc_soft calc --software)
+    endif()
+endif()
+
+if(COPAL_BUILD_TESTS AND COPAL_IS_TOP_LEVEL)
+    add_test(NAME example_version COMMAND test_version)
+    set_tests_properties(example_version PROPERTIES TIMEOUT 60)
 endif()

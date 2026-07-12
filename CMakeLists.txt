@@ -166,12 +166,17 @@ endif()
 # ---------------------------------------------------------------------------
 # Examples / tests
 # ---------------------------------------------------------------------------
+# enable_testing() must precede the examples: they register headless smoke
+# runs of themselves as tests.
+if(COPAL_BUILD_TESTS AND COPAL_IS_TOP_LEVEL)
+    enable_testing()
+endif()
+
 if(COPAL_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
 if(COPAL_BUILD_TESTS AND COPAL_IS_TOP_LEVEL)
-    enable_testing()
     add_subdirectory(tests)
 endif()
 
