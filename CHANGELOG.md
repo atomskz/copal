@@ -1,0 +1,46 @@
+# Changelog
+
+Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/);
+нумерация версий — [SemVer](https://semver.org/lang/ru/). До 1.0 минорные
+версии могут менять API/ABI (ABI-рукопожатие в desc-структурах отклонит
+несовместимого потребителя).
+
+## [0.1.0] — не выпущено
+
+Первый выпуск.
+
+### Добавлено
+
+- Ядро приложения: `cl_application_*` (run/step/quit, задачи из других
+  потоков через `cl_application_post`, таймеры), одно окно `cl_window_*`
+  с veto-колбэком закрытия.
+- Виджеты: label, button, checkbox, radiobutton, slider, textbox
+  (однострочный/многострочный, пароль, undo/redo, выделение мышью и
+  клавиатурой, пословная навигация, IME), combobox, menu, tooltip,
+  scrollview; контейнеры vbox/hbox (flex-веса, per-child выравнивание,
+  margin/padding).
+- Рендеры: OpenGL 3.3 core (глиф-атлас, HiDPI) и software (CPU-растеризация
+  в буфер окна); `CL_RENDER_AUTO` с рантайм-фолбэком GL → software и
+  переопределением `COPAL_RENDER=software`.
+- Платформа: SDL2 (GL- и software-пути), события с модификаторами и
+  счётчиком кликов, буфер обмена, IME-прямоугольник, EXPOSE.
+- Текст: UTF-8 (валидирующий декодер), TrueType через stb_truetype,
+  `cl_font_load_system()` с `COPAL_FONT`, кэш advance для Latin-1 и
+  кириллицы, инвалидация глиф-кэшей при `cl_font_release`.
+- Темы: светлая/тёмная, смена в рантайме.
+- Расширяемость: инъекция платформы/рендерера/аллокатора через desc;
+  кастомные виджеты и контейнеры через `widget_impl.h` (vtable с
+  версионированием `vtable_size`).
+- Сборка: CMake ≥ 3.16, опции SDL/OpenGL/shared/санитайзеры/покрытие,
+  `find_package(copal)`, pkg-config `copal.pc`, вендоринг SDL2 по пину
+  (`COPAL_FETCH_SDL2`).
+- Тесты: 17 headless-сьютов на mock-бэкендах (layout, lifecycle, OOM-свип,
+  golden-тесты software-рендера, UTF-8-таблица) + smoke-прогоны примеров.
+
+### Известные ограничения
+
+- Одно окно; меню без подменю; нет image-примитива, курсоров мыши,
+  hover-событий, drag&drop.
+- Нет text shaping/bidi: 1 кодовая точка = 1 глиф.
+- Шрифты загружаются из доверенного источника (stb_truetype не проверяет
+  усечённые данные по длине буфера).
