@@ -116,9 +116,12 @@ if(COPAL_ENABLE_SDL)
     # latter needs no local SDL2 install and is the easy path on Windows.
     if(COPAL_FETCH_SDL2)
         include(FetchContent)
+        # Pinned by commit, not by tag: tags are movable, so a tag pin is
+        # neither reproducible nor tamper-evident. The hash below is what
+        # release-2.30.9 pointed at when it was vendored.
         FetchContent_Declare(SDL2
             GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-            GIT_TAG release-2.30.9
+            GIT_TAG c98c4fbff6d8f3016a3ce6685bf8f43433c3efcc # release-2.30.9
             GIT_SHALLOW TRUE)
         set(SDL2_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
         set(SDL_TEST OFF CACHE BOOL "" FORCE)
