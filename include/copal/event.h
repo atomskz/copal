@@ -92,9 +92,6 @@ typedef struct cl_event {
 /* Widget action (button click, checkbox toggle, ...). */
 typedef void (*cl_action_fn)(cl_widget_t *w, void *user);
 
-/* Event listener; returns true if the event was handled (stops bubbling). */
-typedef bool (*cl_event_fn)(cl_widget_t *w, const cl_event_t *ev, void *user);
-
 /* Text changed / submitted (TextBox); utf8 is the current text. */
 typedef void (*cl_text_changed_fn)(cl_widget_t *w, const char *utf8,
                                    void *user);

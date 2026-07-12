@@ -24,8 +24,7 @@ enum cl_widget_flags {
     CL_WF_VISIBLE = 1u << 0,
     CL_WF_ENABLED = 1u << 1,
     CL_WF_FOCUSABLE = 1u << 2,
-    CL_WF_DIRTY = 1u << 3,
-    CL_WF_DEAD = 1u << 4,
+    /* bits 3-4 reserved (were DIRTY/DEAD; never implemented) */
     CL_WF_CLIP = 1u << 5 /* clip children to this widget's rect while painting */
 };
 
@@ -97,7 +96,6 @@ struct cl_widget {
     cl_align_t align_v;
     float flex;             /* main-axis growth weight in boxes; 0 = fixed */
     uint32_t flags;
-    uint32_t generation;
     void *userdata;
     char *tooltip; /* owned UTF-8 hover text, or NULL (cl_widget_set_tooltip) */
     unsigned char reserved[CL_WIDGET_RESERVED];

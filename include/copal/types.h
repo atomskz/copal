@@ -27,9 +27,6 @@ typedef struct cl_constraints {
     cl_size_t max;
 } cl_constraints_t;
 
-/* Opaque glyph token issued by the renderer (ARCHITECTURE §3.4). */
-typedef struct cl_glyph_handle { uint64_t value; } cl_glyph_handle_t;
-
 /* Alignment along an axis. */
 typedef enum cl_align {
     CL_ALIGN_START,
