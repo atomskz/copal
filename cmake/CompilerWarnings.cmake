@@ -23,7 +23,21 @@ function(copal_set_warnings target)
 endfunction()
 
 function(copal_enable_sanitizers target)
-    if(NOT MSVC)
+    if(MSVC)
+        # MSVC has no UBSan, and its /fsanitize=address conflicts with the
+        # /RTC1 that CMake puts into the default Debug flags - enabling it
+        # per target would break the build. Be loud (once) instead of
+        # silently building without sanitizers.
+        get_property(warned GLOBAL PROPERTY COPAL_MSVC_SANITIZERS_WARNED)
+        if(NOT warned)
+            set_property(GLOBAL PROPERTY COPAL_MSVC_SANITIZERS_WARNED ON)
+            message(WARNING
+                "COPAL_ENABLE_SANITIZERS has no effect with MSVC (no UBSan; "
+                "/fsanitize=address is incompatible with CMake's default "
+                "/RTC1 Debug flags). Use clang-cl or a GNU toolchain for "
+                "sanitized builds.")
+        endif()
+    else()
         target_compile_options(${target} PRIVATE
             -fsanitize=address,undefined
             -fno-omit-frame-pointer)
