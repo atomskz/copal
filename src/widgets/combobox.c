@@ -202,6 +202,10 @@ static bool combo_mouse_up(cl_widget_t *w, const cl_event_t *ev)
 {
     if (ev->data.mouse.button != CL_MOUSE_LEFT)
         return false;
+    /* The capture routes the release here even when the pointer has left the
+     * widget; releasing off the box cancels the click (mirrors button). */
+    if (!cl_rect_contains(w->rect, ev->data.mouse.pos))
+        return true;
     open_dropdown(w);
     return true;
 }

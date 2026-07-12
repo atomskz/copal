@@ -21,6 +21,7 @@ static cl_size_t button_measure(cl_widget_t *w, cl_constraints_t c);
 static void button_paint(cl_widget_t *w, cl_paint_context_t *ctx);
 static bool button_mouse_down(cl_widget_t *w, const cl_event_t *ev);
 static bool button_mouse_up(cl_widget_t *w, const cl_event_t *ev);
+static bool button_key_down(cl_widget_t *w, const cl_event_t *ev);
 static void button_destroy(cl_widget_t *w);
 
 static const cl_widget_vtable_t button_vtable = {
@@ -29,6 +30,7 @@ static const cl_widget_vtable_t button_vtable = {
     .paint = button_paint,
     .mouse_down = button_mouse_down,
     .mouse_up = button_mouse_up,
+    .key_down = button_key_down,
 };
 
 static const cl_widget_class_t cl_button_class = {
@@ -101,7 +103,8 @@ static bool button_mouse_down(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_button_t *self = CL_WIDGET_CAST(cl_button, w);
 
-    (void)ev;
+    if (ev->data.mouse.button != CL_MOUSE_LEFT)
+        return false; /* only the primary button presses; let others bubble */
     self->pressed = true;
     cl_widget_invalidate(w);
     return true;
@@ -112,11 +115,27 @@ static bool button_mouse_up(cl_widget_t *w, const cl_event_t *ev)
     cl_button_t *self = CL_WIDGET_CAST(cl_button, w);
     bool was_pressed = self->pressed;
 
+    if (ev->data.mouse.button != CL_MOUSE_LEFT)
+        return false;
     self->pressed = false;
     cl_widget_invalidate(w);
     if (was_pressed && cl_rect_contains(w->rect, ev->data.mouse.pos) &&
         self->on_click)
-        self->on_click(w, self->user);
+        self->on_click(w, self->user); /* last: may destroy the button */
+    return true;
+}
+
+static bool button_key_down(cl_widget_t *w, const cl_event_t *ev)
+{
+    cl_button_t *self = CL_WIDGET_CAST(cl_button, w);
+
+    /* The button sits in the Tab chain (CL_WF_FOCUSABLE), so the keyboard
+     * must be able to press it too. */
+    if (ev->data.key.key != CL_KEY_SPACE && ev->data.key.key != CL_KEY_ENTER)
+        return false;
+    cl_widget_invalidate(w);
+    if (self->on_click)
+        self->on_click(w, self->user); /* last: may destroy the button */
     return true;
 }
 
