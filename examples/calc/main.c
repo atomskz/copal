@@ -94,8 +94,9 @@ static cl_widget_t *build_root(cl_application_t *app, calc_t *calc)
 
 int main(int argc, char **argv)
 {
-    cl_application_desc_t ad = CL_APPLICATION_DESC_INIT;
-    cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .title = "copal \xE2\x80\x94 calc" };
     calc_t calc = { 0 }; /* engine is reset below; display set during build */
     cl_application_t *app;
     cl_font_t *font;
@@ -114,7 +115,6 @@ int main(int argc, char **argv)
         cl_theme_set_font(cl_application_theme(app), font);
     calc_reset(&calc.engine);
 
-    wd.title = "copal \xE2\x80\x94 calc";
     wd.width = 4 * CALC_KEY_W + 3 * CALC_GAP + 2 * CALC_PAD;
     wd.height = CALC_DISPLAY_H + CALC_ROW_GAP + 5 * CALC_KEY_H + 4 * CALC_GAP +
                 2 * CALC_PAD;

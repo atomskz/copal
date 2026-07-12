@@ -30,8 +30,12 @@ typedef struct cl_window_desc {
     bool resizable;
 } cl_window_desc_t;
 
-#define CL_WINDOW_DESC_INIT \
-    { .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_window_desc_t) }
+/* Service fields for a designated initializer / compound literal (the same
+ * idiom as the widget descs)... */
+#define CL_WINDOW_DESC_INIT_FIELDS \
+    .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_window_desc_t)
+/* ...and the full default initializer built from it. */
+#define CL_WINDOW_DESC_INIT { CL_WINDOW_DESC_INIT_FIELDS }
 
 /* MVP allows a single window; a second returns NULL + CL_ERROR_UNSUPPORTED. */
 CL_API cl_window_t *cl_window_create(cl_application_t *app,

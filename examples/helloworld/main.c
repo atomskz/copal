@@ -214,8 +214,10 @@ static cl_widget_t *build_root(cl_application_t *app, struct uptime_ctx *uptime)
 
 int main(int argc, char **argv)
 {
-    cl_application_desc_t ad = CL_APPLICATION_DESC_INIT;
-    cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .title = "copal - hello",
+                            .width = 480, .height = 320, .resizable = true };
     struct uptime_ctx uptime = { NULL, 0 };
     cl_application_t *app;
     cl_font_t *font;
@@ -233,10 +235,6 @@ int main(int argc, char **argv)
     if (font)
         cl_theme_set_font(cl_application_theme(app), font);
 
-    wd.title = "copal - hello";
-    wd.width = 480;
-    wd.height = 320;
-    wd.resizable = true;
     win = cl_window_create(app, &wd);
     if (!win) {
         fprintf(stderr, "cannot create window: %s\n",

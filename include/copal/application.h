@@ -52,8 +52,12 @@ typedef struct cl_application_desc {
     cl_render_backend_t render_backend; /* built-in backend choice (0 = AUTO) */
 } cl_application_desc_t;
 
-#define CL_APPLICATION_DESC_INIT \
-    { .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_application_desc_t) }
+/* Service fields for a designated initializer / compound literal (the same
+ * idiom as the widget descs)... */
+#define CL_APPLICATION_DESC_INIT_FIELDS \
+    .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_application_desc_t)
+/* ...and the full default initializer built from it. */
+#define CL_APPLICATION_DESC_INIT { CL_APPLICATION_DESC_INIT_FIELDS }
 
 CL_API cl_application_t *cl_application_create(const cl_application_desc_t *desc);
 CL_API void cl_application_destroy(cl_application_t *app);
