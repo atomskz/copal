@@ -35,6 +35,18 @@ static cl_size_t hbox_measure(cl_widget_t *w, cl_constraints_t c)
     cl_size_t out = { 0, 0 };
     int n = 0;
 
+    /* Children are measured against the box minus its padding. */
+    c.max.w -= self->padding.left + self->padding.right;
+    c.max.h -= self->padding.top + self->padding.bottom;
+    if (c.max.w < 0.0f)
+        c.max.w = 0.0f;
+    if (c.max.h < 0.0f)
+        c.max.h = 0.0f;
+    if (c.min.w > c.max.w)
+        c.min.w = c.max.w;
+    if (c.min.h > c.max.h)
+        c.min.h = c.max.h;
+
     for (ch = w->first_child; ch; ch = ch->next_sibling) {
         cl_size_t cs;
         float chh;
@@ -67,6 +79,9 @@ static void hbox_arrange(cl_widget_t *w, cl_rect_t rect)
     float leftover;
     int n = 0;
     bool first = true;
+
+    if (content_h < 0.0f)
+        content_h = 0.0f; /* padding taller than the rect */
 
     /* First pass: natural main-axis extent and the sum of flex weights, to
      * split any leftover width between flexible children. */
@@ -101,6 +116,8 @@ static void hbox_arrange(cl_widget_t *w, cl_rect_t rect)
         if (ch->flex > 0.0f && leftover > 0.0f)
             cs.w += leftover * (ch->flex / total_flex);
         avail_h = content_h - ch->margin.top - ch->margin.bottom;
+        if (avail_h < 0.0f)
+            avail_h = 0.0f;
         chh = cs.h;
         cross = ch->align_v != CL_ALIGN_AUTO ? ch->align_v : self->align_cross;
         switch (cross) {

@@ -156,6 +156,34 @@ static void test_nested(void)
     CHECK_EQF(cl_widget_rect(bottom).y, 280.0f);
 }
 
+static void test_padding_exceeds_box(void)
+{
+    /* insets order: left, top, right, bottom */
+    cl_vbox_desc_t vd = { CL_VBOX_DESC_INIT_FIELDS,
+                          .align_cross = CL_ALIGN_STRETCH,
+                          .padding = { 300, 10, 300, 10 } };
+    cl_hbox_desc_t hd = { CL_HBOX_DESC_INIT_FIELDS,
+                          .align_cross = CL_ALIGN_STRETCH,
+                          .padding = { 10, 200, 10, 200 } };
+    cl_widget_t *vb = cl_vbox_create(app, &vd);
+    cl_widget_t *vch = spacer(50, 30);
+    cl_widget_t *hb = cl_hbox_create(app, &hd);
+    cl_widget_t *hch = spacer(50, 30);
+
+    /* 600px of horizontal padding in a 400px window: STRETCH clamps the
+     * child's width to zero rather than going negative */
+    cl_widget_add_child(vb, vch);
+    cl_window_set_content(win, vb);
+    relayout();
+    CHECK_EQF(cl_widget_rect(vch).w, 0.0f);
+
+    /* the same on the hbox cross axis: 400px of vertical padding in 340 */
+    cl_widget_add_child(hb, hch);
+    cl_window_set_content(win, hb);
+    relayout();
+    CHECK_EQF(cl_widget_rect(hch).h, 0.0f);
+}
+
 static void test_no_shrink_below_measured(void)
 {
     cl_vbox_desc_t vd = { CL_VBOX_DESC_INIT_FIELDS };
@@ -193,6 +221,7 @@ int main(void)
     test_align_override();
     test_margin();
     test_nested();
+    test_padding_exceeds_box();
     test_no_shrink_below_measured();
 
     cl_application_destroy(app);
