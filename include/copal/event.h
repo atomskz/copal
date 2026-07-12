@@ -56,11 +56,19 @@ typedef enum cl_key {
     CL_KEY_TAB,
     CL_KEY_ESCAPE,
     CL_KEY_SPACE,
+    CL_KEY_PAGE_UP,
+    CL_KEY_PAGE_DOWN,
     /* Letters (used with modifiers for shortcuts). */
     CL_KEY_A, CL_KEY_B, CL_KEY_C, CL_KEY_D, CL_KEY_E, CL_KEY_F, CL_KEY_G,
     CL_KEY_H, CL_KEY_I, CL_KEY_J, CL_KEY_K, CL_KEY_L, CL_KEY_M, CL_KEY_N,
     CL_KEY_O, CL_KEY_P, CL_KEY_Q, CL_KEY_R, CL_KEY_S, CL_KEY_T, CL_KEY_U,
-    CL_KEY_V, CL_KEY_W, CL_KEY_X, CL_KEY_Y, CL_KEY_Z
+    CL_KEY_V, CL_KEY_W, CL_KEY_X, CL_KEY_Y, CL_KEY_Z,
+    /* Digit row (not the keypad). */
+    CL_KEY_0, CL_KEY_1, CL_KEY_2, CL_KEY_3, CL_KEY_4,
+    CL_KEY_5, CL_KEY_6, CL_KEY_7, CL_KEY_8, CL_KEY_9,
+    /* Function row. */
+    CL_KEY_F1, CL_KEY_F2, CL_KEY_F3, CL_KEY_F4, CL_KEY_F5, CL_KEY_F6,
+    CL_KEY_F7, CL_KEY_F8, CL_KEY_F9, CL_KEY_F10, CL_KEY_F11, CL_KEY_F12
 } cl_key_t;
 
 typedef struct cl_event {

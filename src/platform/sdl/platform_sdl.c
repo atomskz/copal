@@ -40,6 +40,10 @@ static cl_key_t map_key(SDL_Keycode k)
 {
     if (k >= SDLK_a && k <= SDLK_z)
         return (cl_key_t)(CL_KEY_A + (k - SDLK_a));
+    if (k >= SDLK_0 && k <= SDLK_9)
+        return (cl_key_t)(CL_KEY_0 + (k - SDLK_0));
+    if (k >= SDLK_F1 && k <= SDLK_F12)
+        return (cl_key_t)(CL_KEY_F1 + (k - SDLK_F1));
 
     switch (k) {
         case SDLK_LEFT:      return CL_KEY_LEFT;
@@ -48,6 +52,8 @@ static cl_key_t map_key(SDL_Keycode k)
         case SDLK_DOWN:      return CL_KEY_DOWN;
         case SDLK_HOME:      return CL_KEY_HOME;
         case SDLK_END:       return CL_KEY_END;
+        case SDLK_PAGEUP:    return CL_KEY_PAGE_UP;
+        case SDLK_PAGEDOWN:  return CL_KEY_PAGE_DOWN;
         case SDLK_BACKSPACE: return CL_KEY_BACKSPACE;
         case SDLK_DELETE:    return CL_KEY_DELETE;
         case SDLK_RETURN:

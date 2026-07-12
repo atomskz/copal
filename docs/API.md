@@ -131,7 +131,10 @@ typedef enum cl_key {
     CL_KEY_LEFT, CL_KEY_RIGHT, CL_KEY_UP, CL_KEY_DOWN,
     CL_KEY_HOME, CL_KEY_END, CL_KEY_BACKSPACE, CL_KEY_DELETE,
     CL_KEY_ENTER, CL_KEY_TAB, CL_KEY_ESCAPE, CL_KEY_SPACE,
-    CL_KEY_A, CL_KEY_B, /* ... */ CL_KEY_Z   /* буквы — для сочетаний с модификаторами */
+    CL_KEY_PAGE_UP, CL_KEY_PAGE_DOWN,
+    CL_KEY_A, CL_KEY_B, /* ... */ CL_KEY_Z,  /* буквы — для сочетаний с модификаторами */
+    CL_KEY_0, /* ... */ CL_KEY_9,            /* цифровой ряд */
+    CL_KEY_F1, /* ... */ CL_KEY_F12
 } cl_key_t;
 
 /* theme.h */

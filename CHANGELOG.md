@@ -23,6 +23,9 @@
   (новые vtable-слоты `mouse_enter`/`mouse_leave`, без всплытия); кнопка
   подсвечивается ролью `CL_COLOR_SURFACE_HOVER`.
 
+- `cl_key_t` расширен: цифровой ряд `CL_KEY_0..9`, `CL_KEY_F1..F12`,
+  `CL_KEY_PAGE_UP`/`CL_KEY_PAGE_DOWN` (замаплены в SDL-бэкенде).
+
 ### Изменено
 
 - `cl_widget_destroy`: поддерево отсоединяется немедленно, но память
