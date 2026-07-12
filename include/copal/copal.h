@@ -33,6 +33,9 @@
 #include <copal/widgets/list.h>
 #include <copal/widgets/progressbar.h>
 #include <copal/widgets/messagebox.h>
+#include <copal/widgets/panel.h>
+#include <copal/widgets/spacer.h>
+#include <copal/widgets/radiogroup.h>
 #include <copal/widgets/combobox.h>
 #include <copal/widgets/textbox.h>
 #include <copal/widgets/scrollview.h>

@@ -633,6 +633,52 @@ size_t       cl_textbox_cursor_line(cl_widget_t *tb);   /* строка каре
 const char  *cl_textbox_preedit(cl_widget_t *tb);       /* строка IME-композиции у каретки, или NULL */
 ```
 
+## 17a. Виджеты 0.2: list, progressbar, imageview, panel, spacer, radiogroup, menubar, messagebox
+
+```c
+/* widgets/list.h — выбор строк, полная клавиатура, активация */
+cl_widget_t *cl_list_create(cl_application_t *app, const cl_list_desc_t *desc);
+cl_result_t  cl_list_add_item(cl_widget_t *l, const char *text);
+cl_result_t  cl_list_remove(cl_widget_t *l, size_t index);
+void         cl_list_clear(cl_widget_t *l);
+size_t       cl_list_count(cl_widget_t *l);
+const char  *cl_list_item_text(cl_widget_t *l, size_t index);
+int          cl_list_selected(cl_widget_t *l);            /* -1 = нет */
+void         cl_list_set_selected(cl_widget_t *l, int index);
+void         cl_list_set_on_select(cl_widget_t *l, cl_list_fn fn, void *user);
+void         cl_list_set_on_activate(cl_widget_t *l, cl_list_fn fn, void *user);
+
+/* widgets/progressbar.h */
+cl_widget_t *cl_progressbar_create(cl_application_t *app, const cl_progressbar_desc_t *desc);
+void         cl_progressbar_set_value(cl_widget_t *pb, float v); /* 0..1, клампится */
+float        cl_progressbar_value(cl_widget_t *pb);
+
+/* widgets/imageview.h + image.h (ресурс: сырой RGBA8, файлы не декодируются) */
+cl_image_t  *cl_image_create(cl_application_t *app, int w, int h, const void *rgba);
+void         cl_image_release(cl_image_t *img);           /* инвалидирует кэши рендера */
+cl_widget_t *cl_imageview_create(cl_application_t *app, const cl_imageview_desc_t *desc);
+void         cl_imageview_set_image(cl_widget_t *iv, cl_image_t *img); /* borrowed */
+
+/* widgets/panel.h, widgets/spacer.h */
+cl_widget_t *cl_panel_create(cl_application_t *app, const cl_panel_desc_t *desc);
+cl_widget_t *cl_spacer_create(cl_application_t *app, const cl_spacer_desc_t *desc);
+
+/* widgets/radiogroup.h — колонка взаимоисключающих радио */
+cl_widget_t *cl_radiogroup_create(cl_application_t *app, const cl_radiogroup_desc_t *desc);
+cl_widget_t *cl_radiogroup_add(cl_widget_t *g, const char *text);
+int          cl_radiogroup_selected(cl_widget_t *g);
+void         cl_radiogroup_set_selected(cl_widget_t *g, int index); /* без колбэка */
+void         cl_radiogroup_set_on_change(cl_widget_t *g, cl_radiogroup_fn fn, void *user);
+
+/* widgets/menubar.h — панель заголовков меню (владеет меню, переиспользует) */
+cl_widget_t *cl_menubar_create(cl_application_t *app, const cl_menubar_desc_t *desc);
+cl_result_t  cl_menubar_add_menu(cl_widget_t *bar, const char *title, cl_widget_t *menu);
+
+/* widgets/messagebox.h — модальный диалог поверх контента */
+cl_widget_t *cl_messagebox_show(cl_window_t *win, const char *title, const char *text,
+                                cl_msgbox_buttons_t buttons, cl_msgbox_fn fn, void *user);
+```
+
 ## 18. Popup-виджеты: ComboBox и Menu (`widgets/combobox.h`, `widgets/menu.h`)
 
 Оба используют overlay-слой окна (§12).

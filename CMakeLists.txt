@@ -105,6 +105,9 @@ set(COPAL_SOURCES
     src/widgets/list.c
     src/widgets/progressbar.c
     src/widgets/messagebox.c
+    src/widgets/panel.c
+    src/widgets/spacer.c
+    src/widgets/radiogroup.c
     src/widgets/combobox.c
     src/widgets/textbox.c
     src/widgets/tooltip.c

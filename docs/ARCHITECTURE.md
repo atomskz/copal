@@ -220,7 +220,7 @@ stb_truetype из CPU glyph-кэша; клип-стек; пиксельный б
 `max_length`, выделение/буфер обмена, IME-композиция), **ScrollView**. Внутренний
 **tooltip**-пузырь (`src/widgets/tooltip.c`) — не публичный виджет, а элемент
 hover-слоя окна. Каждый публичный виджет — `*_desc_t` + `*_create` (§API).
-**Не реализованы** проектные Panel/Image/Spacer/RadioGroup.
+Реализованы также Panel (группирующая поверхность), Spacer, RadioGroup (автоматическая взаимоисключаемость), ImageView, List, ProgressBar, Menubar и модальный MessageBox.
 
 ### 3.9 App & Window (`src/app/`, `application.h`, `window.h`, `timer.h`)
 - `cl_application_t`: владеет platform, renderer, theme, allocator; event loop

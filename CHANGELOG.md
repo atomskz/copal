@@ -39,6 +39,10 @@
 - `cl_key_t` расширен: цифровой ряд `CL_KEY_0..9`, `CL_KEY_F1..F12`,
   `CL_KEY_PAGE_UP`/`CL_KEY_PAGE_DOWN` (замаплены в SDL-бэкенде).
 
+- Виджеты компоновки: `cl_panel` (группирующая поверхность с padding и
+  рамкой), `cl_spacer` (фиксированный/гибкий промежуток),
+  `cl_radiogroup` (колонка взаимоисключающих радиокнопок с автоматическим
+  group-id и колбэком выбора).
 - API-симметрия: `cl_combobox_item_text/remove/clear`,
   `cl_menu_item_text/remove/clear`, геттеры
   `cl_widget_preferred_size/margin/align_h/align_v/flex/is_focusable`.

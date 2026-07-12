@@ -337,9 +337,99 @@ static void test_api_symmetry(void)
     cl_application_destroy(app);
 }
 
+/* panel/spacer/radiogroup: grouping surface, flexible gap, exclusivity. */
+static int rg_fires, rg_last;
+
+static void on_rg(cl_widget_t *g, int idx, void *user)
+{
+    (void)g;
+    (void)user;
+    rg_fires++;
+    rg_last = idx;
+}
+
+static void test_panel_spacer_radiogroup(void)
+{
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .width = 300, .height = 300 };
+    cl_hbox_desc_t hd = { CL_HBOX_DESC_INIT_FIELDS };
+    cl_platform_t *plat = cl_platform_mock_create(cl_allocator_default());
+    cl_application_t *app;
+    cl_window_t *win;
+    cl_widget_t *row;
+    cl_widget_t *a;
+    cl_widget_t *sp;
+    cl_widget_t *b;
+    cl_widget_t *panel;
+    cl_widget_t *group;
+    cl_widget_t *opt0;
+    cl_widget_t *opt1;
+    cl_rect_t r;
+
+    ad.platform = plat;
+    ad.renderer = cl_renderer_mock_create(cl_allocator_default());
+    app = cl_application_create(&ad);
+    win = cl_window_create(app, &wd);
+
+    /* spacer with flex pushes the second child to the far edge */
+    row = cl_hbox_create(app, &hd);
+    a = bare_checkbox(app);
+    sp = cl_spacer_create(
+        app, &(cl_spacer_desc_t){ CL_SPACER_DESC_INIT_FIELDS, .flex = 1.0f });
+    b = bare_checkbox(app);
+    cl_widget_add_child(row, a);
+    cl_widget_add_child(row, sp);
+    cl_widget_add_child(row, b);
+    cl_window_set_content(win, row);
+    cl_application_step(app, false);
+    r = cl_widget_rect(b);
+    CHECK(r.x + r.w == 300.0f); /* pinned to the right edge */
+
+    /* panel: children fill the padded content box */
+    panel = cl_panel_create(
+        app, &(cl_panel_desc_t){ CL_PANEL_DESC_INIT_FIELDS,
+                                 .padding = { 10, 10, 10, 10 },
+                                 .bordered = true });
+    group = cl_radiogroup_create(
+        app, &(cl_radiogroup_desc_t){ CL_RADIOGROUP_DESC_INIT_FIELDS,
+                                      .spacing = 6.0f });
+    opt0 = cl_radiogroup_add(group, "left");
+    opt1 = cl_radiogroup_add(group, "right");
+    CHECK(opt0 && opt1);
+    CHECK(cl_radiogroup_count(group) == 2);
+    CHECK(cl_radiogroup_selected(group) == -1);
+    cl_radiogroup_set_on_change(group, on_rg, NULL);
+    cl_widget_add_child(panel, group);
+    cl_window_set_content(win, panel);
+    cl_application_step(app, false);
+
+    /* the group sits inside the panel's padding */
+    CHECK(cl_widget_rect(group).x == cl_widget_rect(panel).x + 10.0f);
+
+    /* clicking option 1 selects it exclusively and fires the callback */
+    rg_fires = 0;
+    rg_last = -1;
+    r = cl_widget_rect(opt1);
+    click(plat, r.x + 8.0f, r.y + r.h * 0.5f);
+    cl_application_step(app, false);
+    CHECK(cl_radiogroup_selected(group) == 1);
+    CHECK(rg_fires == 1 && rg_last == 1);
+    CHECK(!cl_radiobutton_is_selected(opt0));
+
+    /* the programmatic setter is exclusive and silent */
+    cl_radiogroup_set_selected(group, 0);
+    CHECK(cl_radiogroup_selected(group) == 0);
+    CHECK(!cl_radiobutton_is_selected(opt1));
+    CHECK(rg_fires == 1); /* unchanged */
+
+    cl_application_destroy(app);
+}
+
 int main(void)
 {
     test_api_symmetry();
+    test_panel_spacer_radiogroup();
     test_imageview();
     test_list();
     test_progressbar();
