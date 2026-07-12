@@ -3,6 +3,7 @@
 
 #include "render/paint_context.h"
 #include "theme/theme_internal.h"
+#include "core/foundation/foundation_internal.h"
 
 void cl_paint_fill_rect(cl_paint_context_t *ctx, cl_rect_t r, cl_color_t color)
 {
@@ -25,6 +26,19 @@ void cl_paint_stroke_round_rect(cl_paint_context_t *ctx, cl_rect_t r,
 void cl_paint_draw_text(cl_paint_context_t *ctx, cl_font_t *font,
                         const char *utf8, cl_point_t pos, cl_color_t color)
 {
+    /* The classic hello-world pitfall: no theme font -> a silently blank
+     * window. Say it once instead of nothing at all. */
+    if (!font) {
+        static bool warned;
+
+        if (!warned) {
+            warned = true;
+            cl_log(CL_LOG_WARN, "paint: drawing text without a font - "
+                                "nothing will render (load one with "
+                                "cl_font_load_system + cl_theme_set_font)");
+        }
+        return;
+    }
     ctx->renderer->ops->draw_text(ctx->renderer, font, utf8, pos, color);
 }
 

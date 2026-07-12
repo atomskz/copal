@@ -49,36 +49,8 @@ const char *__lsan_default_suppressions(void)
 
 cl_font_t *example_load_font(cl_application_t *app, float size_px)
 {
-    static const char *candidates[] = {
-        "C:/Windows/Fonts/segoeui.ttf",
-        "C:/Windows/Fonts/arial.ttf",
-        "C:/Windows/Fonts/tahoma.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/System/Library/Fonts/Supplemental/Arial.ttf",
-        "/Library/Fonts/Arial.ttf",
-    };
-    const char *env = getenv("COPAL_FONT");
-    cl_font_t *font;
-    size_t i;
-
-    if (env) {
-        font = cl_font_load_file(app, env, size_px);
-        if (font)
-            return font;
-        fprintf(stderr, "warning: COPAL_FONT=%s could not be loaded\n", env);
-    }
-    for (i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
-        font = cl_font_load_file(app, candidates[i], size_px);
-        if (font)
-            return font;
-    }
-    fprintf(stderr, "warning: no usable system font found "
-                    "(set COPAL_FONT=/path/to/font.ttf); text will not "
-                    "render\n");
-    return NULL;
+    /* The library now ships the probing logic (COPAL_FONT + system paths). */
+    return cl_font_load_system(app, size_px);
 }
 
 int example_run(cl_application_t *app)

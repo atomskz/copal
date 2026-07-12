@@ -4,6 +4,7 @@
 #include <copal/allocator.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "stb_truetype.h"
@@ -152,6 +153,47 @@ cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
         return NULL;
     }
     return font_from_data(app, a, buf, (size_t)size, size_px);
+}
+
+cl_font_t *cl_font_load_system(cl_application_t *app, float size_px)
+{
+    static const char *const candidates[] = {
+#if defined(_WIN32)
+        "C:/Windows/Fonts/segoeui.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/tahoma.ttf",
+#elif defined(__APPLE__)
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/Library/Fonts/Arial.ttf",
+#else
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+#endif
+    };
+    const char *env = getenv("COPAL_FONT");
+    cl_font_t *font;
+    size_t i;
+
+    if (env && env[0]) {
+        font = cl_font_load_file(app, env, size_px);
+        if (font)
+            return font;
+        cl_log(CL_LOG_WARN, "font: COPAL_FONT='%s' could not be loaded", env);
+    }
+    for (i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        font = cl_font_load_file(app, candidates[i], size_px);
+        if (font)
+            return font;
+    }
+    cl_log(CL_LOG_WARN, "font: no usable system font found "
+                        "(set COPAL_FONT=/path/to/font.ttf)");
+    cl_set_last_error(CL_ERROR_FONT);
+    return NULL;
 }
 
 void cl_font_release(cl_font_t *font)

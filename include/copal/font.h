@@ -40,6 +40,19 @@ CL_API cl_font_t *cl_font_load_memory(cl_application_t *app, const void *data,
                                       size_t len, float size_px);
 
 /**
+ * cl_font_load_system() - load a default UI font from the host system.
+ *
+ * Honours COPAL_FONT=/path/to/font.ttf, then probes well-known system font
+ * paths (Segoe UI/Arial on Windows, DejaVu/Liberation/Noto on Linux, Arial
+ * on macOS). Meant to take the place of hand-rolled font path lists in
+ * applications that just need readable text.
+ *
+ * Return: a font handle, or NULL when nothing usable was found (WARN is
+ * logged; see cl_set_log_callback).
+ */
+CL_API cl_font_t *cl_font_load_system(cl_application_t *app, float size_px);
+
+/**
  * cl_font_release() - release a font.
  *
  * Evicts the renderer's cached glyphs for this font, so releasing and
