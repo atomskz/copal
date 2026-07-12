@@ -78,6 +78,13 @@ struct cl_widget_class {
     uint32_t type_id;
     size_t instance_size;
     const cl_widget_vtable_t *vtable;
+    /*
+     * ABI handshake for the vtable: set to sizeof(cl_widget_vtable_t). If a
+     * future library adds vtable slots, this stops it from reading past a
+     * vtable compiled against the older header (cl_widget_alloc rejects a
+     * mismatch with CL_ERROR_ABI_MISMATCH).
+     */
+    size_t vtable_size;
 };
 
 struct cl_widget {

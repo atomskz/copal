@@ -55,6 +55,7 @@ static const cl_widget_class_t cl_menu_class = {
     .type_id = 0x6d656e75u, /* 'menu' */
     .instance_size = sizeof(cl_menu_t),
     .vtable = &menu_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static cl_font_t *menu_font(cl_widget_t *w)

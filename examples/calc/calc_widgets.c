@@ -58,6 +58,7 @@ static const cl_widget_class_t cl_calc_key_class = {
     .type_id = 0,
     .instance_size = sizeof(cl_calc_key_t),
     .vtable = &calc_key_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static cl_size_t calc_key_measure(cl_widget_t *w, cl_constraints_t c)
@@ -177,6 +178,7 @@ static const cl_widget_class_t cl_calc_display_class = {
     .type_id = 0,
     .instance_size = sizeof(cl_calc_display_t),
     .vtable = &calc_display_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static cl_size_t calc_display_measure(cl_widget_t *w, cl_constraints_t c)

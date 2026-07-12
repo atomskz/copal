@@ -57,6 +57,7 @@ static const cl_widget_class_t cl_combobox_class = {
     .type_id = 0x636f6d62u, /* 'comb' */
     .instance_size = sizeof(cl_combobox_t),
     .vtable = &combo_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static char *dup_str(const cl_allocator_t *a, const char *s)

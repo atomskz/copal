@@ -34,8 +34,14 @@ void cl_widget_init_base(cl_widget_t *w, cl_application_t *app,
 cl_widget_t *cl_widget_alloc(cl_application_t *app, const cl_widget_class_t *cls)
 {
     const cl_allocator_t *a = cl_application_allocator(app);
-    cl_widget_t *w = cl_alloc(a, cls->instance_size);
+    cl_widget_t *w;
 
+    /* The class must agree on the vtable layout (see cl_widget_class). */
+    if (cls->vtable && cls->vtable_size != sizeof(cl_widget_vtable_t)) {
+        cl_set_last_error(CL_ERROR_ABI_MISMATCH);
+        return NULL;
+    }
+    w = cl_alloc(a, cls->instance_size);
     if (!w)
         return NULL;
     memset(w, 0, cls->instance_size);

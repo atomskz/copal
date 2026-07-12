@@ -25,6 +25,7 @@ static const cl_widget_class_t cl_hbox_class = {
     .type_id = 0x68626f78u, /* 'hbox' */
     .instance_size = sizeof(cl_hbox_t),
     .vtable = &hbox_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static cl_size_t hbox_measure(cl_widget_t *w, cl_constraints_t c)

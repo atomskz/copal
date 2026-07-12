@@ -68,6 +68,7 @@ static const cl_widget_class_t cl_scrollview_class = {
     .type_id = 0x7363726cu, /* 'scrl' */
     .instance_size = sizeof(cl_scrollview_t),
     .vtable = &scrollview_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 /* ---- geometry helpers --------------------------------------------------- */

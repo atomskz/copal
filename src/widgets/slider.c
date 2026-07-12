@@ -48,6 +48,7 @@ static const cl_widget_class_t cl_slider_class = {
     .type_id = 0x736c6472u, /* 'sldr' */
     .instance_size = sizeof(cl_slider_t),
     .vtable = &slider_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static float clampf(float v, float lo, float hi)

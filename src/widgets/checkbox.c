@@ -45,6 +45,7 @@ static const cl_widget_class_t cl_checkbox_class = {
     .type_id = 0x63686b78u, /* 'chkx' */
     .instance_size = sizeof(cl_checkbox_t),
     .vtable = &checkbox_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static char *dup_str(const cl_allocator_t *a, const char *s)

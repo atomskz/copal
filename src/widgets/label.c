@@ -32,6 +32,7 @@ static const cl_widget_class_t cl_label_class = {
     .type_id = 0x6c61626cu, /* 'labl' */
     .instance_size = sizeof(cl_label_t),
     .vtable = &label_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static char *dup_str(const cl_allocator_t *a, const char *s)

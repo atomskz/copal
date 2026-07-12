@@ -103,6 +103,7 @@ static const cl_widget_class_t cl_textbox_class = {
     .type_id = 0x74627831u, /* 'tbx1' */
     .instance_size = sizeof(cl_textbox_t),
     .vtable = &textbox_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 /* ---- utf-8 helpers ------------------------------------------------------ */

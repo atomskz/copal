@@ -34,6 +34,7 @@ static const cl_widget_class_t cl_tooltip_class = {
     .type_id = 0x74746970u, /* 'ttip' */
     .instance_size = sizeof(cl_tooltip_t),
     .vtable = &tooltip_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static char *dup_str(const cl_allocator_t *a, const char *s)

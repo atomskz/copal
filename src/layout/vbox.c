@@ -25,6 +25,7 @@ static const cl_widget_class_t cl_vbox_class = {
     .type_id = 0x76626f78u, /* 'vbox' */
     .instance_size = sizeof(cl_vbox_t),
     .vtable = &vbox_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static cl_size_t vbox_measure(cl_widget_t *w, cl_constraints_t c)

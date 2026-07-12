@@ -45,6 +45,7 @@ static const cl_widget_class_t cl_radiobutton_class = {
     .type_id = 0x7261646fu, /* 'rado' */
     .instance_size = sizeof(cl_radiobutton_t),
     .vtable = &radio_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static char *dup_str(const cl_allocator_t *a, const char *s)

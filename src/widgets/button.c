@@ -37,6 +37,7 @@ static const cl_widget_class_t cl_button_class = {
     .type_id = 0x6274746eu, /* 'bttn' */
     .instance_size = sizeof(cl_button_t),
     .vtable = &button_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
 };
 
 static char *dup_str(const cl_allocator_t *a, const char *s)
