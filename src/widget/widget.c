@@ -54,12 +54,21 @@ void *cl_widget_check_cast(cl_widget_t *w, const cl_widget_class_t *cls)
         if (c == cls)
             return w;
     }
+    /* A live widget of the wrong class means mixed-up handles: record the
+     * cause of the resulting no-op (probe with cl_widget_is_a instead). */
+    cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
     return NULL;
 }
 
 bool cl_widget_is_a(cl_widget_t *w, const cl_widget_class_t *cls)
 {
-    return cl_widget_check_cast(w, cls) != NULL;
+    const cl_widget_class_t *c;
+
+    for (c = w ? w->cls : NULL; c; c = c->base) {
+        if (c == cls)
+            return true;
+    }
+    return false;
 }
 
 /* ---- invalidation ------------------------------------------------------- */

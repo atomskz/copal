@@ -111,7 +111,14 @@ CL_API cl_widget_t *cl_widget_alloc(cl_application_t *app,
 CL_API void cl_widget_init_base(cl_widget_t *w, cl_application_t *app,
                                 const cl_widget_class_t *cls);
 
-/** cl_widget_check_cast() - checked downcast; returns NULL on type mismatch. */
+/**
+ * cl_widget_check_cast() - checked downcast; returns NULL on type mismatch.
+ *
+ * A mismatch on a live widget records CL_ERROR_INVALID_ARGUMENT (this is how
+ * the typed accessors report a mixed-up handle: no-op + cl_last_error()).
+ * NULL input stays silent. To probe a type without recording an error, use
+ * cl_widget_is_a().
+ */
 CL_API void *cl_widget_check_cast(cl_widget_t *w, const cl_widget_class_t *cls);
 
 /** cl_widget_is_a() - true if w is an instance of cls or a subclass. */

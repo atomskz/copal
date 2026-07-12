@@ -411,9 +411,10 @@ static bool sv_has_vertical_ancestor(const cl_widget_t *w)
     cl_widget_t *p;
 
     for (p = w->parent; p; p = p->parent) {
-        cl_scrollview_t *anc = CL_WIDGET_CAST(cl_scrollview, p);
-
-        if (anc && sv_scroll_y_on(anc))
+        /* Probe with is_a: a non-scrollview ancestor is the normal case
+         * here, not a handle mix-up worth recording in cl_last_error(). */
+        if (cl_widget_is_a(p, &cl_scrollview_class) &&
+            sv_scroll_y_on(CL_WIDGET_CAST_UNCHECKED(cl_scrollview, p)))
             return true;
     }
     return false;
