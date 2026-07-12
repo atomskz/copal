@@ -33,6 +33,29 @@ include(GNUInstallDirs)
 include(cmake/CompilerWarnings.cmake)
 
 # ---------------------------------------------------------------------------
+# Version consistency
+# ---------------------------------------------------------------------------
+# version.h is the source of truth (the ABI handshake compiles it into user
+# code); the CMake project version feeds SOVERSION and the package files, so
+# the two must never drift apart.
+file(STRINGS include/copal/version.h _copal_ver_lines
+     REGEX "^#define COPAL_VERSION_(MAJOR|MINOR|PATCH) ")
+string(REGEX MATCH "COPAL_VERSION_MAJOR ([0-9]+)" _ "${_copal_ver_lines}")
+set(_copal_h_ver "${CMAKE_MATCH_1}")
+string(REGEX MATCH "COPAL_VERSION_MINOR ([0-9]+)" _ "${_copal_ver_lines}")
+string(APPEND _copal_h_ver ".${CMAKE_MATCH_1}")
+string(REGEX MATCH "COPAL_VERSION_PATCH ([0-9]+)" _ "${_copal_ver_lines}")
+string(APPEND _copal_h_ver ".${CMAKE_MATCH_1}")
+if(NOT _copal_h_ver STREQUAL PROJECT_VERSION)
+    message(FATAL_ERROR
+        "Version mismatch: include/copal/version.h declares ${_copal_h_ver} "
+        "but project(copal VERSION ...) declares ${PROJECT_VERSION}; "
+        "update both together.")
+endif()
+unset(_copal_ver_lines)
+unset(_copal_h_ver)
+
+# ---------------------------------------------------------------------------
 # Library target
 # ---------------------------------------------------------------------------
 if(COPAL_BUILD_SHARED)
