@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-docs/
 # Internal review notes; never published.
 docs/audit/
 /build*/
