@@ -214,7 +214,9 @@ SDL_VIDEODRIVER=dummy COPAL_MAX_FRAMES=3 ./build-sw/examples/calc/calc
 GL-контекста (меньше памяти, RDP/CI); по умолчанию GL. Примеры calc/helloworld
 принимают флаги **`--software`** / **`--gl`** (напр. `./calc --software`).
 
-Опции: `-DCOPAL_BUILD_SHARED=ON` (shared), `-DCOPAL_ENABLE_SANITIZERS=ON`
+Опции: `-DCOPAL_BUILD_SHARED=ON` (shared; white-box тесты требуют статической
+библиотеки и отключаются — в ctest остаются smoke-прогоны примеров),
+`-DCOPAL_ENABLE_SANITIZERS=ON`
 (ASan/UBSan), `-DCOPAL_ENABLE_COVERAGE=ON` (gcov/llvm-cov; не MSVC),
 `-DCOPAL_FETCH_SDL2=ON` (скачать и собрать SDL2),
 `-DCOPAL_BUILD_EXAMPLES=OFF`, `-DCOPAL_BUILD_TESTS=OFF`,

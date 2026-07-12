@@ -200,12 +200,23 @@ if(COPAL_ENABLE_COVERAGE)
     copal_enable_coverage(copal)
 endif()
 
+# White-box tests reach internal (non-exported) symbols, so they require the
+# static library: with COPAL_BUILD_SHARED they are disabled, and only the
+# black-box example smoke tests remain in ctest.
+set(COPAL_WHITEBOX_TESTS ${COPAL_BUILD_TESTS})
+if(COPAL_BUILD_SHARED AND COPAL_BUILD_TESTS)
+    message(STATUS "copal: COPAL_BUILD_SHARED=ON - the white-box test suite "
+                   "needs the static library and is disabled; the example "
+                   "smoke tests still run.")
+    set(COPAL_WHITEBOX_TESTS OFF)
+endif()
+
 # ---------------------------------------------------------------------------
 # Mock backends (test support)
 # ---------------------------------------------------------------------------
 # A headless platform/renderer pair for white-box tests. A separate static
 # library so the mocks never end up in the installed artifact.
-if(COPAL_BUILD_TESTS)
+if(COPAL_WHITEBOX_TESTS)
     add_library(copal_mocks STATIC
         src/render/mock/renderer_mock.c
         src/platform/mock/platform_mock.c)
@@ -235,7 +246,7 @@ if(COPAL_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-if(COPAL_BUILD_TESTS AND COPAL_IS_TOP_LEVEL)
+if(COPAL_WHITEBOX_TESTS AND COPAL_IS_TOP_LEVEL)
     add_subdirectory(tests)
 endif()
 
