@@ -30,7 +30,9 @@ typedef void (*cl_task_fn)(void *user);
  * acceleration (see ARCHITECTURE).
  */
 typedef enum cl_render_backend {
-    CL_RENDER_AUTO = 0, /* OpenGL if available, otherwise software */
+    CL_RENDER_AUTO = 0, /* OpenGL if compiled in, otherwise software; the
+                         * env var COPAL_RENDER=software overrides at run
+                         * time (e.g. over RDP or in CI) */
     CL_RENDER_GL,       /* OpenGL renderer */
     CL_RENDER_SOFTWARE  /* CPU rasterizer, no GPU context */
 } cl_render_backend_t;
@@ -56,8 +58,37 @@ typedef struct cl_application_desc {
 CL_API cl_application_t *cl_application_create(const cl_application_desc_t *desc);
 CL_API void cl_application_destroy(cl_application_t *app);
 
+/**
+ * cl_application_run() - run the event loop until cl_application_quit() (or
+ * an unvetoed window close request).
+ *
+ * Blocks between events (waking for due timers and posted tasks).
+ *
+ * Return: the exit code passed to cl_application_quit() (0 by default).
+ */
 CL_API int cl_application_run(cl_application_t *app);
+
+/**
+ * cl_application_step() - run one iteration of the event loop (for embedding
+ * copal into an external loop).
+ *
+ * Processes pending events, posted tasks and due timers, then renders when
+ * dirty. With @wait true the step first waits for activity, bounded by the
+ * next timer deadline; it always returns to the caller (it never blocks
+ * indefinitely, so without timers it returns immediately — throttle an idle
+ * embedding loop yourself or use cl_application_run()).
+ *
+ * Return: true to keep stepping; false once quit was requested.
+ */
 CL_API bool cl_application_step(cl_application_t *app, bool wait);
+
+/**
+ * cl_application_quit() - request loop exit with @exit_code.
+ *
+ * Thread-safe rendezvous with a blocked loop: the platform is woken. The
+ * loop finishes the current iteration and cl_application_run() returns
+ * @exit_code.
+ */
 CL_API void cl_application_quit(cl_application_t *app, int exit_code);
 
 /*
