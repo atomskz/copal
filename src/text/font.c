@@ -114,13 +114,14 @@ static float advance_px(cl_font_t *f, uint32_t cp)
 cl_font_t *cl_font_load_memory(cl_application_t *app, const void *data,
                                size_t len, float size_px)
 {
-    const cl_allocator_t *a = cl_application_allocator(app);
+    const cl_allocator_t *a;
     unsigned char *buf;
 
-    if (!data || len == 0) {
+    if (!app || !data || len == 0) {
         cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
         return NULL;
     }
+    a = cl_application_allocator(app);
     buf = cl_alloc(a, len);
     if (!buf)
         return NULL;
@@ -131,16 +132,17 @@ cl_font_t *cl_font_load_memory(cl_application_t *app, const void *data,
 cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
                              float size_px)
 {
-    const cl_allocator_t *a = cl_application_allocator(app);
+    const cl_allocator_t *a;
     unsigned char *buf;
     long size;
     size_t got;
     FILE *fp;
 
-    if (!path) {
+    if (!app || !path) {
         cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
         return NULL;
     }
+    a = cl_application_allocator(app);
     fp = fopen(path, "rb");
     if (!fp) {
         /* INFO, not WARN: probing a candidate list is a legitimate pattern
@@ -195,6 +197,10 @@ cl_font_t *cl_font_load_system(cl_application_t *app, float size_px)
     cl_font_t *font;
     size_t i;
 
+    if (!app) {
+        cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
+        return NULL;
+    }
     if (env && env[0]) {
         font = cl_font_load_file(app, env, size_px);
         if (font)

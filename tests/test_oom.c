@@ -157,6 +157,14 @@ static void test_font_errors(void)
     CHECK(cl_font_load_file(app, NULL, 16.0f) == NULL);
     CHECK(cl_last_error() == CL_ERROR_INVALID_ARGUMENT);
 
+    /* a NULL app is rejected before its allocator is touched */
+    CHECK(cl_font_load_memory(NULL, junk, sizeof(junk), 16.0f) == NULL);
+    CHECK(cl_last_error() == CL_ERROR_INVALID_ARGUMENT);
+    CHECK(cl_font_load_file(NULL, "/nonexistent/no.ttf", 16.0f) == NULL);
+    CHECK(cl_last_error() == CL_ERROR_INVALID_ARGUMENT);
+    CHECK(cl_font_load_system(NULL, 16.0f) == NULL);
+    CHECK(cl_last_error() == CL_ERROR_INVALID_ARGUMENT);
+
     cl_application_destroy(app);
 }
 
