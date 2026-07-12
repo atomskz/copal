@@ -27,7 +27,7 @@ jobs:
     env:
       CC: ${{ matrix.cc }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -55,7 +55,7 @@ jobs:
     name: linux gcc sdl-gl shared
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -81,12 +81,12 @@ jobs:
       # The test suites take their font from COPAL_FONT (no DejaVu here).
       COPAL_FONT: C:\Windows\Fonts\arial.ttf
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # SDL2 is built from source (COPAL_FETCH_SDL2, pinned commit); cache it
       # keyed on the pin recorded in CMakeLists.txt.
       - name: Cache SDL2 sources
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/_deps
           key: sdl2-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}
