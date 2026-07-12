@@ -332,9 +332,8 @@ int main(void)
         font3 = load_any_font(app3);
         if (!font3) {
             cl_application_destroy(app3);
-            if (failures == 0)
-                printf("all scrollview tests passed\n");
-            return failures == 0 ? 0 : 1;
+            fprintf(stderr, "SKIP: no TrueType font found\n");
+            return SKIP_CODE; /* skip, do not claim success */
         }
         cl_theme_set_font(cl_application_theme(app3), font3);
 
@@ -436,9 +435,8 @@ int main(void)
         font4 = load_any_font(app4);
         if (!font4) {
             cl_application_destroy(app4);
-            if (failures == 0)
-                printf("all scrollview tests passed\n");
-            return failures == 0 ? 0 : 1;
+            fprintf(stderr, "SKIP: no TrueType font found\n");
+            return SKIP_CODE; /* skip, do not claim success */
         }
         cl_theme_set_font(cl_application_theme(app4), font4);
 
@@ -516,9 +514,8 @@ int main(void)
         font5 = load_any_font(app5);
         if (!font5) {
             cl_application_destroy(app5);
-            if (failures == 0)
-                printf("all scrollview tests passed\n");
-            return failures == 0 ? 0 : 1;
+            fprintf(stderr, "SKIP: no TrueType font found\n");
+            return SKIP_CODE; /* skip, do not claim success */
         }
         cl_theme_set_font(cl_application_theme(app5), font5);
 
@@ -628,9 +625,8 @@ int main(void)
         font6 = load_any_font(app6);
         if (!font6) {
             cl_application_destroy(app6);
-            if (failures == 0)
-                printf("all scrollview tests passed\n");
-            return failures == 0 ? 0 : 1;
+            fprintf(stderr, "SKIP: no TrueType font found\n");
+            return SKIP_CODE; /* skip, do not claim success */
         }
         cl_theme_set_font(cl_application_theme(app6), font6);
 
@@ -689,9 +685,8 @@ int main(void)
         font7 = load_any_font(app7);
         if (!font7) {
             cl_application_destroy(app7);
-            if (failures == 0)
-                printf("all scrollview tests passed\n");
-            return failures == 0 ? 0 : 1;
+            fprintf(stderr, "SKIP: no TrueType font found\n");
+            return SKIP_CODE; /* skip, do not claim success */
         }
         cl_theme_set_font(cl_application_theme(app7), font7);
 
@@ -751,9 +746,8 @@ int main(void)
         font8 = load_any_font(app8);
         if (!font8) {
             cl_application_destroy(app8);
-            if (failures == 0)
-                printf("all scrollview tests passed\n");
-            return failures == 0 ? 0 : 1;
+            fprintf(stderr, "SKIP: no TrueType font found\n");
+            return SKIP_CODE; /* skip, do not claim success */
         }
         cl_theme_set_font(cl_application_theme(app8), font8);
         wd8.width = 240;
@@ -835,9 +829,8 @@ int main(void)
         font9 = load_any_font(app9);
         if (!font9) {
             cl_application_destroy(app9);
-            if (failures == 0)
-                printf("all scrollview tests passed\n");
-            return failures == 0 ? 0 : 1;
+            fprintf(stderr, "SKIP: no TrueType font found\n");
+            return SKIP_CODE; /* skip, do not claim success */
         }
         cl_theme_set_font(cl_application_theme(app9), font9);
         wd9.width = 240;

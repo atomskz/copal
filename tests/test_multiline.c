@@ -230,9 +230,8 @@ int main(void)
         font2 = load_any_font(app2);
         if (!font2) {
             cl_application_destroy(app2);
-            if (failures == 0)
-                printf("all multiline tests passed\n");
-            return failures == 0 ? 0 : 1;
+            fprintf(stderr, "SKIP: no TrueType font found\n");
+            return SKIP_CODE; /* skip, do not claim success */
         }
         cl_theme_set_font(cl_application_theme(app2), font2);
         wd2.width = 200;
@@ -288,9 +287,8 @@ int main(void)
         font3 = load_any_font(app3);
         if (!font3) {
             cl_application_destroy(app3);
-            if (failures == 0)
-                printf("all multiline tests passed\n");
-            return failures == 0 ? 0 : 1;
+            fprintf(stderr, "SKIP: no TrueType font found\n");
+            return SKIP_CODE; /* skip, do not claim success */
         }
         cl_theme_set_font(cl_application_theme(app3), font3);
         lh = cl_font_metrics(font3).line_height;
