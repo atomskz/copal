@@ -16,8 +16,9 @@ CPU-растеризатор (software), выбирается на этапе с
   mock-бэкендах.
 - **Виджеты**: label, button, checkbox, radiobutton, slider, textbox
   (однострочный/многострочный, пароль, undo/redo, выделение мышью, IME),
-  combobox, menu, tooltip, scrollview; контейнеры vbox/hbox с flex-весами,
-  выравниванием и отступами.
+  combobox, list, progressbar, imageview, menu с подменю, menubar,
+  message box/модальные диалоги, tooltip, scrollview; контейнеры vbox/hbox
+  с flex-весами, выравниванием и отступами.
 - **Текст**: UTF-8, TrueType через вендоренный stb_truetype, поиск системного
   шрифта (`cl_font_load_system`, переменная `COPAL_FONT`).
 - **Темы**: светлая/тёмная палитра, переключение в рантайме.

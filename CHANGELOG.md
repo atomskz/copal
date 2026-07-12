@@ -27,6 +27,9 @@
   `cl_paint_draw_image`, операции SPI `draw_image`/`evict_image` во всех трёх
   рендерах (GL — кэш текстур, software — масштабируемый блит с блендингом,
   mock — запись команды) и виджет `cl_imageview`.
+- Виджеты: `cl_list` (выбор мышью/клавиатурой, PageUp/Down, активация
+  двойным кликом/Enter, remove/clear), `cl_progressbar`,
+  `cl_messagebox_show` (модальный диалог OK/Cancel/Yes-No с Enter/Escape).
 - Стек оверлеев: подменю (`cl_menu_add_submenu`, клик/Enter/Right открывают,
   Escape/Left закрывают только подменю), виджет `cl_menubar`, модальные
   диалоги `cl_window_open_modal` (клик снаружи не закрывает).

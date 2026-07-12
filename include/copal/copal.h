@@ -30,6 +30,9 @@
 #include <copal/widgets/slider.h>
 #include <copal/widgets/menu.h>
 #include <copal/widgets/menubar.h>
+#include <copal/widgets/list.h>
+#include <copal/widgets/progressbar.h>
+#include <copal/widgets/messagebox.h>
 #include <copal/widgets/combobox.h>
 #include <copal/widgets/textbox.h>
 #include <copal/widgets/scrollview.h>

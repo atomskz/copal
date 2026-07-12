@@ -130,9 +130,174 @@ static void test_imageview(void)
     cl_application_destroy(app);
 }
 
+static int sel_fires, sel_last, act_fires, act_last;
+
+static void on_sel(cl_widget_t *l, int idx, void *user)
+{
+    (void)l;
+    (void)user;
+    sel_fires++;
+    sel_last = idx;
+}
+
+static void on_act(cl_widget_t *l, int idx, void *user)
+{
+    (void)l;
+    (void)user;
+    act_fires++;
+    act_last = idx;
+}
+
+/* list: selection via mouse and keyboard, activation, mutation. */
+static void test_list(void)
+{
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .width = 300, .height = 300 };
+    cl_vbox_desc_t vd = { CL_VBOX_DESC_INIT_FIELDS,
+                          .align_cross = CL_ALIGN_STRETCH };
+    cl_platform_t *plat = cl_platform_mock_create(cl_allocator_default());
+    cl_application_t *app;
+    cl_window_t *win;
+    cl_widget_t *box;
+    cl_widget_t *list;
+    cl_rect_t r;
+    /* fallback row height: 16 + 2*4 = 24; top pad 4 */
+    const float row_h = 24.0f, top_pad = 4.0f;
+    cl_platform_event_t pe = { 0 };
+
+    ad.platform = plat;
+    ad.renderer = cl_renderer_mock_create(cl_allocator_default());
+    app = cl_application_create(&ad);
+    win = cl_window_create(app, &wd);
+    box = cl_vbox_create(app, &vd);
+    list = cl_list_create(app, &(cl_list_desc_t){ CL_LIST_DESC_INIT_FIELDS });
+    CHECK(cl_list_add_item(list, "alpha") == CL_OK);
+    CHECK(cl_list_add_item(list, "beta") == CL_OK);
+    CHECK(cl_list_add_item(list, "gamma") == CL_OK);
+    CHECK(cl_list_count(list) == 3);
+    CHECK(strcmp(cl_list_item_text(list, 1), "beta") == 0);
+    CHECK(cl_list_item_text(list, 9) == NULL);
+    cl_list_set_on_select(list, on_sel, NULL);
+    cl_list_set_on_activate(list, on_act, NULL);
+    cl_widget_add_child(box, list);
+    cl_window_set_content(win, box);
+    cl_application_step(app, false);
+
+    /* click row 1 selects it (and focuses the list) */
+    r = cl_widget_rect(list);
+    click(plat, r.x + 10.0f, r.y + top_pad + 1.5f * row_h);
+    cl_application_step(app, false);
+    CHECK(cl_list_selected(list) == 1);
+    CHECK(sel_fires == 1 && sel_last == 1);
+    CHECK(cl_widget_has_focus(list));
+
+    /* keyboard: Down, End, Home, PageDown */
+    press(plat, CL_KEY_DOWN);
+    cl_application_step(app, false);
+    CHECK(cl_list_selected(list) == 2);
+    press(plat, CL_KEY_HOME);
+    cl_application_step(app, false);
+    CHECK(cl_list_selected(list) == 0);
+    press(plat, CL_KEY_PAGE_DOWN); /* clamps to the last row */
+    cl_application_step(app, false);
+    CHECK(cl_list_selected(list) == 2);
+
+    /* Enter activates the selection */
+    press(plat, CL_KEY_ENTER);
+    cl_application_step(app, false);
+    CHECK(act_fires == 1 && act_last == 2);
+
+    /* double-click activates too */
+    pe.kind = CL_PEV_MOUSE_DOWN;
+    pe.pos = (cl_point_t){ r.x + 10.0f, r.y + top_pad + 2.5f * row_h };
+    pe.button = CL_MOUSE_LEFT;
+    pe.clicks = 2;
+    cl_platform_mock_push(plat, pe);
+    cl_application_step(app, false);
+    CHECK(act_fires == 2 && act_last == 2);
+
+    /* removal keeps the selection consistent */
+    cl_list_set_selected(list, 2);
+    CHECK(cl_list_remove(list, 0) == CL_OK);
+    CHECK(cl_list_selected(list) == 1); /* shifted up */
+    CHECK(cl_list_remove(list, 1) == CL_OK);
+    CHECK(cl_list_selected(list) == -1); /* the selected row was removed */
+    cl_list_clear(list);
+    CHECK(cl_list_count(list) == 0);
+
+    cl_application_destroy(app);
+}
+
+/* progressbar: clamping and the accent fill appearing per value. */
+static void test_progressbar(void)
+{
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .width = 200, .height = 100 };
+    cl_vbox_desc_t vd = { CL_VBOX_DESC_INIT_FIELDS };
+    cl_platform_t *plat = cl_platform_mock_create(cl_allocator_default());
+    cl_renderer_t *rend = cl_renderer_mock_create(cl_allocator_default());
+    cl_application_t *app;
+    cl_window_t *win;
+    cl_widget_t *box;
+    cl_widget_t *pb;
+    cl_color_t accent;
+    size_t i, n;
+    bool saw_accent;
+
+    ad.platform = plat;
+    ad.renderer = rend;
+    app = cl_application_create(&ad);
+    accent = cl_theme_color(cl_application_theme(app), CL_COLOR_ACCENT);
+    win = cl_window_create(app, &wd);
+    box = cl_vbox_create(app, &vd);
+    pb = cl_progressbar_create(
+        app, &(cl_progressbar_desc_t){ CL_PROGRESSBAR_DESC_INIT_FIELDS,
+                                       .value = 2.0f });
+    CHECK(cl_progressbar_value(pb) == 1.0f); /* clamped */
+    cl_progressbar_set_value(pb, -1.0f);
+    CHECK(cl_progressbar_value(pb) == 0.0f);
+    cl_widget_add_child(box, pb);
+    cl_window_set_content(win, box);
+    cl_application_step(app, false);
+
+    /* value 0: no accent-coloured fill in the frame */
+    saw_accent = false;
+    n = cl_renderer_mock_count(rend);
+    for (i = 0; i < n; i++) {
+        const cl_mock_command_t *c = cl_renderer_mock_get(rend, i);
+
+        if (c->kind == CL_MOCK_FILL_ROUND && c->color.r == accent.r &&
+            c->color.g == accent.g && c->color.b == accent.b)
+            saw_accent = true;
+    }
+    CHECK(!saw_accent);
+
+    cl_progressbar_set_value(pb, 0.5f);
+    cl_application_step(app, false);
+    saw_accent = false;
+    n = cl_renderer_mock_count(rend);
+    for (i = 0; i < n; i++) {
+        const cl_mock_command_t *c = cl_renderer_mock_get(rend, i);
+
+        if (c->kind == CL_MOCK_FILL_ROUND && c->color.r == accent.r &&
+            c->color.g == accent.g && c->color.b == accent.b) {
+            saw_accent = true;
+            /* half of the bar's width */
+            CHECK(c->rect.w == cl_widget_rect(pb).w * 0.5f);
+        }
+    }
+    CHECK(saw_accent);
+
+    cl_application_destroy(app);
+}
+
 int main(void)
 {
     test_imageview();
+    test_list();
+    test_progressbar();
     const cl_allocator_t *a = cl_allocator_default();
 
     /* --- HBox lays children left-to-right with padding + spacing --- */

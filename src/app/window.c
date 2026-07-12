@@ -187,6 +187,11 @@ void cl_window_destroy(cl_window_t *win)
     cl_free(&app->alloc, win);
 }
 
+cl_application_t *cl_window_application(cl_window_t *win)
+{
+    return win ? win->app : NULL;
+}
+
 void cl_window_show(cl_window_t *win)
 {
     win->dirty = true;
@@ -706,18 +711,27 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
                   : kind == CL_PEV_MOUSE_UP ? CL_EVENT_MOUSE_UP
                                             : CL_EVENT_MOUSE_MOVE;
         if (kind == CL_PEV_MOUSE_DOWN) {
+            cl_widget_t *tgt;
+
             if (hit < 0) {
                 if (!win->overlays[top].modal)
                     cl_window_close_popup(win); /* light-dismiss the chain */
                 return;
             }
             overlay_request_close_from(win, hit + 1);
-            cl_widget_dispatch(win->overlays[hit].widget, &ev);
+            /* hit-test INTO the entry: dialogs carry child widgets */
+            tgt = cl_widget_hit(win->overlays[hit].widget, pos);
+            cl_widget_dispatch(tgt ? tgt : win->overlays[hit].widget, &ev);
             return;
         }
         /* moves/releases go to the entry under the pointer, falling back to
          * the top (menus reject outside points in their own handlers) */
-        cl_widget_dispatch(win->overlays[hit >= 0 ? hit : top].widget, &ev);
+        {
+            cl_widget_t *ow = win->overlays[hit >= 0 ? hit : top].widget;
+            cl_widget_t *tgt = hit >= 0 ? cl_widget_hit(ow, pos) : NULL;
+
+            cl_widget_dispatch(tgt ? tgt : ow, &ev);
+        }
         return;
     }
 

@@ -6,6 +6,7 @@
  * under ASan to prove there is no use-after-free.
  */
 #include <copal/copal.h>
+#include <copal/widget_impl.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -46,6 +47,16 @@ static void on_toggle(cl_widget_t *w, bool checked, void *user)
     (void)checked;
     (void)user;
     cb_toggles++;
+}
+
+static int mb_fires;
+static int mb_last;
+
+static void on_msgbox(int index, void *user)
+{
+    (void)user;
+    mb_fires++;
+    mb_last = index;
 }
 
 static void mouse(cl_platform_t *p, cl_platform_event_kind_t kind, float x,
@@ -292,6 +303,64 @@ int main(void)
         CHECK(last_index == 9);
         CHECK(cl_window_popup(win) == NULL);
         CHECK(cl_widget_window(filemenu) == NULL); /* detached, not freed */
+    }
+
+    /* Message box: a button click resolves and closes it; Escape cancels. */
+    {
+        cl_widget_t *dlg;
+        cl_widget_t *okbtn;
+        cl_rect_t br;
+
+        mb_fires = 0;
+        mb_last = -1;
+        dlg = cl_messagebox_show(win, "Confirm", "Really?",
+                                 CL_MSGBOX_OK_CANCEL, on_msgbox, NULL);
+        CHECK(dlg != NULL);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == dlg);
+
+        /* outside clicks are swallowed (modal) */
+        mouse(plat, CL_PEV_MOUSE_DOWN, 2.0f, 2.0f);
+        mouse(plat, CL_PEV_MOUSE_UP, 2.0f, 2.0f);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == dlg);
+
+        /* click OK: the callback fires once with index 0, the dialog closes.
+         * OK is the first button in the right-aligned row. */
+        okbtn = NULL;
+        {
+            /* row = last child of the inner vbox; OK = second child of row */
+            cl_widget_t *col = cl_window_popup(win)->first_child;
+            cl_widget_t *row;
+            cl_widget_t *c;
+
+            for (row = col->first_child; row && row->next_sibling;
+                 row = row->next_sibling)
+                ;
+            c = row->first_child;         /* the flex spacer */
+            okbtn = c ? c->next_sibling : NULL; /* OK */
+        }
+        CHECK(okbtn != NULL);
+        br = cl_widget_rect(okbtn);
+        mouse(plat, CL_PEV_MOUSE_DOWN, br.x + br.w * 0.5f,
+              br.y + br.h * 0.5f);
+        mouse(plat, CL_PEV_MOUSE_UP, br.x + br.w * 0.5f, br.y + br.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(mb_fires == 1);
+        CHECK(mb_last == 0);
+        CHECK(cl_window_popup(win) == NULL);
+
+        /* Escape picks the dismissive choice (Cancel = 1) */
+        mb_fires = 0;
+        mb_last = -1;
+        CHECK(cl_messagebox_show(win, NULL, "Sure?", CL_MSGBOX_YES_NO,
+                                 on_msgbox, NULL) != NULL);
+        cl_application_step(app, false);
+        press(plat, CL_KEY_ESCAPE);
+        cl_application_step(app, false);
+        CHECK(mb_fires == 1);
+        CHECK(mb_last == 1);
+        CHECK(cl_window_popup(win) == NULL);
     }
 
     /* A popup still open at window destruction is cleaned up (no leak). */

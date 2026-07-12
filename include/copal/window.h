@@ -52,6 +52,8 @@ CL_API void cl_window_show(cl_window_t *win);
 CL_API void cl_window_set_content(cl_window_t *win, cl_widget_t *root);
 CL_API cl_widget_t *cl_window_content(cl_window_t *win);
 CL_API void cl_window_set_title(cl_window_t *win, const char *utf8);
+/** cl_window_application() - the application that owns the window. */
+CL_API cl_application_t *cl_window_application(cl_window_t *win);
 CL_API cl_size_t cl_window_size(cl_window_t *win);
 CL_API void cl_window_set_on_close(cl_window_t *win, cl_window_close_fn fn,
                                    void *user);

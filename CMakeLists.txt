@@ -102,6 +102,9 @@ set(COPAL_SOURCES
     src/widgets/slider.c
     src/widgets/menu.c
     src/widgets/menubar.c
+    src/widgets/list.c
+    src/widgets/progressbar.c
+    src/widgets/messagebox.c
     src/widgets/combobox.c
     src/widgets/textbox.c
     src/widgets/tooltip.c
