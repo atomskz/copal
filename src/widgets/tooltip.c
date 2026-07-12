@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "widget/widget_internal.h"
+#include "core/foundation/foundation_internal.h"
 #include "theme/theme_internal.h"
 
 #define TT_PAD_X 8.0f
@@ -36,20 +37,6 @@ static const cl_widget_class_t cl_tooltip_class = {
     .vtable = &tooltip_vtable,
     .vtable_size = sizeof(cl_widget_vtable_t),
 };
-
-static char *dup_str(const cl_allocator_t *a, const char *s)
-{
-    size_t n;
-    char *p;
-
-    if (!s)
-        return NULL;
-    n = strlen(s) + 1;
-    p = cl_alloc(a, n);
-    if (p)
-        memcpy(p, s, n);
-    return p;
-}
 
 static cl_size_t tooltip_measure(cl_widget_t *w, cl_constraints_t c)
 {
@@ -102,6 +89,6 @@ cl_widget_t *cl_tooltip_create(cl_application_t *app, const char *text)
     if (!w)
         return NULL;
     self = CL_WIDGET_CAST(cl_tooltip, w);
-    self->text = dup_str(cl_application_allocator(app), text);
+    self->text = cl_strdup(cl_application_allocator(app), text);
     return w;
 }

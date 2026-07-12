@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "widget/widget_internal.h"
+#include "core/foundation/foundation_internal.h"
 #include "theme/theme_internal.h"
 
 #define CB_BOX 16.0f    /* indicator side length (logical px) */
@@ -47,20 +48,6 @@ static const cl_widget_class_t cl_checkbox_class = {
     .vtable = &checkbox_vtable,
     .vtable_size = sizeof(cl_widget_vtable_t),
 };
-
-static char *dup_str(const cl_allocator_t *a, const char *s)
-{
-    size_t n;
-    char *p;
-
-    if (!s)
-        return NULL;
-    n = strlen(s) + 1;
-    p = cl_alloc(a, n);
-    if (p)
-        memcpy(p, s, n);
-    return p;
-}
 
 static void toggle(cl_checkbox_t *cb)
 {
@@ -173,7 +160,7 @@ cl_widget_t *cl_checkbox_create(cl_application_t *app,
     w->flags |= CL_WF_FOCUSABLE;
     if (desc) {
         self->checked = desc->checked;
-        self->text = dup_str(cl_application_allocator(app), desc->text);
+        self->text = cl_strdup(cl_application_allocator(app), desc->text);
     }
     return w;
 }
@@ -202,7 +189,7 @@ void cl_checkbox_set_text(cl_widget_t *cb_w, const char *utf8)
     if (!self)
         return;
     cl_free(cl_application_allocator(cb_w->app), self->text);
-    self->text = dup_str(cl_application_allocator(cb_w->app), utf8);
+    self->text = cl_strdup(cl_application_allocator(cb_w->app), utf8);
     cl_widget_invalidate_layout(cb_w);
 }
 

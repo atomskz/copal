@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "widget/widget_internal.h"
+#include "core/foundation/foundation_internal.h"
 #include "theme/theme_internal.h"
 
 typedef struct cl_button {
@@ -41,20 +42,6 @@ static const cl_widget_class_t cl_button_class = {
     .vtable = &button_vtable,
     .vtable_size = sizeof(cl_widget_vtable_t),
 };
-
-static char *dup_str(const cl_allocator_t *a, const char *s)
-{
-    size_t n;
-    char *p;
-
-    if (!s)
-        return NULL;
-    n = strlen(s) + 1;
-    p = cl_alloc(a, n);
-    if (p)
-        memcpy(p, s, n);
-    return p;
-}
 
 static cl_size_t button_measure(cl_widget_t *w, cl_constraints_t c)
 {
@@ -159,7 +146,7 @@ cl_widget_t *cl_button_create(cl_application_t *app, const cl_button_desc_t *des
     self = CL_WIDGET_CAST(cl_button, w);
     w->flags |= CL_WF_FOCUSABLE;
     if (desc)
-        self->text = dup_str(cl_application_allocator(app), desc->text);
+        self->text = cl_strdup(cl_application_allocator(app), desc->text);
     return w;
 }
 
@@ -170,7 +157,7 @@ void cl_button_set_text(cl_widget_t *button, const char *utf8)
     if (!self)
         return;
     cl_free(cl_application_allocator(button->app), self->text);
-    self->text = dup_str(cl_application_allocator(button->app), utf8);
+    self->text = cl_strdup(cl_application_allocator(button->app), utf8);
     cl_widget_invalidate_layout(button);
 }
 

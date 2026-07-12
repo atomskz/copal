@@ -5,10 +5,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <copal/allocator.h>
 #include <copal/error.h>
 
 /* Internal (not exported): record the calling thread's last error code. */
 void cl_set_last_error(cl_result_t result);
+
+/*
+ * Duplicate a NUL-terminated string with @a (NULL selects the default
+ * allocator). Returns NULL for a NULL input or on allocation failure (the
+ * latter records CL_ERROR_OUT_OF_MEMORY via cl_alloc).
+ */
+char *cl_strdup(const cl_allocator_t *a, const char *s);
 
 /*
  * Diagnostics channel: formats the message and hands it to the process-wide

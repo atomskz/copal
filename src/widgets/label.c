@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "widget/widget_internal.h"
+#include "core/foundation/foundation_internal.h"
 
 typedef struct cl_label {
     cl_widget_t base;
@@ -34,20 +35,6 @@ static const cl_widget_class_t cl_label_class = {
     .vtable = &label_vtable,
     .vtable_size = sizeof(cl_widget_vtable_t),
 };
-
-static char *dup_str(const cl_allocator_t *a, const char *s)
-{
-    size_t n;
-    char *p;
-
-    if (!s)
-        return NULL;
-    n = strlen(s) + 1;
-    p = cl_alloc(a, n);
-    if (p)
-        memcpy(p, s, n);
-    return p;
-}
 
 static cl_font_t *label_font(cl_label_t *self)
 {
@@ -107,7 +94,7 @@ cl_widget_t *cl_label_create(cl_application_t *app, const cl_label_desc_t *desc)
         return NULL;
     self = CL_WIDGET_CAST(cl_label, w);
     if (desc) {
-        self->text = dup_str(cl_application_allocator(app), desc->text);
+        self->text = cl_strdup(cl_application_allocator(app), desc->text);
         if (desc->style) {
             self->font = desc->style->font;
             self->color = desc->style->color;
@@ -124,6 +111,6 @@ void cl_label_set_text(cl_widget_t *label, const char *utf8)
     if (!self)
         return;
     cl_free(cl_application_allocator(label->app), self->text);
-    self->text = dup_str(cl_application_allocator(label->app), utf8);
+    self->text = cl_strdup(cl_application_allocator(label->app), utf8);
     cl_widget_invalidate_layout(label);
 }

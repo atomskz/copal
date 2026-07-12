@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "widget/widget_internal.h"
+#include "core/foundation/foundation_internal.h"
 #include "app/app_internal.h"
 #include "theme/theme_internal.h"
 
@@ -59,20 +60,6 @@ static const cl_widget_class_t cl_combobox_class = {
     .vtable = &combo_vtable,
     .vtable_size = sizeof(cl_widget_vtable_t),
 };
-
-static char *dup_str(const cl_allocator_t *a, const char *s)
-{
-    size_t n;
-    char *p;
-
-    if (!s)
-        return NULL;
-    n = strlen(s) + 1;
-    p = cl_alloc(a, n);
-    if (p)
-        memcpy(p, s, n);
-    return p;
-}
 
 static const char *display_text(cl_combobox_t *cb)
 {
@@ -256,7 +243,7 @@ cl_widget_t *cl_combobox_create(cl_application_t *app,
     w->flags |= CL_WF_FOCUSABLE;
     cb->selected = -1;
     if (desc)
-        cb->placeholder = dup_str(cl_application_allocator(app),
+        cb->placeholder = cl_strdup(cl_application_allocator(app),
                                   desc->placeholder);
     return w;
 }
@@ -281,7 +268,7 @@ cl_result_t cl_combobox_add_item(cl_widget_t *combo, const char *text)
         cb->cap = nc;
     }
 
-    dup = dup_str(a, text);
+    dup = cl_strdup(a, text);
     if (!dup)
         return CL_ERROR_OUT_OF_MEMORY;
     cb->items[cb->count] = dup;

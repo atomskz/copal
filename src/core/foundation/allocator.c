@@ -2,6 +2,7 @@
 #include <copal/allocator.h>
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "foundation_internal.h"
 
@@ -76,4 +77,18 @@ void cl_free(const cl_allocator_t *a, void *ptr)
         a = &g_default_allocator;
 
     a->free(a->userdata, ptr);
+}
+
+char *cl_strdup(const cl_allocator_t *a, const char *s)
+{
+    size_t n;
+    char *p;
+
+    if (!s)
+        return NULL;
+    n = strlen(s) + 1;
+    p = cl_alloc(a, n);
+    if (p)
+        memcpy(p, s, n);
+    return p;
 }

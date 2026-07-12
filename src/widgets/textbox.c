@@ -84,7 +84,6 @@ static bool textbox_text_input(cl_widget_t *w, const cl_event_t *ev);
 static bool textbox_text_edit(cl_widget_t *w, const cl_event_t *ev);
 static void textbox_focus_changed(cl_widget_t *w);
 static void textbox_destroy(cl_widget_t *w);
-static char *dup_str(const cl_allocator_t *a, const char *s);
 static void tb_clear_preedit(cl_textbox_t *tb);
 static void tb_update_ime_rect(cl_textbox_t *tb);
 
@@ -1490,7 +1489,7 @@ static bool textbox_text_edit(cl_widget_t *w, const cl_event_t *ev)
         return true;
     tb_clear_preedit(tb);
     if (s && s[0]) {
-        tb->preedit = dup_str(cl_application_allocator(w->app), s);
+        tb->preedit = cl_strdup(cl_application_allocator(w->app), s);
         /* a negative cursor (signed platform field) clamps to the start */
         tb->preedit_cursor =
             ev->data.edit.cursor < 0 ? 0 : ev->data.edit.cursor;
@@ -1551,20 +1550,6 @@ static void textbox_destroy(cl_widget_t *w)
 
 /* ---- public ------------------------------------------------------------- */
 
-static char *dup_str(const cl_allocator_t *a, const char *s)
-{
-    size_t n;
-    char *p;
-
-    if (!s)
-        return NULL;
-    n = strlen(s) + 1;
-    p = cl_alloc(a, n);
-    if (p)
-        memcpy(p, s, n);
-    return p;
-}
-
 static void set_text_internal(cl_textbox_t *tb, const char *utf8)
 {
     size_t n = utf8 ? strlen(utf8) : 0;
@@ -1621,7 +1606,7 @@ cl_widget_t *cl_textbox_create(cl_application_t *app,
         tb->readonly = desc->readonly;
         tb->multiline = desc->multiline;
         tb->max_length = desc->max_length;
-        tb->placeholder = dup_str(cl_application_allocator(app),
+        tb->placeholder = cl_strdup(cl_application_allocator(app),
                                   desc->placeholder);
         if (desc->text)
             set_text_internal(tb, desc->text);

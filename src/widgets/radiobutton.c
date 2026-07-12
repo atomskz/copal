@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "widget/widget_internal.h"
+#include "core/foundation/foundation_internal.h"
 #include "theme/theme_internal.h"
 
 #define RB_DOT 16.0f   /* indicator diameter (logical px) */
@@ -47,20 +48,6 @@ static const cl_widget_class_t cl_radiobutton_class = {
     .vtable = &radio_vtable,
     .vtable_size = sizeof(cl_widget_vtable_t),
 };
-
-static char *dup_str(const cl_allocator_t *a, const char *s)
-{
-    size_t n;
-    char *p;
-
-    if (!s)
-        return NULL;
-    n = strlen(s) + 1;
-    p = cl_alloc(a, n);
-    if (p)
-        memcpy(p, s, n);
-    return p;
-}
 
 /* Deselect every same-group radio in the tree except keep. */
 static void deselect_group(cl_widget_t *w, cl_radiobutton_t *keep)
@@ -188,7 +175,7 @@ cl_widget_t *cl_radiobutton_create(cl_application_t *app,
     if (desc) {
         self->group = desc->group;
         self->selected = desc->selected;
-        self->text = dup_str(cl_application_allocator(app), desc->text);
+        self->text = cl_strdup(cl_application_allocator(app), desc->text);
     }
     return w;
 }
