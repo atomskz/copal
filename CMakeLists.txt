@@ -29,6 +29,16 @@ option(COPAL_ENABLE_SANITIZERS "Enable ASan/UBSan"                  OFF)
 option(COPAL_ENABLE_COVERAGE   "Instrument for gcov/llvm-cov coverage" OFF)
 option(COPAL_ENABLE_INSTALL    "Enable install rules"               ${COPAL_IS_TOP_LEVEL})
 
+# Single-config generators build with no optimisation at all when
+# CMAKE_BUILD_TYPE is empty; default to Release for a top-level build.
+if(COPAL_IS_TOP_LEVEL AND NOT CMAKE_CONFIGURATION_TYPES
+   AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+                 Debug Release RelWithDebInfo MinSizeRel)
+    message(STATUS "copal: CMAKE_BUILD_TYPE not set; defaulting to Release")
+endif()
+
 include(GNUInstallDirs)
 include(cmake/CompilerWarnings.cmake)
 
