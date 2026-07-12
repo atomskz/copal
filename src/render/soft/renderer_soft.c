@@ -457,6 +457,13 @@ static void soft_pop_clip(cl_renderer_t *rr)
         r->clip_depth--;
 }
 
+/* Coarse but correct: entries of other fonts simply re-rasterize. */
+static void soft_evict_font(cl_renderer_t *rr, cl_font_t *font)
+{
+    (void)font;
+    soft_cache_reset((soft_renderer_t *)rr);
+}
+
 static void soft_destroy(cl_renderer_t *rr)
 {
     soft_renderer_t *r = (soft_renderer_t *)rr;
@@ -474,6 +481,7 @@ static const cl_renderer_ops_t soft_ops = {
     .draw_text = soft_draw_text,
     .push_clip = soft_push_clip,
     .pop_clip = soft_pop_clip,
+    .evict_font = soft_evict_font,
     .destroy = soft_destroy,
 };
 

@@ -7,11 +7,13 @@
 #include <string.h>
 
 #include "stb_truetype.h"
+#include "app/app_internal.h"
 #include "core/foundation/foundation_internal.h"
 #include "text/font_internal.h"
 
 struct cl_font {
     const cl_allocator_t *a;
+    cl_application_t *app; /* weak: reaches the renderer for glyph eviction */
     unsigned char *data;
     stbtt_fontinfo info;
     float px;
@@ -22,7 +24,8 @@ struct cl_font {
     float adv_cache[256]; /* pixel advance per Latin-1 codepoint; -1 = uncached */
 };
 
-static cl_font_t *font_from_data(const cl_allocator_t *a, unsigned char *data,
+static cl_font_t *font_from_data(cl_application_t *app,
+                                 const cl_allocator_t *a, unsigned char *data,
                                  size_t len, float size_px)
 {
     cl_font_t *f;
@@ -48,6 +51,7 @@ static cl_font_t *font_from_data(const cl_allocator_t *a, unsigned char *data,
     }
     memset(f, 0, sizeof(*f));
     f->a = a;
+    f->app = app;
     f->data = data;
 
     /* -1 means "not a font": passing it to stbtt_InitFont would read ~4 GB
@@ -104,7 +108,7 @@ cl_font_t *cl_font_load_memory(cl_application_t *app, const void *data,
     if (!buf)
         return NULL;
     memcpy(buf, data, len);
-    return font_from_data(a, buf, len, size_px);
+    return font_from_data(app, a, buf, len, size_px);
 }
 
 cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
@@ -147,7 +151,7 @@ cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
         cl_set_last_error(CL_ERROR_FONT);
         return NULL;
     }
-    return font_from_data(a, buf, (size_t)size, size_px);
+    return font_from_data(app, a, buf, (size_t)size, size_px);
 }
 
 void cl_font_release(cl_font_t *font)
@@ -156,6 +160,11 @@ void cl_font_release(cl_font_t *font)
 
     if (!font)
         return;
+    /* The renderers key glyph caches by the raw font pointer; a later font
+     * can reuse this address, so their entries must go now. */
+    if (font->app && font->app->renderer &&
+        font->app->renderer->ops->evict_font)
+        font->app->renderer->ops->evict_font(font->app->renderer, font);
     a = font->a;
     cl_free(a, font->data);
     cl_free(a, font);

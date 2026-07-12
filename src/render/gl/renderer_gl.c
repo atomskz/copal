@@ -597,6 +597,13 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
     flush_text(r, verts, nv, c);
 }
 
+/* Coarse but correct: per-font atlas space cannot be reclaimed anyway. */
+static void gl_evict_font(cl_renderer_t *rr, cl_font_t *font)
+{
+    (void)font;
+    gl_cache_reset((gl_renderer_t *)rr);
+}
+
 static void gl_destroy(cl_renderer_t *rr)
 {
     gl_renderer_t *r = (gl_renderer_t *)rr;
@@ -622,6 +629,7 @@ static const cl_renderer_ops_t gl_ops = {
     .draw_text = gl_draw_text,
     .push_clip = gl_push_clip,
     .pop_clip = gl_pop_clip,
+    .evict_font = gl_evict_font,
     .destroy = gl_destroy,
 };
 

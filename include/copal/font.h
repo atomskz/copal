@@ -39,7 +39,13 @@ CL_API cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
 CL_API cl_font_t *cl_font_load_memory(cl_application_t *app, const void *data,
                                       size_t len, float size_px);
 
-/** cl_font_release() - release a font. */
+/**
+ * cl_font_release() - release a font.
+ *
+ * Evicts the renderer's cached glyphs for this font, so releasing and
+ * loading fonts at run time is safe. Release fonts BEFORE destroying the
+ * application that loaded them (the font borrows its allocator).
+ */
 CL_API void cl_font_release(cl_font_t *font);
 
 /** cl_font_metrics() - vertical metrics of a font at its pixel size. */

@@ -27,6 +27,13 @@ typedef struct cl_renderer_ops {
      */
     void (*push_clip)(cl_renderer_t *r, cl_rect_t rect);
     void (*pop_clip)(cl_renderer_t *r);
+    /*
+     * Drop every cached glyph derived from `font` (called by
+     * cl_font_release: the caches key by the raw pointer, and a later font
+     * could reuse the address). May be coarse - resetting the whole cache is
+     * fine. NULL slot = no glyph cache. Never called inside a frame.
+     */
+    void (*evict_font)(cl_renderer_t *r, cl_font_t *font);
     void (*destroy)(cl_renderer_t *r);
 } cl_renderer_ops_t;
 
