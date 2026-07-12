@@ -21,4 +21,7 @@ int cl_platform_mock_last_wait_timeout(cl_platform_t *p);
 /* The min_width/min_height the window was created with (introspection). */
 cl_size_t cl_platform_mock_min_size(cl_platform_t *p);
 
+/* Events dropped because the scripted queue was full (should stay 0). */
+size_t cl_platform_mock_dropped_events(cl_platform_t *p);
+
 #endif /* CL_PLATFORM_MOCK_H */

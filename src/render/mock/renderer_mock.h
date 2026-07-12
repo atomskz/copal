@@ -31,6 +31,10 @@ typedef struct cl_mock_command {
 
 cl_renderer_t *cl_renderer_mock_create(const cl_allocator_t *a);
 size_t cl_renderer_mock_count(cl_renderer_t *r);
+
+/* Commands dropped this frame because the buffer filled up. Negative asserts
+ * ("nothing drew X") are only meaningful when this is 0. */
+size_t cl_renderer_mock_dropped(cl_renderer_t *r);
 const cl_mock_command_t *cl_renderer_mock_get(cl_renderer_t *r, size_t i);
 cl_color_t cl_renderer_mock_clear_color(cl_renderer_t *r);
 

@@ -280,6 +280,7 @@ int main(void)
                 c->color.g == sc.g && c->color.b == sc.b && c->color.a == sc.a)
                 saw_selection = true;
         }
+        CHECK(cl_renderer_mock_dropped(rend) == 0); /* capture was complete */
         CHECK(!saw_selection);
     }
 

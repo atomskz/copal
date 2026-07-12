@@ -17,6 +17,7 @@ typedef struct mock_platform {
     char *clipboard;     /* owned UTF-8, NUL-terminated; NULL if empty */
     uint64_t now_ms;     /* monotonic clock, advanced only by the test harness */
     int last_wait_timeout; /* timeout passed to the most recent wait() */
+    size_t dropped;      /* events lost to a full queue */
 } mock_platform_t;
 
 static cl_result_t mock_create_window(cl_platform_t *p,
@@ -157,8 +158,10 @@ void cl_platform_mock_push(cl_platform_t *p, cl_platform_event_t ev)
     mock_platform_t *m = (mock_platform_t *)p;
     size_t next = (m->tail + 1) % CL_MOCK_QUEUE;
 
-    if (next == m->head)
-        return; /* queue full: drop */
+    if (next == m->head) {
+        m->dropped++; /* the test pushed more than the queue holds */
+        return;
+    }
     m->queue[m->tail] = ev;
     m->tail = next;
 }
@@ -176,4 +179,9 @@ int cl_platform_mock_last_wait_timeout(cl_platform_t *p)
 cl_size_t cl_platform_mock_min_size(cl_platform_t *p)
 {
     return ((mock_platform_t *)p)->min_size;
+}
+
+size_t cl_platform_mock_dropped_events(cl_platform_t *p)
+{
+    return ((mock_platform_t *)p)->dropped;
 }

@@ -11,6 +11,7 @@ typedef struct mock_renderer {
     const cl_allocator_t *a;
     cl_mock_command_t cmds[CL_MOCK_MAX_COMMANDS];
     size_t count;
+    size_t dropped; /* commands lost to a full buffer (see _dropped()) */
     cl_color_t clear;
     cl_rect_t clip_stack[CL_MOCK_CLIP_STACK];
     size_t clip_depth;
@@ -44,6 +45,8 @@ static void mock_record(mock_renderer_t *m, cl_mock_command_t *cmd)
     cmd->clip = mock_clip_top(m);
     if (m->count < CL_MOCK_MAX_COMMANDS)
         m->cmds[m->count++] = *cmd;
+    else
+        m->dropped++; /* a negative assert on this frame would lie */
 }
 
 static void mock_begin_frame(cl_renderer_t *r, cl_size_t size, float scale,
@@ -52,6 +55,7 @@ static void mock_begin_frame(cl_renderer_t *r, cl_size_t size, float scale,
     mock_renderer_t *m = (mock_renderer_t *)r;
     (void)scale;
     m->count = 0;
+    m->dropped = 0;
     m->clear = clear;
     m->clip_depth = 0;
     m->clip_stack[0] = (cl_rect_t){ 0.0f, 0.0f, size.w, size.h };
@@ -186,4 +190,9 @@ const cl_mock_command_t *cl_renderer_mock_get(cl_renderer_t *r, size_t i)
 cl_color_t cl_renderer_mock_clear_color(cl_renderer_t *r)
 {
     return ((mock_renderer_t *)r)->clear;
+}
+
+size_t cl_renderer_mock_dropped(cl_renderer_t *r)
+{
+    return ((mock_renderer_t *)r)->dropped;
 }

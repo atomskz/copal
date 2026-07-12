@@ -251,6 +251,7 @@ int main(void)
         key(p2, CL_KEY_END, CL_MOD_CTRL);
         cl_application_step(app2, false);
         CHECK(cl_textbox_cursor_line(tb2) == 7);
+        CHECK(cl_renderer_mock_dropped(r2) == 0); /* full command capture */
         CHECK(rendered(r2, "L7"));
         CHECK(!rendered(r2, "L0"));
 
