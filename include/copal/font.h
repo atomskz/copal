@@ -49,7 +49,9 @@ CL_API cl_font_metrics_t cl_font_metrics(cl_font_t *font);
  * cl_text_measure() - measure a UTF-8 string (no rasterization).
  * @font:      the font.
  * @utf8:      NUL-terminated UTF-8 text.
- * @max_width: CL_UNBOUNDED for a single line (MVP does not wrap).
+ * @max_width: RESERVED for future wrapping and currently ignored: every
+ *             value measures a single line (pass CL_UNBOUNDED). Multiline
+ *             wrapping lives in the textbox widget for now.
  *
  * Return: the size in logical pixels.
  */
