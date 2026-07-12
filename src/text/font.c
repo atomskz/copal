@@ -122,7 +122,9 @@ cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
     }
     fp = fopen(path, "rb");
     if (!fp) {
-        cl_log(CL_LOG_WARN, "font: cannot open '%s'", path);
+        /* INFO, not WARN: probing a candidate list is a legitimate pattern
+         * (the caller still sees NULL + CL_ERROR_FONT). */
+        cl_log(CL_LOG_INFO, "font: cannot open '%s'", path);
         cl_set_last_error(CL_ERROR_FONT);
         return NULL;
     }
