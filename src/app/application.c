@@ -77,7 +77,12 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
         else {
             if (!app->platform)
                 app->platform = cl_platform_sdl_create(&app->alloc);
-            if (!app->renderer && app->platform)
+            /* Mirror the software guard: the GL renderer resolves its entry
+             * points through gl_get_proc, so an injected platform without one
+             * would crash on the first frame (renderer stays NULL ->
+             * CL_ERROR_UNSUPPORTED below). */
+            if (!app->renderer && app->platform &&
+                app->platform->ops->gl_get_proc)
                 app->renderer =
                     cl_renderer_gl_create(&app->alloc, app->platform);
         }
