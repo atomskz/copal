@@ -153,6 +153,11 @@ static void process_events(cl_application_t *app)
     while (app->platform->ops->poll(app->platform, &ev)) {
         switch (ev.kind) {
             case CL_PEV_QUIT:
+                /* The window's close callback may veto the request. */
+                if (app->window && app->window->on_close &&
+                    !app->window->on_close(app->window,
+                                           app->window->on_close_user))
+                    break;
                 app->quit = true;
                 break;
 
