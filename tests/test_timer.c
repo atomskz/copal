@@ -198,13 +198,14 @@ int main(void)
     }
 
     /* step(wait=true) must never block indefinitely: with no armed timer it
-     * passes a clamped 0 (not -1) to wait(); with one, a bounded timeout. */
+     * waits a bounded ~100 ms slice (not -1, and not 0 - an idle embedding
+     * loop must not spin a core); with a timer, its bounded timeout. */
     {
         int n = 0;
         cl_timer_t *t;
 
         cl_application_step(app, true);
-        CHECK(cl_platform_mock_last_wait_timeout(plat) == 0);
+        CHECK(cl_platform_mock_last_wait_timeout(plat) == 100);
         t = cl_timer_create(app, 100, false, bump, &n);
         cl_application_step(app, true);
         CHECK(cl_platform_mock_last_wait_timeout(plat) > 0);

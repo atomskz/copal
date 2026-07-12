@@ -79,9 +79,9 @@ CL_API int cl_application_run(cl_application_t *app);
  *
  * Processes pending events, posted tasks and due timers, then renders when
  * dirty. With @wait true the step first waits for activity, bounded by the
- * next timer deadline; it always returns to the caller (it never blocks
- * indefinitely, so without timers it returns immediately — throttle an idle
- * embedding loop yourself or use cl_application_run()).
+ * next timer deadline (or a ~100 ms slice when no timer is armed), so it
+ * always returns to the caller and an idle while (step(app, true)) loop
+ * does not spin a core.
  *
  * Return: true to keep stepping; false once quit was requested.
  */

@@ -265,10 +265,12 @@ bool cl_application_step(cl_application_t *app, bool wait)
 {
     if (wait) {
         /* Bound the wait by the next timer, but never block indefinitely: a
-         * single step must return to its caller (unlike run()'s own loop). */
+         * single step must return to its caller (unlike run()'s own loop).
+         * With no timer armed, wait a bounded slice instead of 0 - a plain
+         * while (step(app, true)) embedding loop must not spin a core. */
         int timeout = cl_app_timers_timeout(app);
 
-        app->platform->ops->wait(app->platform, timeout < 0 ? 0 : timeout);
+        app->platform->ops->wait(app->platform, timeout < 0 ? 100 : timeout);
     }
     process_events(app);
     cl_app_run_tasks(app);
