@@ -143,6 +143,12 @@ elseif(COPAL_ENABLE_OPENGL)
                     "OpenGL renderer disabled.")
 endif()
 
+if(COPAL_FETCH_SDL2 AND NOT COPAL_ENABLE_SDL)
+    message(WARNING "COPAL_FETCH_SDL2 is ON but COPAL_ENABLE_SDL is OFF; "
+                    "SDL2 will not be downloaded. Set COPAL_ENABLE_SDL=ON "
+                    "to build the SDL2 backend.")
+endif()
+
 target_compile_definitions(copal PRIVATE COPAL_BUILDING)
 # _CRT_SECURE_NO_WARNINGS (MSVC C4996) is applied by copal_set_warnings() below.
 if(COPAL_BUILD_SHARED)
@@ -211,7 +217,9 @@ endif()
 # A FetchContent SDL2 is a target built in this tree, not an installable
 # package, so it cannot be part of copal's export set. Disable install/export
 # in that configuration (COPAL_FETCH_SDL2 is a build-it-locally convenience).
-if(COPAL_ENABLE_INSTALL AND COPAL_FETCH_SDL2)
+# Only when SDL is actually vendored: FETCH_SDL2 without ENABLE_SDL fetches
+# nothing (warned about above) and must not cost the install rules too.
+if(COPAL_ENABLE_INSTALL AND COPAL_FETCH_SDL2 AND COPAL_ENABLE_SDL)
     message(STATUS "copal: COPAL_FETCH_SDL2 is ON; disabling install/export "
                    "(the vendored SDL2 cannot be part of the package).")
     set(COPAL_ENABLE_INSTALL OFF)
