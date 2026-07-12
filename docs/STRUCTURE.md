@@ -83,7 +83,7 @@ copal/
 │   │   └── mock/                  headless-бэкенд (скриптованные события, управляемые часы)
 │   ├── widgets/                   реализации виджетов + внутренний tooltip-пузырь
 │   │   ├── button.c label.c checkbox.c radiobutton.c slider.c imageview.c
-│   │   ├── combobox.c menu.c textbox.c
+│   │   ├── combobox.c menu.c menubar.c textbox.c
 │   │   └── tooltip.c tooltip_internal.h   (внутренний виджет hover-подсказки)
 │   └── app/
 │       ├── application.c          создание/цикл, таймеры, task-очередь, IME-rect, диспетчер событий

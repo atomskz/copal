@@ -194,6 +194,106 @@ int main(void)
     cl_application_step(app, false);
     CHECK(cl_window_popup(win) == NULL);
 
+    /* Submenus: a stacked chain opens, routes and collapses correctly. */
+    {
+        cl_widget_t *root = cl_menu_create(app);
+        cl_widget_t *sub = cl_menu_create(app);
+        cl_rect_t sr;
+
+        cl_menu_add_item(sub, "Sub A", on_item, (void *)(intptr_t)7);
+        cl_menu_add_item(root, "Top", on_item, (void *)(intptr_t)0);
+        CHECK(cl_menu_add_submenu(root, "More", sub) == CL_OK);
+        CHECK(cl_menu_count(root) == 2);
+
+        menu_fires = 0;
+        last_index = -1;
+        cl_window_open_popup(win, root, (cl_point_t){ 10.0f, 10.0f });
+        /* click item 1 ("More >") opens the submenu on top */
+        mouse(plat, CL_PEV_MOUSE_DOWN, 20.0f, item_y(10.0f, 1));
+        mouse(plat, CL_PEV_MOUSE_UP, 20.0f, item_y(10.0f, 1));
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == sub); /* the submenu is topmost */
+        CHECK(menu_fires == 0);
+
+        /* Escape pops only the submenu; the parent menu survives */
+        press(plat, CL_KEY_ESCAPE);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == root);
+        CHECK(cl_widget_window(sub) == NULL); /* detached for reuse */
+
+        /* re-open the submenu from the still-open parent (widget reused) */
+        mouse(plat, CL_PEV_MOUSE_DOWN, 20.0f, item_y(10.0f, 1));
+        mouse(plat, CL_PEV_MOUSE_UP, 20.0f, item_y(10.0f, 1));
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == sub);
+
+        /* activate "Sub A" in the submenu: fires and collapses the chain
+         * (the window owns the root menu: the whole chain is destroyed) */
+        sr = cl_widget_rect(sub);
+        mouse(plat, CL_PEV_MOUSE_DOWN, sr.x + 10.0f, item_y(sr.y, 0));
+        mouse(plat, CL_PEV_MOUSE_UP, sr.x + 10.0f, item_y(sr.y, 0));
+        cl_application_step(app, false);
+        CHECK(menu_fires == 1);
+        CHECK(last_index == 7);
+        CHECK(cl_window_popup(win) == NULL);
+    }
+
+    /* Modal dialog: outside clicks do not dismiss. */
+    {
+        cl_widget_t *dlg = cl_vbox_create(
+            app, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS });
+
+        cl_widget_set_preferred_size(dlg, (cl_size_t){ 80.0f, 40.0f });
+        cl_window_open_modal(win, dlg);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == dlg);
+        /* centred in the 400x200 window: (400-80)/2 = 160 */
+        CHECK(cl_widget_rect(dlg).x == 160.0f);
+
+        mouse(plat, CL_PEV_MOUSE_DOWN, 5.0f, 195.0f); /* far outside */
+        mouse(plat, CL_PEV_MOUSE_UP, 5.0f, 195.0f);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == dlg); /* still open */
+
+        cl_window_close_popup(win);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == NULL);
+    }
+
+    /* Menubar: a click on a title opens its menu below the bar. */
+    {
+        cl_widget_t *bar = cl_menubar_create(
+            app, &(cl_menubar_desc_t){ CL_MENUBAR_DESC_INIT_FIELDS });
+        cl_widget_t *filemenu = cl_menu_create(app);
+        cl_rect_t br;
+
+        cl_menu_add_item(filemenu, "Quit", on_item, (void *)(intptr_t)9);
+        CHECK(cl_menubar_add_menu(bar, "File", filemenu) == CL_OK);
+        CHECK(cl_menubar_count(bar) == 1);
+        cl_window_set_content(win, bar); /* replaces the checkbox */
+        cl_application_step(app, false);
+
+        br = cl_widget_rect(bar);
+        menu_fires = 0;
+        mouse(plat, CL_PEV_MOUSE_DOWN, br.x + 5.0f, br.y + br.h * 0.5f);
+        mouse(plat, CL_PEV_MOUSE_UP, br.x + 5.0f, br.y + br.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == filemenu);
+
+        /* activate "Quit": fires, chain closes, menu detaches for reuse */
+        {
+            cl_rect_t mr = cl_widget_rect(filemenu);
+
+            mouse(plat, CL_PEV_MOUSE_DOWN, mr.x + 10.0f, item_y(mr.y, 0));
+            mouse(plat, CL_PEV_MOUSE_UP, mr.x + 10.0f, item_y(mr.y, 0));
+        }
+        cl_application_step(app, false);
+        CHECK(menu_fires == 1);
+        CHECK(last_index == 9);
+        CHECK(cl_window_popup(win) == NULL);
+        CHECK(cl_widget_window(filemenu) == NULL); /* detached, not freed */
+    }
+
     /* A popup still open at window destruction is cleaned up (no leak). */
     cl_window_open_popup(win, make_menu(app), (cl_point_t){ 10.0f, 10.0f });
     cl_application_destroy(app);

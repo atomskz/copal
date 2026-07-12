@@ -101,6 +101,7 @@ set(COPAL_SOURCES
     src/widgets/radiobutton.c
     src/widgets/slider.c
     src/widgets/menu.c
+    src/widgets/menubar.c
     src/widgets/combobox.c
     src/widgets/textbox.c
     src/widgets/tooltip.c

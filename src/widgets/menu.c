@@ -21,6 +21,7 @@ typedef struct menu_item {
     char *text;
     cl_action_fn fn;
     void *user;
+    cl_widget_t *submenu; /* owned; opened on top of this menu, or NULL */
 } menu_item_t;
 
 typedef struct cl_menu {
@@ -28,7 +29,8 @@ typedef struct cl_menu {
     menu_item_t *items;
     size_t count;
     size_t cap;
-    int hovered; /* hovered item index, or -1 */
+    int hovered;     /* hovered item index, or -1 */
+    bool is_submenu; /* attached to another menu via cl_menu_add_submenu */
 } cl_menu_t;
 
 static cl_size_t menu_measure(cl_widget_t *w, cl_constraints_t c);
@@ -91,6 +93,23 @@ static int item_at(cl_menu_t *m, cl_point_t p)
     return idx;
 }
 
+/* Anchor and push item idx's submenu on top of this menu (no ownership
+ * transfer: the widget is detached back to us when the chain closes). */
+static bool open_submenu(cl_menu_t *m, int idx)
+{
+    cl_widget_host_t *h = cl_widget_host(&m->base);
+    cl_point_t at;
+
+    if (idx < 0 || (size_t)idx >= m->count || !m->items[idx].submenu || !h)
+        return false;
+    if (cl_widget_window(m->items[idx].submenu))
+        return true; /* already open */
+    at.x = m->base.rect.x + m->base.rect.w - 4.0f;
+    at.y = m->base.rect.y + MENU_VPAD + (float)idx * item_height(&m->base);
+    h->ops->push_popup(h, &m->base, m->items[idx].submenu, at);
+    return true;
+}
+
 static void activate(cl_menu_t *m, int idx)
 {
     cl_action_fn fn;
@@ -99,6 +118,10 @@ static void activate(cl_menu_t *m, int idx)
 
     if (idx < 0 || (size_t)idx >= m->count)
         return;
+    if (m->items[idx].submenu) {
+        open_submenu(m, idx);
+        return;
+    }
     fn = m->items[idx].fn;
     user = m->items[idx].user;
     h = cl_widget_host(&m->base);
@@ -173,6 +196,14 @@ static void menu_paint(cl_widget_t *w, cl_paint_context_t *ctx)
             cl_paint_draw_text(ctx, font, m->items[i].text, p,
                                cl_paint_theme_color(ctx, CL_COLOR_TEXT));
         }
+        if (font && m->items[i].submenu) {
+            float aw = cl_text_measure(font, ">", CL_UNBOUNDED).w;
+            cl_point_t p = { r.x + r.w - MENU_HPAD * 0.5f - aw,
+                             iy + ITEM_VPAD };
+
+            cl_paint_draw_text(ctx, font, ">", p,
+                               cl_paint_theme_color(ctx, CL_COLOR_TEXT_MUTED));
+        }
     }
 }
 
@@ -225,11 +256,29 @@ static bool menu_key_down(cl_widget_t *w, const cl_event_t *ev)
             activate(m, m->hovered);
             return true;
 
+        case CL_KEY_RIGHT:
+            open_submenu(m, m->hovered);
+            return true;
+
+        case CL_KEY_LEFT: {
+            /* only a submenu closes on Left (the parent stays open) */
+            cl_widget_host_t *hh = cl_widget_host(w);
+
+            if (hh && w->parent == NULL && m->is_submenu)
+                hh->ops->pop_popup(hh);
+            return true;
+        }
+
         case CL_KEY_ESCAPE: {
             cl_widget_host_t *h = cl_widget_host(w);
 
-            if (h)
-                h->ops->close_popup(h);
+            if (h) {
+                /* a submenu pops back to its parent; a root menu closes */
+                if (m->is_submenu)
+                    h->ops->pop_popup(h);
+                else
+                    h->ops->close_popup(h);
+            }
             return true;
         }
 
@@ -244,8 +293,10 @@ static void menu_destroy(cl_widget_t *w)
     const cl_allocator_t *a = cl_application_allocator(w->app);
     size_t i;
 
-    for (i = 0; i < m->count; i++)
+    for (i = 0; i < m->count; i++) {
         cl_free(a, m->items[i].text);
+        cl_widget_destroy(m->items[i].submenu); /* detached by now; NULL ok */
+    }
     cl_free(a, m->items);
 }
 
@@ -292,8 +343,26 @@ cl_result_t cl_menu_add_item(cl_widget_t *menu, const char *text,
     m->items[m->count].text = dup;
     m->items[m->count].fn = fn;
     m->items[m->count].user = user;
+    m->items[m->count].submenu = NULL;
     m->count++;
     cl_widget_invalidate_layout(menu);
+    return CL_OK;
+}
+
+cl_result_t cl_menu_add_submenu(cl_widget_t *menu, const char *text,
+                                cl_widget_t *submenu)
+{
+    cl_menu_t *m = CL_WIDGET_CAST(cl_menu, menu);
+    cl_menu_t *sub = CL_WIDGET_CAST(cl_menu, submenu);
+    cl_result_t r;
+
+    if (!m || !sub || menu == submenu)
+        return CL_ERROR_INVALID_ARGUMENT;
+    r = cl_menu_add_item(menu, text, NULL, NULL);
+    if (r != CL_OK)
+        return r;
+    m->items[m->count - 1].submenu = submenu;
+    sub->is_submenu = true;
     return CL_OK;
 }
 

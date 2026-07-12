@@ -57,17 +57,28 @@ CL_API void cl_window_set_on_close(cl_window_t *win, cl_window_close_fn fn,
                                    void *user);
 
 /*
- * Overlay popups (single-window overlay layer). cl_window_open_popup() shows
- * `popup` on top of the content at window position `at` (clamped on-screen) and
- * takes ownership of it. A mouse press outside the popup, or an explicit
- * cl_window_close_popup(), dismisses it. Only one popup is active at a time;
- * opening another replaces it. Closing is deferred to a safe point, so a
- * popup's own handler may request the close.
+ * Overlay popups. cl_window_open_popup() shows `popup` on top of the content
+ * at window position `at` (clamped on-screen), takes ownership of it, and
+ * replaces whatever popups were open. Popups stack: a menu can push its
+ * submenu on top (cl_menu_add_submenu). A mouse press outside every popup,
+ * or an explicit cl_window_close_popup(), dismisses the whole chain; a press
+ * into a lower entry collapses the ones above it. Closing is deferred to a
+ * safe point, so a popup's own handler may request the close.
  */
 CL_API void cl_window_open_popup(cl_window_t *win, cl_widget_t *popup,
                                  cl_point_t at);
 CL_API void cl_window_close_popup(cl_window_t *win);
+/* The topmost open popup, or NULL. */
 CL_API cl_widget_t *cl_window_popup(cl_window_t *win);
+
+/*
+ * cl_window_open_modal() - show `dialog` centred over the content, replacing
+ * any open popups; ownership transfers to the window. Outside clicks are
+ * swallowed instead of dismissing: close explicitly with
+ * cl_window_close_popup() (e.g. from a dialog button). Building block for
+ * message boxes and custom dialogs.
+ */
+CL_API void cl_window_open_modal(cl_window_t *win, cl_widget_t *dialog);
 
 /* The tooltip bubble currently shown by the hover layer, or NULL. Ownership
  * stays with the window; mainly useful for introspection and testing. */

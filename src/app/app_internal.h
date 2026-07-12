@@ -53,6 +53,8 @@ int cl_app_timers_timeout(cl_application_t *app);  /* ms to next, or -1 */
 void cl_app_timers_poll(cl_application_t *app);     /* fire due timers */
 void cl_app_timers_free_all(cl_application_t *app); /* free all at shutdown */
 
+#define CL_WINDOW_MAX_OVERLAYS 8
+
 struct cl_window {
     /* MUST stay first: the widget layer reaches its host by casting the
      * window pointer (src/widget/widget_host.h). */
@@ -60,10 +62,23 @@ struct cl_window {
     cl_application_t *app;      /* weak */
     cl_platform_window_t *native; /* backend window handle (create_window) */
     cl_widget_t *content;       /* owned */
-    cl_widget_t *overlay;       /* owned; active popup, or NULL */
-    cl_widget_t *overlay_owner; /* weak; widget that opened the popup, or NULL */
-    cl_point_t overlay_anchor;  /* requested popup position (pre-clamp) */
-    bool overlay_closing;       /* deferred-close flag for the overlay */
+    /*
+     * Overlay stack: popups/menus/dialogs painted over the content, index 0
+     * at the bottom. `owned` entries are destroyed on close; non-owned ones
+     * (menu submenus, menubar menus) are detached back to their owner for
+     * reuse. `closing` defers the close to the post-dispatch reap so queued
+     * events in the same iteration cannot leak to the content.
+     */
+    struct cl_overlay {
+        cl_widget_t *widget; /* owned when `owned`, else borrowed */
+        cl_widget_t *owner;  /* weak; opener, tears the entry down with it */
+        cl_point_t anchor;   /* requested position (pre-clamp) */
+        bool owned;
+        bool modal;          /* outside clicks are swallowed, not dismissing */
+        bool center;         /* ignore anchor; centre in the window */
+        bool closing;        /* reaped after event dispatch */
+    } overlays[CL_WINDOW_MAX_OVERLAYS];
+    int overlay_count;
     cl_widget_t *mouse_target;   /* weak; basic pointer capture */
     cl_widget_t *hover;          /* weak; widget under the pointer */
     cl_cursor_t cursor;          /* shape currently applied to the platform */
@@ -97,11 +112,18 @@ void cl_window_focus_next(cl_window_t *win, bool forward);
 void cl_window_resize(cl_window_t *win, cl_size_t size);
 void cl_window_mark_dirty(cl_window_t *win);
 void cl_window_mark_layout_dirty(cl_window_t *win);
-void cl_window_reap_overlay(cl_window_t *win); /* destroy a closed popup safely */
-/* Tie a popup's lifetime to the widget that opened it. */
+void cl_window_reap_overlay(cl_window_t *win); /* destroy closed popups safely */
+/* Tie the top popup's lifetime to the widget that opened it. */
 void cl_window_set_overlay_owner(cl_window_t *win, cl_widget_t *owner);
-/* If w owns the open popup, tear the popup down (called when w is destroyed). */
+/* Tear down every overlay opened by w or being w (w is going away). */
 void cl_window_owner_destroyed(cl_window_t *win, cl_widget_t *w);
+/* Push a popup on TOP of the stack without closing what is open. The window
+ * does NOT take ownership: on close the widget is detached, not destroyed
+ * (menu submenus and menubar menus are reused across opens). */
+void cl_window_push_popup(cl_window_t *win, cl_widget_t *owner,
+                          cl_widget_t *popup, cl_point_t at);
+/* Request-close only the topmost overlay (Escape in a submenu). */
+void cl_window_pop_popup(cl_window_t *win);
 /* If w is the hovered tooltip target, dismiss it (called when w is destroyed). */
 void cl_window_tooltip_target_gone(cl_window_t *win, cl_widget_t *w);
 

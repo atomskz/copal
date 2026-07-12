@@ -26,7 +26,7 @@
 | Ошибки | `cl_result_t` + thread-local last-error + `void`-сеттеры | ADR-008 | реализовано |
 | Потоки | Один GUI-поток + потокобезопасный `post`/`wakeup` | ADR-009 | реализовано |
 | Тестируемость | Mock-renderer + mock-platform (headless) | ADR-010 | реализовано (без mock-font, §3.4) |
-| Окно | Одно окно ОС + overlay-слой для всплывашек (menu/combobox/tooltip) | ADR-011 | реализовано |
+| Окно | Одно окно ОС + стек оверлеев (menu/submenu/menubar/combobox/dialog/tooltip) | ADR-011 | реализовано |
 | DPI | Логические px в API/layout; округление на генерации команд рендера | ADR-013 | реализовано |
 | Текст-данные | Ключ глиф-кэша по (font, codepoint) | ADR-014 | атлас в GL-рендерере; ключ по glyph_id — задел под shaping |
 
@@ -564,7 +564,10 @@ stb_truetype растеризует глифы, но не делает shaping, 
   `CL_PEV_TEXT_EDIT`; управляемые часы и очередь у mock.
 - **Приложение**: таймеры (`timer.c`), потокобезопасная task-очередь
   (`cl_application_post`).
-- **Окно**: hover-tooltip-слой поверх content и popup; scroll-to-focus (reveal
+- **Окно**: стек оверлеев (меню + подменю + модальные диалоги; непрозрачное
+  владение: записи владеют popup-ами, кроме подменю/menubar-меню — те
+  отсоединяются владельцу для переиспользования); hover-tooltip-слой поверх
+  content и popup; scroll-to-focus (reveal
   при переводе фокуса); hover-отслеживание (`CL_EVENT_MOUSE_ENTER/LEAVE` —
   доставляются наведённому виджету без всплытия; при drag-capture hover
   заморожен, popup сбрасывает его).

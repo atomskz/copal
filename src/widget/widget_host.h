@@ -29,12 +29,18 @@ typedef struct cl_widget_host_ops {
     void (*set_focus)(cl_widget_host_t *h, cl_widget_t *w);
     cl_widget_t *(*focused)(cl_widget_host_t *h);
 
-    /* Open `popup` as the overlay near `anchor`, tying its lifetime to
-     * `owner` (destroying the owner tears the popup down). close_popup
-     * dismisses the current overlay, whoever owns it. */
+    /* Open `popup` as the overlay near `anchor`, replacing any open chain
+     * and transferring ownership; `owner` ties the popup's lifetime to the
+     * widget that opened it. close_popup dismisses the whole chain. */
     void (*open_popup)(cl_widget_host_t *h, cl_widget_t *owner,
                        cl_widget_t *popup, cl_point_t anchor);
     void (*close_popup)(cl_widget_host_t *h);
+    /* Push `popup` on TOP of the open chain WITHOUT taking ownership: on
+     * close it is detached back to the caller for reuse (menu submenus,
+     * menubar menus). pop_popup dismisses only the topmost entry. */
+    void (*push_popup)(cl_widget_host_t *h, cl_widget_t *owner,
+                       cl_widget_t *popup, cl_point_t anchor);
+    void (*pop_popup)(cl_widget_host_t *h);
 
     /*
      * Silently drop every weak reference the host holds to `w` (pointer

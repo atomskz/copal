@@ -12,6 +12,7 @@
 
 static void tooltip_dismiss(cl_window_t *win); /* defined with the hover layer */
 static void window_update_hover(cl_window_t *win, cl_widget_t *w);
+static void overlay_drop(cl_window_t *win, int i); /* overlay stack below */
 
 /* ---- the widget-host interface (widget_host.h) --------------------------- */
 /* The host object is the window's first member, so the cast is the identity. */
@@ -51,6 +52,17 @@ static void host_open_popup(cl_widget_host_t *h, cl_widget_t *owner,
 static void host_close_popup(cl_widget_host_t *h)
 {
     cl_window_close_popup(host_win(h));
+}
+
+static void host_push_popup(cl_widget_host_t *h, cl_widget_t *owner,
+                            cl_widget_t *popup, cl_point_t anchor)
+{
+    cl_window_push_popup(host_win(h), owner, popup, anchor);
+}
+
+static void host_pop_popup(cl_widget_host_t *h)
+{
+    cl_window_pop_popup(host_win(h));
 }
 
 static void host_widget_gone(cl_widget_host_t *h, cl_widget_t *w)
@@ -96,6 +108,8 @@ static const cl_widget_host_ops_t window_host_ops = {
     .focused = host_focused,
     .open_popup = host_open_popup,
     .close_popup = host_close_popup,
+    .push_popup = host_push_popup,
+    .pop_popup = host_pop_popup,
     .widget_gone = host_widget_gone,
     .clipboard_get = host_clipboard_get,
     .clipboard_set = host_clipboard_set,
@@ -163,13 +177,8 @@ void cl_window_destroy(cl_window_t *win)
     if (!win)
         return;
     tooltip_dismiss(win); /* cancel the dwell timer and free the bubble first */
-    if (win->overlay) {
-        cl_widget_t *o = win->overlay;
-
-        win->overlay = NULL; /* clear first: content destroy may re-enter here */
-        win->overlay_owner = NULL;
-        cl_widget_destroy(o);
-    }
+    while (win->overlay_count > 0)
+        overlay_drop(win, win->overlay_count - 1);
     if (win->content)
         cl_widget_destroy(win->content);
     app = win->app;
@@ -247,18 +256,26 @@ void cl_window_resize(cl_window_t *win, cl_size_t size)
 
 /* ---- overlay popups ----------------------------------------------------- */
 
-/* Measure the overlay and arrange it at its anchor, clamped on-screen. */
-static void place_overlay(cl_window_t *win)
+/* Measure an overlay and arrange it at its anchor (or centred), clamped
+ * on-screen. */
+static void place_overlay(cl_window_t *win, struct cl_overlay *ov)
 {
     cl_constraints_t c;
     cl_size_t sz;
-    float x = win->overlay_anchor.x;
-    float y = win->overlay_anchor.y;
+    float x;
+    float y;
 
     c.min = (cl_size_t){ 0.0f, 0.0f };
     c.max = (cl_size_t){ CL_UNBOUNDED, CL_UNBOUNDED };
-    sz = cl_widget_do_measure(win->overlay, c);
+    sz = cl_widget_do_measure(ov->widget, c);
 
+    if (ov->center) {
+        x = (win->size.w - sz.w) * 0.5f;
+        y = (win->size.h - sz.h) * 0.5f;
+    } else {
+        x = ov->anchor.x;
+        y = ov->anchor.y;
+    }
     /* Keep the popup on-screen: shift left/up on overflow, clamp to origin. */
     if (x + sz.w > win->size.w)
         x = win->size.w - sz.w;
@@ -268,68 +285,158 @@ static void place_overlay(cl_window_t *win)
         x = 0.0f;
     if (y < 0.0f)
         y = 0.0f;
-    cl_widget_do_arrange(win->overlay, (cl_rect_t){ x, y, sz.w, sz.h });
+    cl_widget_do_arrange(ov->widget, (cl_rect_t){ x, y, sz.w, sz.h });
+}
+
+/* Remove the entry at index i: destroy an owned widget, detach a borrowed
+ * one (its owner reuses it on the next open). */
+static void overlay_drop(cl_window_t *win, int i)
+{
+    struct cl_overlay ov = win->overlays[i];
+    int k;
+
+    for (k = i; k < win->overlay_count - 1; k++)
+        win->overlays[k] = win->overlays[k + 1];
+    win->overlay_count--;
+    if (ov.widget) {
+        if (ov.owned)
+            cl_widget_destroy(ov.widget);
+        else
+            cl_widget_set_window(ov.widget, NULL);
+    }
+    cl_window_mark_dirty(win);
+}
+
+/* Request-close every entry from index `from` upward (reaped post-dispatch,
+ * so the widgets keep capturing the rest of this iteration's events). */
+static void overlay_request_close_from(cl_window_t *win, int from)
+{
+    int i;
+
+    for (i = from; i < win->overlay_count; i++)
+        win->overlays[i].closing = true;
+    if (from < win->overlay_count)
+        cl_window_mark_dirty(win);
+}
+
+static bool overlay_push(cl_window_t *win, cl_widget_t *owner,
+                         cl_widget_t *popup, cl_point_t at, bool owned,
+                         bool modal, bool center)
+{
+    struct cl_overlay *ov;
+
+    if (win->overlay_count == CL_WINDOW_MAX_OVERLAYS)
+        return false; /* deeper than any sane menu chain */
+    tooltip_dismiss(win); /* a popup supersedes any hover tooltip */
+    window_update_hover(win, NULL); /* pointer input diverts to the overlay */
+    ov = &win->overlays[win->overlay_count++];
+    ov->widget = popup;
+    ov->owner = owner;
+    ov->anchor = at;
+    ov->owned = owned;
+    ov->modal = modal;
+    ov->center = center;
+    ov->closing = false;
+    cl_widget_set_window(popup, win);
+    place_overlay(win, ov);
+    cl_window_mark_dirty(win);
+    return true;
 }
 
 void cl_window_open_popup(cl_window_t *win, cl_widget_t *popup, cl_point_t at)
 {
+    int i;
+
     if (!win || !popup)
         return;
-    tooltip_dismiss(win); /* a popup supersedes any hover tooltip */
-    window_update_hover(win, NULL); /* pointer input diverts to the overlay */
-    if (win->overlay && win->overlay != popup)
-        cl_widget_destroy(win->overlay); /* replace any existing popup */
-    win->overlay = popup;
-    win->overlay_owner = NULL;
-    win->overlay_anchor = at;
-    win->overlay_closing = false;
-    cl_widget_set_window(popup, win);
-    place_overlay(win);
-    cl_window_mark_dirty(win);
+    /* Replace whatever is open (the pre-stack semantics of this call). */
+    for (i = win->overlay_count - 1; i >= 0; i--) {
+        if (win->overlays[i].widget != popup)
+            overlay_drop(win, i);
+    }
+    if (win->overlay_count > 0 && win->overlays[0].widget == popup)
+        return; /* re-opening the same widget: keep it */
+    overlay_push(win, NULL, popup, at, true, false, false);
+}
+
+void cl_window_open_modal(cl_window_t *win, cl_widget_t *dialog)
+{
+    int i;
+
+    if (!win || !dialog)
+        return;
+    for (i = win->overlay_count - 1; i >= 0; i--)
+        overlay_drop(win, i);
+    overlay_push(win, NULL, dialog, (cl_point_t){ 0, 0 }, true, true, true);
+}
+
+void cl_window_push_popup(cl_window_t *win, cl_widget_t *owner,
+                          cl_widget_t *popup, cl_point_t at)
+{
+    if (!win || !popup)
+        return;
+    overlay_push(win, owner, popup, at, false, false, false);
 }
 
 void cl_window_set_overlay_owner(cl_window_t *win, cl_widget_t *owner)
 {
-    if (win)
-        win->overlay_owner = owner;
+    if (win && win->overlay_count > 0)
+        win->overlays[win->overlay_count - 1].owner = owner;
 }
 
 void cl_window_owner_destroyed(cl_window_t *win, cl_widget_t *w)
 {
-    if (win && win->overlay && win->overlay_owner == w) {
-        cl_widget_t *o = win->overlay;
+    int i;
 
-        win->overlay = NULL;
-        win->overlay_owner = NULL;
-        win->overlay_closing = false;
-        cl_widget_destroy(o); /* the popup references w, which is dying */
-        cl_window_mark_dirty(win);
+    if (!win)
+        return;
+    /* Entries opened by w - and everything stacked above them - go down with
+     * it; entries whose WIDGET is w just vanish (the widget is dying). */
+    for (i = win->overlay_count - 1; i >= 0; i--) {
+        if (win->overlays[i].widget == w) {
+            struct cl_overlay *ov = &win->overlays[i];
+            int k;
+
+            ov->widget = NULL; /* dying already: neither destroy nor detach */
+            for (k = win->overlay_count - 1; k >= i; k--)
+                overlay_drop(win, k);
+        } else if (win->overlays[i].owner == w) {
+            int k;
+
+            for (k = win->overlay_count - 1; k >= i; k--)
+                overlay_drop(win, k);
+        }
     }
 }
 
 void cl_window_close_popup(cl_window_t *win)
 {
-    if (win && win->overlay) {
-        win->overlay_closing = true; /* reaped after event dispatch */
-        cl_window_mark_dirty(win);
-    }
+    if (win)
+        overlay_request_close_from(win, 0);
+}
+
+void cl_window_pop_popup(cl_window_t *win)
+{
+    if (win && win->overlay_count > 0)
+        overlay_request_close_from(win, win->overlay_count - 1);
 }
 
 cl_widget_t *cl_window_popup(cl_window_t *win)
 {
-    return win ? win->overlay : NULL;
+    if (!win || win->overlay_count == 0)
+        return NULL;
+    return win->overlays[win->overlay_count - 1].widget;
 }
 
 void cl_window_reap_overlay(cl_window_t *win)
 {
-    if (win && win->overlay && win->overlay_closing) {
-        cl_widget_t *o = win->overlay;
+    int i;
 
-        win->overlay = NULL;
-        win->overlay_owner = NULL;
-        win->overlay_closing = false;
-        cl_widget_destroy(o);
-        cl_window_mark_dirty(win);
+    if (!win)
+        return;
+    for (i = win->overlay_count - 1; i >= 0; i--) {
+        if (win->overlays[i].closing)
+            overlay_drop(win, i);
     }
 }
 
@@ -479,8 +586,14 @@ void cl_window_render(cl_window_t *win)
             cl_widget_do_arrange(
                 win->content, (cl_rect_t){ 0, 0, win->size.w, win->size.h });
         }
-        if (win->overlay && !win->overlay_closing)
-            place_overlay(win); /* re-clamp the popup against the new size */
+        {
+            int i;
+
+            for (i = 0; i < win->overlay_count; i++) {
+                if (!win->overlays[i].closing)
+                    place_overlay(win, &win->overlays[i]);
+            }
+        }
         if (win->tooltip)
             tooltip_place(win); /* re-clamp the bubble against the new size */
         win->layout_dirty = false;
@@ -505,8 +618,14 @@ void cl_window_render(cl_window_t *win)
     ctx.theme = app->theme;
     if (win->content)
         cl_widget_do_paint(win->content, &ctx);
-    if (win->overlay && !win->overlay_closing)
-        cl_widget_do_paint(win->overlay, &ctx); /* popups paint on top */
+    {
+        int i;
+
+        for (i = 0; i < win->overlay_count; i++) {
+            if (!win->overlays[i].closing)
+                cl_widget_do_paint(win->overlays[i].widget, &ctx);
+        }
+    }
     if (win->tooltip)
         cl_widget_do_paint(win->tooltip, &ctx); /* tooltip paints on top */
     app->renderer->ops->end_frame(app->renderer);
@@ -564,21 +683,41 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
     ev.data.mouse.clicks = clicks;
 
     /*
-     * An open popup captures pointer input; a press outside dismisses it. A
-     * popup whose close was requested this frame keeps capturing until it is
-     * reaped (before the next render), so no queued event leaks to the content.
+     * An open overlay stack captures pointer input. A press routes to the
+     * topmost entry containing the point, closing everything stacked above
+     * it (clicking back into a parent menu collapses its submenus); a press
+     * outside every entry dismisses the whole chain - unless the top entry
+     * is modal, which swallows outside clicks. Entries whose close was
+     * requested this frame keep capturing until they are reaped (before the
+     * next render), so no queued event leaks to the content.
      */
-    if (win->overlay) {
-        cl_widget_t *ov = win->overlay;
+    if (win->overlay_count > 0) {
+        int top = win->overlay_count - 1;
+        int hit = -1;
+        int i;
 
-        if (kind == CL_PEV_MOUSE_DOWN && !cl_rect_contains(ov->rect, pos)) {
-            cl_window_close_popup(win);
-            return;
+        for (i = top; i >= 0; i--) {
+            if (cl_rect_contains(win->overlays[i].widget->rect, pos)) {
+                hit = i;
+                break;
+            }
         }
         ev.type = kind == CL_PEV_MOUSE_DOWN ? CL_EVENT_MOUSE_DOWN
                   : kind == CL_PEV_MOUSE_UP ? CL_EVENT_MOUSE_UP
                                             : CL_EVENT_MOUSE_MOVE;
-        cl_widget_dispatch(ov, &ev);
+        if (kind == CL_PEV_MOUSE_DOWN) {
+            if (hit < 0) {
+                if (!win->overlays[top].modal)
+                    cl_window_close_popup(win); /* light-dismiss the chain */
+                return;
+            }
+            overlay_request_close_from(win, hit + 1);
+            cl_widget_dispatch(win->overlays[hit].widget, &ev);
+            return;
+        }
+        /* moves/releases go to the entry under the pointer, falling back to
+         * the top (menus reject outside points in their own handlers) */
+        cl_widget_dispatch(win->overlays[hit >= 0 ? hit : top].widget, &ev);
         return;
     }
 
@@ -633,10 +772,16 @@ void cl_window_handle_wheel(cl_window_t *win, cl_point_t pos, float dx,
     ev.data.wheel.dx = dx;
     ev.data.wheel.dy = dy;
 
-    /* While a popup is open, the wheel is captured (does not scroll content). */
-    if (win->overlay) {
-        if (cl_rect_contains(win->overlay->rect, pos))
-            cl_widget_dispatch(win->overlay, &ev);
+    /* While popups are open, the wheel is captured (does not scroll content). */
+    if (win->overlay_count > 0) {
+        int i;
+
+        for (i = win->overlay_count - 1; i >= 0; i--) {
+            if (cl_rect_contains(win->overlays[i].widget->rect, pos)) {
+                cl_widget_dispatch(win->overlays[i].widget, &ev);
+                break;
+            }
+        }
         return;
     }
 
@@ -690,8 +835,8 @@ void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
     ev.data.key.key = key;
 
     /* An open popup captures the keyboard (menu navigation, Escape). */
-    if (win->overlay) {
-        cl_widget_dispatch(win->overlay, &ev);
+    if (win->overlay_count > 0) {
+        cl_widget_dispatch(win->overlays[win->overlay_count - 1].widget, &ev);
         return;
     }
 
@@ -707,7 +852,7 @@ void cl_window_handle_text(cl_window_t *win, const char *utf8)
 {
     cl_event_t ev;
 
-    if (win->overlay || !win->focus || !utf8 || !utf8[0])
+    if (win->overlay_count > 0 || !win->focus || !utf8 || !utf8[0])
         return; /* a popup swallows text input */
     memset(&ev, 0, sizeof(ev));
     ev.type = CL_EVENT_TEXT_INPUT;
@@ -720,7 +865,7 @@ void cl_window_handle_text_edit(cl_window_t *win, const char *utf8, int cursor)
     cl_event_t ev;
 
     /* An empty composition string is meaningful: it clears the pre-edit. */
-    if (win->overlay || !win->focus || !utf8)
+    if (win->overlay_count > 0 || !win->focus || !utf8)
         return;
     memset(&ev, 0, sizeof(ev));
     ev.type = CL_EVENT_TEXT_EDIT;

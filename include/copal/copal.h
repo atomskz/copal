@@ -29,6 +29,7 @@
 #include <copal/widgets/radiobutton.h>
 #include <copal/widgets/slider.h>
 #include <copal/widgets/menu.h>
+#include <copal/widgets/menubar.h>
 #include <copal/widgets/combobox.h>
 #include <copal/widgets/textbox.h>
 #include <copal/widgets/scrollview.h>

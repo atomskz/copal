@@ -27,6 +27,9 @@
   `cl_paint_draw_image`, операции SPI `draw_image`/`evict_image` во всех трёх
   рендерах (GL — кэш текстур, software — масштабируемый блит с блендингом,
   mock — запись команды) и виджет `cl_imageview`.
+- Стек оверлеев: подменю (`cl_menu_add_submenu`, клик/Enter/Right открывают,
+  Escape/Left закрывают только подменю), виджет `cl_menubar`, модальные
+  диалоги `cl_window_open_modal` (клик снаружи не закрывает).
 - Курсоры мыши: `cl_cursor_t` (default/ibeam/hand/crosshair/size),
   `cl_widget_set_cursor` (форма наследуется от ближайшего предка),
   операция SPI `set_cursor`; textbox по умолчанию показывает I-beam.
