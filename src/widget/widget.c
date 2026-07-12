@@ -92,8 +92,16 @@ void cl_widget_set_window(cl_widget_t *w, cl_window_t *win)
 
 cl_result_t cl_widget_add_child(cl_widget_t *parent, cl_widget_t *child)
 {
+    cl_widget_t *anc;
+
     if (!parent || !child || child->parent)
         return CL_ERROR_INVALID_ARGUMENT;
+    /* Reject self-adoption and adopting an ancestor: a cycle would recurse
+     * forever in cl_widget_set_window (and every later tree walk). */
+    for (anc = parent; anc; anc = anc->parent) {
+        if (anc == child)
+            return CL_ERROR_INVALID_ARGUMENT;
+    }
 
     child->parent = parent;
     child->next_sibling = NULL;
