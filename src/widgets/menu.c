@@ -71,16 +71,21 @@ static float item_height(cl_widget_t *w)
     return lh + 2.0f * ITEM_VPAD;
 }
 
-/* Item index at window-y, or -1 if outside the item rows. */
-static int item_at(cl_menu_t *m, float y)
+/* Item index at window position p, or -1 outside the menu/item rows. While
+ * the popup is open the window routes ALL mouse events here regardless of
+ * position, so reject points beside the menu: dragging off it and releasing
+ * must cancel, not activate the item at that height. */
+static int item_at(cl_menu_t *m, cl_point_t p)
 {
     float top = m->base.rect.y + MENU_VPAD;
     float ih = item_height(&m->base);
     int idx;
 
-    if (ih <= 0.0f || y < top)
+    if (!cl_rect_contains(m->base.rect, p))
         return -1;
-    idx = (int)((y - top) / ih);
+    if (ih <= 0.0f || p.y < top)
+        return -1;
+    idx = (int)((p.y - top) / ih);
     if (idx < 0 || (size_t)idx >= m->count)
         return -1;
     return idx;
@@ -182,14 +187,14 @@ static bool menu_mouse_up(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_menu_t *m = CL_WIDGET_CAST(cl_menu, w);
 
-    activate(m, item_at(m, ev->data.mouse.pos.y));
+    activate(m, item_at(m, ev->data.mouse.pos));
     return true;
 }
 
 static bool menu_mouse_move(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_menu_t *m = CL_WIDGET_CAST(cl_menu, w);
-    int idx = item_at(m, ev->data.mouse.pos.y);
+    int idx = item_at(m, ev->data.mouse.pos);
 
     if (idx != m->hovered) {
         m->hovered = idx;
