@@ -26,6 +26,9 @@ bool cl_desc_abi_check(uint32_t abi_version, size_t struct_size,
 void cl_widget_do_paint(cl_widget_t *w, cl_paint_context_t *ctx);
 cl_widget_t *cl_widget_hit(cl_widget_t *w, cl_point_t p);
 bool cl_widget_dispatch(cl_widget_t *w, const cl_event_t *ev);
+/* Deliver a hover transition to w only (no bubbling): the mouse_enter/leave
+ * slot, or CL_EVENT_MOUSE_ENTER/LEAVE through an on_event override. */
+void cl_widget_send_hover(cl_widget_t *w, bool enter);
 void cl_widget_set_window(cl_widget_t *w, cl_window_t *win);
 
 #endif /* CL_WIDGET_INTERNAL_H */

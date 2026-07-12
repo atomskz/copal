@@ -11,6 +11,7 @@
 #include "core/foundation/foundation_internal.h"
 
 static void tooltip_dismiss(cl_window_t *win); /* defined with the hover layer */
+static void window_update_hover(cl_window_t *win, cl_widget_t *w);
 
 /* ---- the widget-host interface (widget_host.h) --------------------------- */
 /* The host object is the window's first member, so the cast is the identity. */
@@ -58,6 +59,8 @@ static void host_widget_gone(cl_widget_host_t *h, cl_widget_t *w)
 
     if (win->mouse_target == w)
         win->mouse_target = NULL;
+    if (win->hover == w)
+        win->hover = NULL; /* silent: no mouse_leave on a dying widget */
     if (win->focus == w)
         win->focus = NULL; /* silent: no focus_lost on a dying widget */
     if (win->content == w)
@@ -267,6 +270,7 @@ void cl_window_open_popup(cl_window_t *win, cl_widget_t *popup, cl_point_t at)
     if (!win || !popup)
         return;
     tooltip_dismiss(win); /* a popup supersedes any hover tooltip */
+    window_update_hover(win, NULL); /* pointer input diverts to the overlay */
     if (win->overlay && win->overlay != popup)
         cl_widget_destroy(win->overlay); /* replace any existing popup */
     win->overlay = popup;
@@ -504,6 +508,19 @@ void cl_window_render(cl_window_t *win)
     win->dirty = false;
 }
 
+/* Reconcile the hovered widget on pointer motion: leave the old, enter the
+ * new. Skipped while dragging (pointer capture freezes hover). */
+static void window_update_hover(cl_window_t *win, cl_widget_t *w)
+{
+    if (win->hover == w)
+        return;
+    if (win->hover)
+        cl_widget_send_hover(win->hover, false);
+    win->hover = w;
+    if (w)
+        cl_widget_send_hover(w, true);
+}
+
 void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
                             cl_point_t pos, cl_mouse_button_t button,
                             cl_key_mods_t mods, int clicks)
@@ -564,8 +581,10 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
         ev.type = CL_EVENT_MOUSE_MOVE;
         target = win->mouse_target ? win->mouse_target
                                    : cl_widget_hit(win->content, pos);
-        if (!win->mouse_target)
+        if (!win->mouse_target) {
+            window_update_hover(win, target);
             tooltip_hover(win, pos); /* not dragging: update hover tooltip */
+        }
     }
 
     if (target)

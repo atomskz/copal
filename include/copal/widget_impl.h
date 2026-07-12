@@ -64,6 +64,14 @@ typedef struct cl_widget_vtable {
     bool (*mouse_up)(cl_widget_t *w, const cl_event_t *ev);
     bool (*mouse_move)(cl_widget_t *w, const cl_event_t *ev);
     bool (*mouse_wheel)(cl_widget_t *w, const cl_event_t *ev);
+    /*
+     * Pointer entered / left the widget. Delivered by the window to the
+     * hovered widget only - no bubbling. With an on_event slot set, the
+     * events arrive there instead (CL_EVENT_MOUSE_ENTER/LEAVE), like every
+     * other event.
+     */
+    void (*mouse_enter)(cl_widget_t *w);
+    void (*mouse_leave)(cl_widget_t *w);
     bool (*key_down)(cl_widget_t *w, const cl_event_t *ev);
     bool (*key_up)(cl_widget_t *w, const cl_event_t *ev);
     bool (*text_input)(cl_widget_t *w, const cl_event_t *ev);

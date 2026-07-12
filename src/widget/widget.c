@@ -475,6 +475,29 @@ static bool widget_handle(cl_widget_t *w, const cl_event_t *ev)
     }
 }
 
+void cl_widget_send_hover(cl_widget_t *w, bool enter)
+{
+    const cl_widget_vtable_t *vt = w->cls->vtable;
+
+    if (!vt)
+        return;
+    if (vt->on_event) {
+        cl_event_t ev;
+
+        memset(&ev, 0, sizeof(ev));
+        ev.type = enter ? CL_EVENT_MOUSE_ENTER : CL_EVENT_MOUSE_LEAVE;
+        vt->on_event(w, &ev);
+        return;
+    }
+    if (enter) {
+        if (vt->mouse_enter)
+            vt->mouse_enter(w);
+    } else {
+        if (vt->mouse_leave)
+            vt->mouse_leave(w);
+    }
+}
+
 bool cl_widget_dispatch(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_widget_t *cur;

@@ -562,9 +562,12 @@ stb_truetype растеризует глифы, но не делает shaping, 
 - **Приложение**: таймеры (`timer.c`), потокобезопасная task-очередь
   (`cl_application_post`).
 - **Окно**: hover-tooltip-слой поверх content и popup; scroll-to-focus (reveal
-  при переводе фокуса).
-- **Widget/vtable**: слоты `clip_rect`, `reveal`, `mouse_wheel`, `text_edit`;
-  флаг `CL_WF_CLIP`; поле `tooltip`; `app` back-ref; `last_child`.
+  при переводе фокуса); hover-отслеживание (`CL_EVENT_MOUSE_ENTER/LEAVE` —
+  доставляются наведённому виджету без всплытия; при drag-capture hover
+  заморожен, popup сбрасывает его).
+- **Widget/vtable**: слоты `clip_rect`, `reveal`, `mouse_wheel`, `text_edit`,
+  `mouse_enter`/`mouse_leave`; флаг `CL_WF_CLIP`; поле `tooltip`; `app`
+  back-ref; `last_child`.
 - **Layout**: ScrollView (две оси, clip/reveal, opt-in `smooth`-анимация).
 - **TextBox**: многострочный режим (перенос по ширине, навигация вверх/вниз,
   вертикальный скролл), IME-композиция (preedit у каретки),

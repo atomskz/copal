@@ -191,6 +191,72 @@ static void test_disabled(void)
     cl_application_destroy(app);
 }
 
+/* ---- hover highlights the button ------------------------------------------ */
+
+static bool same_color(cl_color_t a, cl_color_t b)
+{
+    return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+}
+
+/* true if some fill_round_rect used the given colour in the last frame */
+static bool painted_round_with(cl_renderer_t *rend, cl_color_t c)
+{
+    size_t i;
+    size_t n = cl_renderer_mock_count(rend);
+
+    for (i = 0; i < n; i++) {
+        const cl_mock_command_t *cmd = cl_renderer_mock_get(rend, i);
+
+        if (cmd->kind == CL_MOCK_FILL_ROUND && same_color(cmd->color, c))
+            return true;
+    }
+    return false;
+}
+
+static void test_button_hover(void)
+{
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .width = 200, .height = 100 };
+    cl_vbox_desc_t vd = { CL_VBOX_DESC_INIT_FIELDS,
+                          .align_cross = CL_ALIGN_STRETCH };
+    cl_button_desc_t bd = { CL_BUTTON_DESC_INIT_FIELDS, .text = "hover me" };
+    cl_platform_t *plat = cl_platform_mock_create(cl_allocator_default());
+    cl_renderer_t *rend = cl_renderer_mock_create(cl_allocator_default());
+    cl_application_t *app;
+    cl_window_t *win;
+    cl_widget_t *box;
+    cl_widget_t *btn;
+    cl_color_t hover_col;
+    cl_platform_event_t pe = { 0 };
+
+    ad.platform = plat;
+    ad.renderer = rend;
+    app = cl_application_create(&ad);
+    hover_col = cl_theme_color(cl_application_theme(app),
+                               CL_COLOR_SURFACE_HOVER);
+    win = cl_window_create(app, &wd);
+    box = cl_vbox_create(app, &vd);
+    btn = cl_button_create(app, &bd);
+    cl_widget_set_flex(btn, 1.0f);
+    cl_widget_add_child(box, btn);
+    cl_window_set_content(win, box);
+    cl_application_step(app, false);
+    CHECK(!painted_round_with(rend, hover_col)); /* not hovered yet */
+
+    pe.kind = CL_PEV_MOUSE_MOVE;
+    pe.pos = (cl_point_t){ 100, 50 }; /* over the stretched button */
+    cl_platform_mock_push(plat, pe);
+    cl_application_step(app, false);
+    CHECK(painted_round_with(rend, hover_col)); /* highlighted */
+
+    pe.pos = (cl_point_t){ 100, 50 };
+    cl_platform_mock_push(plat, pe); /* no change: same widget */
+    cl_application_step(app, false);
+
+    cl_application_destroy(app);
+}
+
 /* ---- the log callback receives diagnostics ------------------------------- */
 
 static char last_log[128];
@@ -255,6 +321,8 @@ static void test_backend_abi(void)
 typedef struct cl_probe {
     cl_widget_t base;
     int painted;
+    int entered;
+    int left;
 } cl_probe_t;
 
 static cl_size_t probe_measure(cl_widget_t *w, cl_constraints_t c)
@@ -278,10 +346,22 @@ static bool probe_hit(cl_widget_t *w, cl_point_t pt)
     return pt.x < w->rect.x + w->rect.w * 0.5f;
 }
 
+static void probe_enter(cl_widget_t *w)
+{
+    CL_WIDGET_CAST_UNCHECKED(cl_probe, w)->entered++;
+}
+
+static void probe_leave(cl_widget_t *w)
+{
+    CL_WIDGET_CAST_UNCHECKED(cl_probe, w)->left++;
+}
+
 static const cl_widget_vtable_t probe_vtable = {
     .measure = probe_measure,
     .paint = probe_paint,
     .hit_test = probe_hit,
+    .mouse_enter = probe_enter,
+    .mouse_leave = probe_leave,
 };
 
 static const cl_widget_class_t cl_probe_class = {
@@ -330,6 +410,26 @@ static void test_custom_widget(void)
     CHECK(cl_widget_rect(w).h == 21.0f);
     CHECK(p->painted >= 1);
 
+    /* hover: enter once while the pointer stays inside, leave on exit */
+    {
+        cl_rect_t r = cl_widget_rect(w);
+        cl_platform_event_t pe = { 0 };
+
+        pe.kind = CL_PEV_MOUSE_MOVE;
+        pe.pos = (cl_point_t){ r.x + 2, r.y + 2 }; /* solid left half */
+        cl_platform_mock_push(plat, pe);
+        pe.pos = (cl_point_t){ r.x + 4, r.y + 4 }; /* still inside: no re-enter */
+        cl_platform_mock_push(plat, pe);
+        cl_application_step(app, false);
+        CHECK(p->entered == 1);
+        CHECK(p->left == 0);
+
+        pe.pos = (cl_point_t){ 190, 90 }; /* empty corner of the window */
+        cl_platform_mock_push(plat, pe);
+        cl_application_step(app, false);
+        CHECK(p->left == 1);
+    }
+
     cl_application_destroy(app);
 }
 
@@ -340,6 +440,7 @@ int main(void)
     test_run_exit_code();
     test_window_lifecycle();
     test_disabled();
+    test_button_hover();
     test_log_callback();
     test_custom_widget();
 

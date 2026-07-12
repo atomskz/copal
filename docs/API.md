@@ -478,6 +478,8 @@ typedef struct cl_widget_vtable {
     bool (*mouse_up)(cl_widget_t *w, const cl_event_t *ev);
     bool (*mouse_move)(cl_widget_t *w, const cl_event_t *ev);
     bool (*mouse_wheel)(cl_widget_t *w, const cl_event_t *ev);
+    void (*mouse_enter)(cl_widget_t *w);  /* hover: без всплытия */
+    void (*mouse_leave)(cl_widget_t *w);
     bool (*key_down)(cl_widget_t *w, const cl_event_t *ev);
     bool (*key_up)(cl_widget_t *w, const cl_event_t *ev);
     bool (*text_input)(cl_widget_t *w, const cl_event_t *ev);

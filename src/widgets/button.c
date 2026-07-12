@@ -16,12 +16,15 @@ typedef struct cl_button {
     cl_action_fn on_click;
     void *user;
     bool pressed;
+    bool hovered;
 } cl_button_t;
 
 static cl_size_t button_measure(cl_widget_t *w, cl_constraints_t c);
 static void button_paint(cl_widget_t *w, cl_paint_context_t *ctx);
 static bool button_mouse_down(cl_widget_t *w, const cl_event_t *ev);
 static bool button_mouse_up(cl_widget_t *w, const cl_event_t *ev);
+static void button_mouse_enter(cl_widget_t *w);
+static void button_mouse_leave(cl_widget_t *w);
 static bool button_key_down(cl_widget_t *w, const cl_event_t *ev);
 static void button_destroy(cl_widget_t *w);
 
@@ -31,6 +34,8 @@ static const cl_widget_vtable_t button_vtable = {
     .paint = button_paint,
     .mouse_down = button_mouse_down,
     .mouse_up = button_mouse_up,
+    .mouse_enter = button_mouse_enter,
+    .mouse_leave = button_mouse_leave,
     .key_down = button_key_down,
 };
 
@@ -67,9 +72,11 @@ static void button_paint(cl_widget_t *w, cl_paint_context_t *ctx)
     cl_theme_t *theme = cl_paint_theme(ctx);
     cl_font_t *font = cl_theme_font(theme);
     float radius = cl_theme_radius(theme);
+    bool hov = self->hovered && cl_widget_is_enabled(w);
     cl_color_t bg = self->pressed
                         ? cl_paint_theme_color(ctx, CL_COLOR_SURFACE_ACTIVE)
-                        : cl_paint_theme_color(ctx, CL_COLOR_SURFACE);
+                        : cl_paint_theme_color(ctx, hov ? CL_COLOR_SURFACE_HOVER
+                                                        : CL_COLOR_SURFACE);
 
     cl_paint_fill_round_rect(ctx, w->rect, radius, bg);
     cl_paint_stroke_round_rect(ctx, w->rect, radius, 1.0f,
@@ -110,6 +117,18 @@ static bool button_mouse_up(cl_widget_t *w, const cl_event_t *ev)
         self->on_click)
         self->on_click(w, self->user); /* last: may destroy the button */
     return true;
+}
+
+static void button_mouse_enter(cl_widget_t *w)
+{
+    CL_WIDGET_CAST_UNCHECKED(cl_button, w)->hovered = true;
+    cl_widget_invalidate(w);
+}
+
+static void button_mouse_leave(cl_widget_t *w)
+{
+    CL_WIDGET_CAST_UNCHECKED(cl_button, w)->hovered = false;
+    cl_widget_invalidate(w);
 }
 
 static bool button_key_down(cl_widget_t *w, const cl_event_t *ev)

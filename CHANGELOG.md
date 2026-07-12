@@ -19,6 +19,9 @@
 - Цикл widget ↔ app/window развязан: widget-слой объявляет узкий
   host-интерфейс (invalidate/фокус/popup/буфер обмена/IME), окно реализует
   его; попутно закрыт висячий `content` при прямом destroy корневого виджета.
+- Hover-события: окно доставляет `CL_EVENT_MOUSE_ENTER`/`CL_EVENT_MOUSE_LEAVE`
+  (новые vtable-слоты `mouse_enter`/`mouse_leave`, без всплытия); кнопка
+  подсвечивается ролью `CL_COLOR_SURFACE_HOVER`.
 
 ## [0.1.0] — 2026-07-12
 
