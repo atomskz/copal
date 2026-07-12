@@ -215,15 +215,21 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
 
 static void sdl_wait(cl_platform_t *p, int timeout_ms)
 {
-    SDL_Event e;
-
     (void)p;
-    if (timeout_ms < 0) {
-        if (SDL_WaitEvent(&e))
-            SDL_PushEvent(&e);
-    } else if (SDL_WaitEventTimeout(&e, timeout_ms)) {
-        SDL_PushEvent(&e);
-    }
+    /*
+     * Block until an event is available (or the timeout elapses) WITHOUT
+     * dequeuing it; process_events() then drains the queue with SDL_PollEvent.
+     *
+     * The previous SDL_WaitEvent(&e) + SDL_PushEvent(&e) dequeued the woken
+     * event only to re-queue it. Under a steady event stream (e.g. the platform
+     * delivering window/enter events) the queue was therefore never empty when
+     * the loop returned to wait, so SDL_WaitEvent returned immediately every
+     * iteration and the loop spun at 100% of one core instead of sleeping.
+     */
+    if (timeout_ms < 0)
+        SDL_WaitEvent(NULL);
+    else
+        SDL_WaitEventTimeout(NULL, timeout_ms);
 }
 
 static void sdl_present(cl_platform_t *p)
