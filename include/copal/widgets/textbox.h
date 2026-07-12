@@ -19,9 +19,10 @@ typedef struct cl_application cl_application_t;
 
 /*
  * Text box. UTF-8, codepoint-aware cursor and selection, insertion/deletion,
- * arrow/Home/End navigation, mouse positioning, password masking, read-only
- * mode, a codepoint length cap, clipboard cut/copy/paste (Ctrl+X/C/V), and
- * undo/redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z).
+ * arrow/Home/End navigation, mouse positioning and selection (drag,
+ * Shift+click extends, double click selects the word), password masking,
+ * read-only mode, a codepoint length cap, clipboard cut/copy/paste
+ * (Ctrl+X/C/V), and undo/redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z).
  *
  * With `multiline` set the box wraps text to its width and keeps explicit line
  * breaks: Enter inserts a newline (not submit), Up/Down move between lines,

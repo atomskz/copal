@@ -56,6 +56,7 @@ typedef struct cl_textbox {
     size_t line_cap;
     float layout_width; /* wrap width the layout was built for */
     bool layout_dirty;
+    bool drag_select;   /* left button held: mouse moves extend the selection */
     cl_text_changed_fn on_changed;
     void *on_changed_user;
     cl_text_changed_fn on_submit;
@@ -74,6 +75,8 @@ typedef struct cl_textbox {
 static cl_size_t textbox_measure(cl_widget_t *w, cl_constraints_t c);
 static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx);
 static bool textbox_mouse_down(cl_widget_t *w, const cl_event_t *ev);
+static bool textbox_mouse_move(cl_widget_t *w, const cl_event_t *ev);
+static bool textbox_mouse_up(cl_widget_t *w, const cl_event_t *ev);
 static bool textbox_mouse_wheel(cl_widget_t *w, const cl_event_t *ev);
 static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev);
 static bool textbox_text_input(cl_widget_t *w, const cl_event_t *ev);
@@ -89,6 +92,8 @@ static const cl_widget_vtable_t textbox_vtable = {
     .measure = textbox_measure,
     .paint = textbox_paint,
     .mouse_down = textbox_mouse_down,
+    .mouse_move = textbox_mouse_move,
+    .mouse_up = textbox_mouse_up,
     .mouse_wheel = textbox_mouse_wheel,
     .key_down = textbox_key_down,
     .text_input = textbox_text_input,
@@ -178,6 +183,48 @@ static size_t next_boundary(const char *buf, size_t len, size_t i)
     if (n == 0 || i + n > len)
         return len;
     return i + n;
+}
+
+/* ---- word boundaries (whitespace-delimited; motion + double click) ------ */
+
+static uint32_t cp_at(const cl_textbox_t *tb, size_t i)
+{
+    uint32_t cp = 0;
+
+    if (i < tb->len)
+        cl_utf8_next(tb->buf + i, &cp);
+    return cp;
+}
+
+static bool cp_is_space(uint32_t cp)
+{
+    return cp == ' ' || cp == '\t' || cp == '\n' || cp == '\r';
+}
+
+/* Select the word (or whitespace run) around byte offset `off`. */
+static void select_word_at(cl_textbox_t *tb, size_t off)
+{
+    size_t a, b;
+    bool sp;
+
+    if (tb->len == 0)
+        return;
+    if (off >= tb->len)
+        off = prev_boundary(tb->buf, tb->len);
+    sp = cp_is_space(cp_at(tb, off));
+    a = off;
+    while (a > 0) {
+        size_t prev = prev_boundary(tb->buf, a);
+
+        if (cp_is_space(cp_at(tb, prev)) != sp)
+            break;
+        a = prev;
+    }
+    b = next_boundary(tb->buf, tb->len, off);
+    while (b < tb->len && cp_is_space(cp_at(tb, b)) == sp)
+        b = next_boundary(tb->buf, tb->len, b);
+    tb->anchor = a;
+    tb->cursor = b;
 }
 
 /* ---- metrics ------------------------------------------------------------ */
@@ -1034,33 +1081,79 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
         cl_free(cl_application_allocator(w->app), stars);
 }
 
+/* Byte offset of the caret position for a mouse event at window pos. */
+static size_t tb_offset_at_pos(cl_textbox_t *tb, cl_font_t *font,
+                               cl_point_t pos)
+{
+    cl_widget_t *w = &tb->base;
+
+    if (tb->multiline) {
+        float cx = pos.x - (w->rect.x + TB_PAD_X);
+        float cy = pos.y - (w->rect.y + TB_PAD_Y) + tb->scroll_y;
+
+        tb_ensure_layout(tb, font);
+        return offset_at_point(tb, font, cx, cy);
+    } else {
+        float local_x = pos.x - (w->rect.x + TB_PAD_X) + tb->scroll_x;
+
+        return offset_at_x(tb, font, local_x);
+    }
+}
+
 static bool textbox_mouse_down(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
     cl_font_t *font = textbox_font(w);
     size_t off;
 
-    if (tb->multiline) {
-        float cx = ev->data.mouse.pos.x - (w->rect.x + TB_PAD_X);
-        float cy = ev->data.mouse.pos.y - (w->rect.y + TB_PAD_Y) + tb->scroll_y;
-
-        tb_ensure_layout(tb, font);
-        off = offset_at_point(tb, font, cx, cy);
-    } else {
-        float local_x =
-            ev->data.mouse.pos.x - (w->rect.x + TB_PAD_X) + tb->scroll_x;
-
-        off = offset_at_x(tb, font, local_x);
-    }
+    if (ev->data.mouse.button != CL_MOUSE_LEFT)
+        return false; /* only the primary button places the caret */
+    off = tb_offset_at_pos(tb, font, ev->data.mouse.pos);
 
     edit_break(tb); /* a click starts a fresh undo group */
     tb_clear_preedit(tb); /* a click cancels any in-progress composition */
-    tb->cursor = off;
-    if (!(ev->mods & CL_MOD_SHIFT))
-        tb->anchor = off;
+    if (ev->data.mouse.clicks >= 2) {
+        select_word_at(tb, off); /* double click selects the word */
+        tb->drag_select = false;
+    } else {
+        tb->cursor = off;
+        if (!(ev->mods & CL_MOD_SHIFT))
+            tb->anchor = off;
+        tb->drag_select = true; /* dragging now extends the selection */
+    }
     tb->goal_valid = false;
     update_scroll(tb);
     cl_widget_invalidate(w);
+    return true;
+}
+
+static bool textbox_mouse_move(cl_widget_t *w, const cl_event_t *ev)
+{
+    cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
+    cl_font_t *font = textbox_font(w);
+    size_t off;
+
+    if (!tb->drag_select)
+        return false;
+    /* The mouse capture routes moves here while the button is held, even
+     * outside the widget: keep extending toward the pointer. */
+    off = tb_offset_at_pos(tb, font, ev->data.mouse.pos);
+    if (off != tb->cursor) {
+        tb->cursor = off; /* the anchor stays: this is the selection */
+        tb->goal_valid = false;
+        update_scroll(tb);
+        cl_widget_invalidate(w);
+    }
+    return true;
+}
+
+static bool textbox_mouse_up(cl_widget_t *w, const cl_event_t *ev)
+{
+    cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
+
+    if (ev->data.mouse.button != CL_MOUSE_LEFT || !tb->drag_select)
+        return false;
+    tb->drag_select = false;
     return true;
 }
 
