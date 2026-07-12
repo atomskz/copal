@@ -14,6 +14,7 @@ typedef enum cl_mock_cmd_kind {
     CL_MOCK_FILL_ROUND,
     CL_MOCK_STROKE_ROUND,
     CL_MOCK_TEXT,
+    CL_MOCK_IMAGE,
     CL_MOCK_PUSH_CLIP,
     CL_MOCK_POP_CLIP
 } cl_mock_cmd_kind_t;

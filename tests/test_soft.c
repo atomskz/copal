@@ -170,6 +170,46 @@ int main(void)
     CHECK(is_rgb(at(buf, 5, 5), bg));
     stub.a_mask = 0xFF000000u;
 
+    /* Image blit: a 2x2 RGBA image scaled to 8x8, with alpha blending. */
+    {
+        cl_platform_t *mp2 = cl_platform_mock_create(a);
+        cl_renderer_t *mr2 = cl_renderer_mock_create(a);
+        cl_application_desc_t iad = CL_APPLICATION_DESC_INIT;
+        cl_application_t *iapp;
+        /* red, green / blue, 50%-alpha white */
+        static const unsigned char px2[16] = {
+            255, 0, 0, 255,   0, 255, 0, 255,
+            0, 0, 255, 255,   255, 255, 255, 128,
+        };
+        cl_image_t *img;
+
+        iad.platform = mp2;
+        iad.renderer = mr2;
+        iapp = cl_application_create(&iad);
+        CHECK(iapp != NULL);
+        img = cl_image_create(iapp, 2, 2, px2);
+        CHECK(img != NULL);
+        CHECK(cl_image_size(img).w == 2.0f);
+
+        r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+        r->ops->draw_image(r, img, (cl_rect_t){ 8, 8, 8, 8 });
+        r->ops->end_frame(r);
+        CHECK(is_rgb(at(buf, 9, 9), (cl_color_t){ 255, 0, 0, 255 }));
+        CHECK(is_rgb(at(buf, 14, 9), (cl_color_t){ 0, 255, 0, 255 }));
+        CHECK(is_rgb(at(buf, 9, 14), (cl_color_t){ 0, 0, 255, 255 }));
+        /* 50% white over bg(10,20,30): red = 10+(255-10)*128/255 ~ 133 */
+        {
+            uint32_t p9 = at(buf, 14, 14);
+            int ch9 = (int)((p9 >> 16) & 0xFFu);
+
+            CHECK(ch9 >= 131 && ch9 <= 135);
+        }
+        CHECK(is_rgb(at(buf, 5, 5), bg)); /* outside the blit untouched */
+
+        cl_image_release(img);
+        cl_application_destroy(iapp);
+    }
+
     /* Text (optional font): drawing must change some pixels vs the bg. */
     {
         cl_platform_t *mp = cl_platform_mock_create(a);

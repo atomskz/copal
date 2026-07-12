@@ -14,6 +14,7 @@
 #include <copal/allocator.h>
 #include <copal/event.h>
 #include <copal/font.h>
+#include <copal/image.h>
 #include <copal/theme.h>
 #include <copal/render.h>
 #include <copal/widget.h>
@@ -21,6 +22,7 @@
 #include <copal/application.h>
 #include <copal/window.h>
 #include <copal/timer.h>
+#include <copal/widgets/imageview.h>
 #include <copal/widgets/label.h>
 #include <copal/widgets/button.h>
 #include <copal/widgets/checkbox.h>

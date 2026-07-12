@@ -68,6 +68,7 @@ copal/
 │   ├── render/
 │   │   ├── renderer.h             обёртка над публичным copal/backend/renderer.h
 │   │   ├── paint_context.c/.h     публичный cl_paint_context_t поверх renderer
+│   │   ├── image.c image_internal.h   cl_image_t: RGBA8-ресурс (evict в рендерах)
 │   │   ├── gl/                    OpenGL 3.3 core бэкенд (renderer_gl, gl_loader — glad-подобный)
 │   │   ├── soft/renderer_soft.c   software/CPU растеризатор (SDF+AA, glyph-блит, клип; без GL; собирается всегда)
 │   │   └── mock/                  record-renderer для headless-тестов (список draw-команд)
@@ -81,7 +82,7 @@ copal/
 │   │   │                          без GL (cl_platform_sdl_soft_create, surface + UpdateWindowSurface)
 │   │   └── mock/                  headless-бэкенд (скриптованные события, управляемые часы)
 │   ├── widgets/                   реализации виджетов + внутренний tooltip-пузырь
-│   │   ├── button.c label.c checkbox.c radiobutton.c slider.c
+│   │   ├── button.c label.c checkbox.c radiobutton.c slider.c imageview.c
 │   │   ├── combobox.c menu.c textbox.c
 │   │   └── tooltip.c tooltip_internal.h   (внутренний виджет hover-подсказки)
 │   └── app/

@@ -42,6 +42,15 @@ void cl_paint_draw_text(cl_paint_context_t *ctx, cl_font_t *font,
     ctx->renderer->ops->draw_text(ctx->renderer, font, utf8, pos, color);
 }
 
+void cl_paint_draw_image(cl_paint_context_t *ctx, cl_image_t *img,
+                         cl_rect_t dst)
+{
+    if (!img)
+        return;
+    if (ctx->renderer->ops->draw_image)
+        ctx->renderer->ops->draw_image(ctx->renderer, img, dst);
+}
+
 void cl_paint_push_clip(cl_paint_context_t *ctx, cl_rect_t r)
 {
     ctx->renderer->ops->push_clip(ctx->renderer, r);

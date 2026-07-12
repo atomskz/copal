@@ -116,6 +116,17 @@ static void mock_draw_text(cl_renderer_t *r, cl_font_t *font, const char *utf8,
     mock_record((mock_renderer_t *)r, &c);
 }
 
+static void mock_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
+{
+    cl_mock_command_t c;
+
+    (void)img;
+    memset(&c, 0, sizeof(c));
+    c.kind = CL_MOCK_IMAGE;
+    c.rect = dst;
+    mock_record((mock_renderer_t *)rr, &c);
+}
+
 static void mock_push_clip(cl_renderer_t *r, cl_rect_t rect)
 {
     mock_renderer_t *m = (mock_renderer_t *)r;
@@ -160,6 +171,7 @@ static const cl_renderer_ops_t mock_ops = {
     .fill_round_rect = mock_fill_round_rect,
     .stroke_round_rect = mock_stroke_round_rect,
     .draw_text = mock_draw_text,
+    .draw_image = mock_draw_image,
     .push_clip = mock_push_clip,
     .pop_clip = mock_pop_clip,
     .destroy = mock_destroy,

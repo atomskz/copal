@@ -2,6 +2,7 @@
 #include "render/gl/renderer_gl.h"
 #include "render/gl/gl_loader.h"
 #include "text/font_internal.h"
+#include "render/image_internal.h"
 #include "core/foundation/foundation_internal.h"
 
 #include <math.h>
@@ -15,6 +16,7 @@
 #define GLYPH_HASH_SIZE 1024 /* 2x slots, power of two */
 #define MAX_TEXT_GLYPHS 256  /* quads per batch; draw_text flushes and refills */
 #define CL_GL_CLIP_STACK 16
+#define CL_GL_MAX_IMAGES 64
 
 typedef struct glyph {
     cl_font_t *font;
@@ -34,10 +36,12 @@ typedef struct gl_renderer {
     bool ok;
     GLuint rect_prog;
     GLuint text_prog;
+    GLuint img_prog;
     GLuint rect_vao, rect_vbo;
     GLuint text_vao, text_vbo;
     GLint r_proj, r_rect, r_radius, r_color, r_border;
     GLint t_proj, t_color, t_atlas;
+    GLint i_proj, i_tex;
     GLuint cur_prog; /* program bound this frame; avoids redundant UseProgram */
     GLuint atlas;
     int pen_x, pen_y, row_h;
@@ -52,6 +56,12 @@ typedef struct gl_renderer {
     int fb_w, fb_h; /* framebuffer size in physical px (matches glViewport) */
     cl_rect_t clip_stack[CL_GL_CLIP_STACK];
     int clip_depth;
+    /* Uploaded image textures, keyed by the image pointer (evict_image). */
+    struct {
+        const cl_image_t *img;
+        GLuint tex;
+    } images[CL_GL_MAX_IMAGES];
+    int image_count;
 } gl_renderer_t;
 
 static const char *RECT_VS =
@@ -114,6 +124,15 @@ static const char *TEXT_FS =
     "void main(){\n"
     "  float a = texture(u_atlas, v_uv).r;\n"
     "  frag = vec4(u_color.rgb, u_color.a * a);\n"
+    "}\n";
+
+static const char *IMG_FS =
+    "#version 330 core\n"
+    "in vec2 v_uv;\n"
+    "uniform sampler2D u_tex;\n"
+    "out vec4 frag;\n"
+    "void main(){\n"
+    "  frag = texture(u_tex, v_uv);\n"
     "}\n";
 
 static void *gl_get(void *ctx, const char *name)
@@ -197,7 +216,8 @@ static void gl_init(gl_renderer_t *r)
 
     r->rect_prog = link_program(gl, RECT_VS, RECT_FS);
     r->text_prog = link_program(gl, TEXT_VS, TEXT_FS);
-    if (!r->rect_prog || !r->text_prog) {
+    r->img_prog = link_program(gl, TEXT_VS, IMG_FS); /* same vertex layout */
+    if (!r->rect_prog || !r->text_prog || !r->img_prog) {
         cl_set_last_error(CL_ERROR_RENDERER); /* every frame stays a no-op */
         return;
     }
@@ -210,6 +230,8 @@ static void gl_init(gl_renderer_t *r)
     r->t_proj = gl->GetUniformLocation(r->text_prog, "u_proj");
     r->t_color = gl->GetUniformLocation(r->text_prog, "u_color");
     r->t_atlas = gl->GetUniformLocation(r->text_prog, "u_atlas");
+    r->i_proj = gl->GetUniformLocation(r->img_prog, "u_proj");
+    r->i_tex = gl->GetUniformLocation(r->img_prog, "u_tex");
 
     gl->GenVertexArrays(1, &r->rect_vao);
     gl->BindVertexArray(r->rect_vao);
@@ -409,6 +431,9 @@ static void gl_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
      */
     r->gl.UseProgram(r->rect_prog);
     r->gl.UniformMatrix4fv(r->r_proj, 1, GL_FALSE, r->proj);
+    r->gl.UseProgram(r->img_prog);
+    r->gl.UniformMatrix4fv(r->i_proj, 1, GL_FALSE, r->proj);
+    r->gl.Uniform1i(r->i_tex, 0);
     r->gl.UseProgram(r->text_prog);
     r->gl.UniformMatrix4fv(r->t_proj, 1, GL_FALSE, r->proj);
     r->gl.ActiveTexture(GL_TEXTURE0);
@@ -626,13 +651,100 @@ static void gl_evict_font(cl_renderer_t *rr, cl_font_t *font)
     gl_cache_reset((gl_renderer_t *)rr);
 }
 
+/* Find (or upload) the texture for img. A full table drops every cached
+ * texture and starts over - the wholesale-reset policy of the glyph cache. */
+static GLuint image_texture(gl_renderer_t *r, const cl_image_t *img)
+{
+    int i;
+    GLuint tex = 0;
+
+    for (i = 0; i < r->image_count; i++) {
+        if (r->images[i].img == img)
+            return r->images[i].tex;
+    }
+    if (r->image_count == CL_GL_MAX_IMAGES) {
+        for (i = 0; i < r->image_count; i++)
+            r->gl.DeleteTextures(1, &r->images[i].tex);
+        r->image_count = 0;
+    }
+    r->gl.GenTextures(1, &tex);
+    r->gl.BindTexture(GL_TEXTURE_2D, tex);
+    r->gl.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, img->w, img->h, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, img->rgba);
+    r->gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    r->gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    r->gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    r->gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    r->images[r->image_count].img = img;
+    r->images[r->image_count].tex = tex;
+    r->image_count++;
+    return tex;
+}
+
+static void gl_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
+{
+    gl_renderer_t *r = (gl_renderer_t *)rr;
+    GLuint tex;
+    float x0, y0, x1, y1;
+    float verts[24];
+
+    if (!r->ok || !img)
+        return;
+    tex = image_texture(r, img);
+
+    x0 = dst.x;
+    y0 = dst.y;
+    x1 = dst.x + dst.w;
+    y1 = dst.y + dst.h;
+    /* two triangles: pos.xy + uv.xy per vertex */
+    verts[0] = x0;  verts[1] = y0;  verts[2] = 0.0f;  verts[3] = 0.0f;
+    verts[4] = x1;  verts[5] = y0;  verts[6] = 1.0f;  verts[7] = 0.0f;
+    verts[8] = x1;  verts[9] = y1;  verts[10] = 1.0f; verts[11] = 1.0f;
+    verts[12] = x0; verts[13] = y0; verts[14] = 0.0f; verts[15] = 0.0f;
+    verts[16] = x1; verts[17] = y1; verts[18] = 1.0f; verts[19] = 1.0f;
+    verts[20] = x0; verts[21] = y1; verts[22] = 0.0f; verts[23] = 1.0f;
+
+    if (r->cur_prog != r->img_prog) {
+        r->gl.UseProgram(r->img_prog);
+        r->cur_prog = r->img_prog;
+    }
+    r->gl.BindTexture(GL_TEXTURE_2D, tex);
+    r->gl.BindVertexArray(r->text_vao); /* same pos+uv layout as text */
+    r->gl.BindBuffer(GL_ARRAY_BUFFER, r->text_vbo);
+    r->gl.BufferSubData(GL_ARRAY_BUFFER, 0, (GLsizeiptr)sizeof(verts), verts);
+    r->gl.DrawArrays(GL_TRIANGLES, 0, 6);
+    r->gl.BindTexture(GL_TEXTURE_2D, r->atlas); /* the frame invariant */
+}
+
+static void gl_evict_image(cl_renderer_t *rr, cl_image_t *img)
+{
+    gl_renderer_t *r = (gl_renderer_t *)rr;
+    int i;
+
+    if (!r->ok)
+        return;
+    for (i = 0; i < r->image_count; i++) {
+        if (r->images[i].img == img) {
+            r->gl.DeleteTextures(1, &r->images[i].tex);
+            r->images[i] = r->images[r->image_count - 1];
+            r->image_count--;
+            return;
+        }
+    }
+}
+
 static void gl_destroy(cl_renderer_t *rr)
 {
     gl_renderer_t *r = (gl_renderer_t *)rr;
 
     if (r->ok) {
+        int i;
+
+        for (i = 0; i < r->image_count; i++)
+            r->gl.DeleteTextures(1, &r->images[i].tex);
         r->gl.DeleteProgram(r->rect_prog);
         r->gl.DeleteProgram(r->text_prog);
+        r->gl.DeleteProgram(r->img_prog);
         r->gl.DeleteBuffers(1, &r->rect_vbo);
         r->gl.DeleteBuffers(1, &r->text_vbo);
         r->gl.DeleteVertexArrays(1, &r->rect_vao);
@@ -651,9 +763,11 @@ static const cl_renderer_ops_t gl_ops = {
     .fill_round_rect = gl_fill_round_rect,
     .stroke_round_rect = gl_stroke_round_rect,
     .draw_text = gl_draw_text,
+    .draw_image = gl_draw_image,
     .push_clip = gl_push_clip,
     .pop_clip = gl_pop_clip,
     .evict_font = gl_evict_font,
+    .evict_image = gl_evict_image,
     .destroy = gl_destroy,
 };
 

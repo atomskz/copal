@@ -77,8 +77,62 @@ static cl_widget_t *bare_checkbox(cl_application_t *app)
         app, &(cl_checkbox_desc_t){ CL_CHECKBOX_DESC_INIT_FIELDS });
 }
 
+/* imageview: measures to the pixel size and emits a draw_image command. */
+static void test_imageview(void)
+{
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .width = 100, .height = 100 };
+    cl_vbox_desc_t vd = { CL_VBOX_DESC_INIT_FIELDS };
+    cl_platform_t *plat = cl_platform_mock_create(cl_allocator_default());
+    cl_renderer_t *rend = cl_renderer_mock_create(cl_allocator_default());
+    cl_application_t *app;
+    cl_window_t *win;
+    cl_widget_t *box;
+    cl_widget_t *iv;
+    cl_image_t *img;
+    static const unsigned char px[3 * 2 * 4] = { 0 };
+    bool saw_image = false;
+    size_t i, n;
+
+    ad.platform = plat;
+    ad.renderer = rend;
+    app = cl_application_create(&ad);
+    img = cl_image_create(app, 3, 2, px);
+    CHECK(img != NULL);
+    CHECK(cl_image_pixels(img) != NULL);
+    CHECK(cl_image_create(app, 0, 2, px) == NULL); /* bad size rejected */
+    CHECK(cl_last_error() == CL_ERROR_INVALID_ARGUMENT);
+
+    win = cl_window_create(app, &wd);
+    box = cl_vbox_create(app, &vd);
+    iv = cl_imageview_create(
+        app, &(cl_imageview_desc_t){ CL_IMAGEVIEW_DESC_INIT_FIELDS,
+                                     .image = img });
+    CHECK(cl_imageview_image(iv) == img);
+    cl_widget_add_child(box, iv);
+    cl_window_set_content(win, box);
+    cl_application_step(app, false);
+
+    /* natural size = pixel size */
+    CHECK(cl_widget_rect(iv).w == 3.0f);
+    CHECK(cl_widget_rect(iv).h == 2.0f);
+    n = cl_renderer_mock_count(rend);
+    for (i = 0; i < n; i++)
+        if (cl_renderer_mock_get(rend, i)->kind == CL_MOCK_IMAGE)
+            saw_image = true;
+    CHECK(saw_image);
+
+    cl_imageview_set_image(iv, NULL); /* allowed: paints nothing */
+    cl_application_step(app, false);
+
+    cl_image_release(img);
+    cl_application_destroy(app);
+}
+
 int main(void)
 {
+    test_imageview();
     const cl_allocator_t *a = cl_allocator_default();
 
     /* --- HBox lays children left-to-right with padding + spacing --- */

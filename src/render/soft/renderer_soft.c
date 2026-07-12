@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "render/soft/renderer_soft.h"
+#include "render/image_internal.h"
 #include "text/font_internal.h"
 #include "core/foundation/foundation_internal.h"
 
@@ -244,6 +245,63 @@ static void soft_fill_rect(cl_renderer_t *rr, cl_rect_t rect, cl_color_t color)
             blend_px(r, x, y, color, 1.0f);
 }
 
+/* Nearest-sampled, source-over scaled blit of an RGBA8 image. */
+static void soft_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
+{
+    soft_renderer_t *r = (soft_renderer_t *)rr;
+    int cx0, cy0, cx1, cy1;
+    int x0, y0, x1, y1, ix, iy;
+    float pw, ph;
+
+    if (!r->px || !img || dst.w <= 0.0f || dst.h <= 0.0f)
+        return;
+    clip_ibounds(r, &cx0, &cy0, &cx1, &cy1);
+    x0 = (int)floorf(dst.x * r->scale);
+    y0 = (int)floorf(dst.y * r->scale);
+    x1 = (int)ceilf((dst.x + dst.w) * r->scale);
+    y1 = (int)ceilf((dst.y + dst.h) * r->scale);
+    pw = (float)(x1 - x0); /* physical extent the image maps onto */
+    ph = (float)(y1 - y0);
+    if (pw <= 0.0f || ph <= 0.0f)
+        return;
+    if (x0 < cx0)
+        x0 = cx0;
+    if (y0 < cy0)
+        y0 = cy0;
+    if (x1 > cx1)
+        x1 = cx1;
+    if (y1 > cy1)
+        y1 = cy1;
+    for (iy = y0; iy < y1; iy++) {
+        int sy = (int)(((float)iy - floorf(dst.y * r->scale) + 0.5f) / ph *
+                       (float)img->h);
+        const unsigned char *row;
+
+        if (sy < 0)
+            sy = 0;
+        if (sy >= img->h)
+            sy = img->h - 1;
+        row = img->rgba + (size_t)sy * (size_t)img->w * 4u;
+        for (ix = x0; ix < x1; ix++) {
+            int sx = (int)(((float)ix - floorf(dst.x * r->scale) + 0.5f) /
+                           pw * (float)img->w);
+            const unsigned char *px;
+            cl_color_t c;
+
+            if (sx < 0)
+                sx = 0;
+            if (sx >= img->w)
+                sx = img->w - 1;
+            px = row + (size_t)sx * 4u;
+            c.r = px[0];
+            c.g = px[1];
+            c.b = px[2];
+            c.a = px[3];
+            blend_px(r, ix, iy, c, 1.0f);
+        }
+    }
+}
+
 /* Fill (border <= 0) or stroke a rounded rect via per-pixel SDF coverage. */
 static void soft_round(soft_renderer_t *r, cl_rect_t rect, float radius,
                        float border, cl_color_t color)
@@ -481,6 +539,7 @@ static const cl_renderer_ops_t soft_ops = {
     .fill_round_rect = soft_fill_round_rect,
     .stroke_round_rect = soft_stroke_round_rect,
     .draw_text = soft_draw_text,
+    .draw_image = soft_draw_image,
     .push_clip = soft_push_clip,
     .pop_clip = soft_pop_clip,
     .evict_font = soft_evict_font,

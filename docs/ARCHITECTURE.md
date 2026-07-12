@@ -142,7 +142,8 @@ GL: `lock_framebuffer` = `SDL_GetWindowSurface`, `present` = `SDL_UpdateWindowSu
 1. **Публичный `cl_paint_context_t`** (`render.h`, `paint_context.c`) —
    передаётся в `paint`. Только рисование: `fill_rect`, `fill_round_rect(r,
    radius)`, `stroke_round_rect(r, radius, width)`, `draw_text(font, utf8, pos,
-   color)`, `push_clip`/`pop_clip`; плюс read-доступ к теме (`theme`,
+   color)`, `draw_image(img, dst)` (RGBA8-ресурс `cl_image_t`, image.h),
+   `push_clip`/`pop_clip`; плюс read-доступ к теме (`theme`,
    `theme_color`). Устройство/кадр/GPU-ресурсы недоступны.
 2. **Device/frame-интерфейс** (`copal/backend/renderer.h`; SPI публичный, с
    ABI-рукопожатием `struct_size`/`abi_version`, §13) — принадлежит App/Window:

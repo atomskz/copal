@@ -17,6 +17,7 @@
 
 #include <copal/types.h>
 #include <copal/font.h>
+#include <copal/image.h>
 #include <copal/version.h>
 
 #ifdef __cplusplus
@@ -47,6 +48,11 @@ typedef struct cl_renderer_ops {
     void (*draw_text)(cl_renderer_t *r, cl_font_t *font, const char *utf8,
                       cl_point_t pos, cl_color_t color);
     /*
+     * Blend the whole image into dst (logical px), scaling as needed;
+     * straight-alpha source-over. Pixels come from cl_image_pixels().
+     */
+    void (*draw_image)(cl_renderer_t *r, cl_image_t *img, cl_rect_t dst);
+    /*
      * Clip stack. push_clip intersects rect with the current clip and makes it
      * the active scissor; pop_clip restores the previous one. Calls nest and
      * must be balanced. Coordinates are absolute logical pixels.
@@ -60,6 +66,9 @@ typedef struct cl_renderer_ops {
      * fine. NULL slot = no glyph cache. Never called inside a frame.
      */
     void (*evict_font)(cl_renderer_t *r, cl_font_t *font);
+    /* Same contract for cached image textures (cl_image_release). NULL slot
+     * = no image cache. Never called inside a frame. */
+    void (*evict_image)(cl_renderer_t *r, cl_image_t *img);
     void (*destroy)(cl_renderer_t *r);
 } cl_renderer_ops_t;
 

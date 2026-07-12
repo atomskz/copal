@@ -23,6 +23,10 @@
   (новые vtable-слоты `mouse_enter`/`mouse_leave`, без всплытия); кнопка
   подсвечивается ролью `CL_COLOR_SURFACE_HOVER`.
 
+- Изображения: ресурс `cl_image_t` (image.h, сырой RGBA8),
+  `cl_paint_draw_image`, операции SPI `draw_image`/`evict_image` во всех трёх
+  рендерах (GL — кэш текстур, software — масштабируемый блит с блендингом,
+  mock — запись команды) и виджет `cl_imageview`.
 - `cl_key_t` расширен: цифровой ряд `CL_KEY_0..9`, `CL_KEY_F1..F12`,
   `CL_KEY_PAGE_UP`/`CL_KEY_PAGE_DOWN` (замаплены в SDL-бэкенде).
 
