@@ -1480,6 +1480,12 @@ cl_widget_t *cl_textbox_create(cl_application_t *app,
 
     if (!CL_DESC_ABI_OK(desc, cl_textbox_desc_t))
         return NULL;
+    /* Multiline painting has no masking path: it would show the secret in
+     * plain text, so the combination is rejected outright. */
+    if (desc && desc->password && desc->multiline) {
+        cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
+        return NULL;
+    }
     w = cl_widget_alloc(app, &cl_textbox_class);
     if (!w)
         return NULL;

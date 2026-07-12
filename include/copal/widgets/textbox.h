@@ -27,7 +27,9 @@ typedef struct cl_application cl_application_t;
  * breaks: Enter inserts a newline (not submit), Up/Down move between lines,
  * Home/End act per visual line (Ctrl+Home/End jump to the document ends), the
  * content scrolls vertically (wheel or to follow the caret), and pasted line
- * breaks are kept. Password masking is ignored in multiline mode.
+ * breaks are kept. password + multiline is rejected by
+ * cl_textbox_create (CL_ERROR_INVALID_ARGUMENT): the multiline paint has no
+ * masking and would show the secret in plain text.
  *
  * IME composition is supported: a pre-edit (composition) string is shown
  * underlined at the caret without entering the buffer until the input method
