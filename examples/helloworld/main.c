@@ -31,7 +31,7 @@ static void on_menu_button(cl_widget_t *w, void *user)
     cl_application_t *app = user;
     cl_window_t *win = cl_widget_window(w);
     cl_rect_t r = cl_widget_rect(w);
-    cl_widget_t *menu = cl_menu_create(app);
+    cl_widget_t *menu = cl_menu_create(app, &(cl_menu_desc_t){ CL_MENU_DESC_INIT_FIELDS });
 
     cl_menu_add_item(menu, "New", NULL, NULL);
     cl_menu_add_item(menu, "Open...", NULL, NULL);

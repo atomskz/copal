@@ -305,6 +305,36 @@ bool cl_widget_is_enabled(cl_widget_t *w)
     return (w->flags & CL_WF_ENABLED) != 0;
 }
 
+cl_size_t cl_widget_preferred_size(cl_widget_t *w)
+{
+    return w ? w->pref_size : (cl_size_t){ 0.0f, 0.0f };
+}
+
+cl_insets_t cl_widget_margin(cl_widget_t *w)
+{
+    return w ? w->margin : (cl_insets_t){ 0.0f, 0.0f, 0.0f, 0.0f };
+}
+
+cl_align_t cl_widget_align_h(cl_widget_t *w)
+{
+    return w ? w->align_h : CL_ALIGN_AUTO;
+}
+
+cl_align_t cl_widget_align_v(cl_widget_t *w)
+{
+    return w ? w->align_v : CL_ALIGN_AUTO;
+}
+
+float cl_widget_flex(cl_widget_t *w)
+{
+    return w ? w->flex : 0.0f;
+}
+
+bool cl_widget_is_focusable(cl_widget_t *w)
+{
+    return w && (w->flags & CL_WF_FOCUSABLE) != 0;
+}
+
 void cl_widget_set_cursor(cl_widget_t *w, cl_cursor_t cursor)
 {
     if (w)

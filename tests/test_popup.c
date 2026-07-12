@@ -84,7 +84,7 @@ static void press(cl_platform_t *p, cl_key_t key)
 
 static cl_widget_t *make_menu(cl_application_t *app)
 {
-    cl_widget_t *menu = cl_menu_create(app);
+    cl_widget_t *menu = cl_menu_create(app, &(cl_menu_desc_t){ CL_MENU_DESC_INIT_FIELDS });
 
     cl_menu_add_item(menu, "Cut", on_item, (void *)(intptr_t)0);
     cl_menu_add_item(menu, "Copy", on_item, (void *)(intptr_t)1);
@@ -207,8 +207,8 @@ int main(void)
 
     /* Submenus: a stacked chain opens, routes and collapses correctly. */
     {
-        cl_widget_t *root = cl_menu_create(app);
-        cl_widget_t *sub = cl_menu_create(app);
+        cl_widget_t *root = cl_menu_create(app, &(cl_menu_desc_t){ CL_MENU_DESC_INIT_FIELDS });
+        cl_widget_t *sub = cl_menu_create(app, &(cl_menu_desc_t){ CL_MENU_DESC_INIT_FIELDS });
         cl_rect_t sr;
 
         cl_menu_add_item(sub, "Sub A", on_item, (void *)(intptr_t)7);
@@ -275,7 +275,7 @@ int main(void)
     {
         cl_widget_t *bar = cl_menubar_create(
             app, &(cl_menubar_desc_t){ CL_MENUBAR_DESC_INIT_FIELDS });
-        cl_widget_t *filemenu = cl_menu_create(app);
+        cl_widget_t *filemenu = cl_menu_create(app, &(cl_menu_desc_t){ CL_MENU_DESC_INIT_FIELDS });
         cl_rect_t br;
 
         cl_menu_add_item(filemenu, "Quit", on_item, (void *)(intptr_t)9);

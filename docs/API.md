@@ -651,7 +651,7 @@ const char  *cl_combobox_selected_text(cl_widget_t *combo);            /* тек
 void         cl_combobox_set_on_change(cl_widget_t *combo, cl_selection_fn fn, void *user);
 
 /* Menu (popup-меню; собрать, затем cl_window_open_popup, который берёт владение) */
-cl_widget_t *cl_menu_create(cl_application_t *app);
+cl_widget_t *cl_menu_create(cl_application_t *app, const cl_menu_desc_t *desc);
 cl_result_t  cl_menu_add_item(cl_widget_t *menu, const char *text, cl_action_fn fn, void *user);
 size_t       cl_menu_count(cl_widget_t *menu);
 ```

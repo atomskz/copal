@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "widget/widget_internal.h"
+#include "core/foundation/foundation_internal.h"
 #include "widget/widget_host.h"
 #include "theme/theme_internal.h"
 
@@ -300,11 +301,15 @@ static void menu_destroy(cl_widget_t *w)
     cl_free(a, m->items);
 }
 
-cl_widget_t *cl_menu_create(cl_application_t *app)
+cl_widget_t *cl_menu_create(cl_application_t *app,
+                            const cl_menu_desc_t *desc)
 {
-    cl_widget_t *w = cl_widget_alloc(app, &cl_menu_class);
+    cl_widget_t *w;
     cl_menu_t *m;
 
+    if (!CL_DESC_ABI_OK(desc, cl_menu_desc_t))
+        return NULL;
+    w = cl_widget_alloc(app, &cl_menu_class);
     if (!w)
         return NULL;
     m = CL_WIDGET_CAST(cl_menu, w);
@@ -364,6 +369,47 @@ cl_result_t cl_menu_add_submenu(cl_widget_t *menu, const char *text,
     m->items[m->count - 1].submenu = submenu;
     sub->is_submenu = true;
     return CL_OK;
+}
+
+const char *cl_menu_item_text(cl_widget_t *menu, size_t index)
+{
+    cl_menu_t *m = CL_WIDGET_CAST(cl_menu, menu);
+
+    if (!m || index >= m->count) {
+        cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
+        return NULL;
+    }
+    return m->items[index].text;
+}
+
+cl_result_t cl_menu_remove(cl_widget_t *menu, size_t index)
+{
+    cl_menu_t *m = CL_WIDGET_CAST(cl_menu, menu);
+    const cl_allocator_t *a;
+    size_t i;
+
+    if (!m || index >= m->count || cl_widget_window(menu))
+        return CL_ERROR_INVALID_ARGUMENT; /* incl. mutation while open */
+    a = cl_application_allocator(menu->app);
+    cl_free(a, m->items[index].text);
+    cl_widget_destroy(m->items[index].submenu); /* NULL ok */
+    for (i = index; i + 1 < m->count; i++)
+        m->items[i] = m->items[i + 1];
+    m->count--;
+    if (m->hovered >= 0 && (size_t)m->hovered >= m->count)
+        m->hovered = -1;
+    cl_widget_invalidate_layout(menu);
+    return CL_OK;
+}
+
+void cl_menu_clear(cl_widget_t *menu)
+{
+    cl_menu_t *m = CL_WIDGET_CAST(cl_menu, menu);
+
+    if (!m || cl_widget_window(menu))
+        return; /* not while open */
+    while (m->count > 0)
+        cl_menu_remove(menu, m->count - 1);
 }
 
 size_t cl_menu_count(cl_widget_t *menu)

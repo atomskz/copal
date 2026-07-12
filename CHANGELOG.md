@@ -39,7 +39,15 @@
 - `cl_key_t` расширен: цифровой ряд `CL_KEY_0..9`, `CL_KEY_F1..F12`,
   `CL_KEY_PAGE_UP`/`CL_KEY_PAGE_DOWN` (замаплены в SDL-бэкенде).
 
+- API-симметрия: `cl_combobox_item_text/remove/clear`,
+  `cl_menu_item_text/remove/clear`, геттеры
+  `cl_widget_preferred_size/margin/align_h/align_v/flex/is_focusable`.
+
 ### Изменено
+
+- `cl_menu_create` принимает `cl_menu_desc_t` (последний виджет без desc);
+  существующие вызовы обновляются добавлением
+  `&(cl_menu_desc_t){ CL_MENU_DESC_INIT_FIELDS }`.
 
 - `cl_widget_destroy`: поддерево отсоединяется немедленно, но память
   присоединённых виджетов освобождается в конце текущей итерации цикла

@@ -55,12 +55,18 @@ CL_API cl_cursor_t cl_widget_cursor(cl_widget_t *w);
  *   (the CL_ALIGN_AUTO default defers to the container); the main-axis
  *   component is ignored by boxes. */
 CL_API void cl_widget_set_preferred_size(cl_widget_t *w, cl_size_t s);
+CL_API cl_size_t cl_widget_preferred_size(cl_widget_t *w);
 CL_API void cl_widget_set_margin(cl_widget_t *w, cl_insets_t m);
+CL_API cl_insets_t cl_widget_margin(cl_widget_t *w);
 CL_API void cl_widget_set_align(cl_widget_t *w, cl_align_t h, cl_align_t v);
+CL_API cl_align_t cl_widget_align_h(cl_widget_t *w);
+CL_API cl_align_t cl_widget_align_v(cl_widget_t *w);
 CL_API void cl_widget_set_flex(cl_widget_t *w, float weight);
+CL_API float cl_widget_flex(cl_widget_t *w);
 
 /* Focus. */
 CL_API void cl_widget_set_focusable(cl_widget_t *w, bool focusable);
+CL_API bool cl_widget_is_focusable(cl_widget_t *w);
 CL_API bool cl_widget_focus(cl_widget_t *w);
 CL_API bool cl_widget_has_focus(cl_widget_t *w);
 

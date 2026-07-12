@@ -215,6 +215,35 @@ int main(void)
         cl_application_destroy(app3);
     }
 
+    /* item_text / remove / clear keep indices and selection consistent */
+    {
+        cl_application_desc_t ad2 = { CL_APPLICATION_DESC_INIT_FIELDS };
+        cl_application_t *app2;
+        cl_widget_t *cb;
+
+        ad2.platform = cl_platform_mock_create(cl_allocator_default());
+        ad2.renderer = cl_renderer_mock_create(cl_allocator_default());
+        app2 = cl_application_create(&ad2);
+        cb = cl_combobox_create(
+            app2, &(cl_combobox_desc_t){ CL_COMBOBOX_DESC_INIT_FIELDS });
+        cl_combobox_add_item(cb, "one");
+        cl_combobox_add_item(cb, "two");
+        cl_combobox_add_item(cb, "three");
+        CHECK(strcmp(cl_combobox_item_text(cb, 2), "three") == 0);
+        CHECK(cl_combobox_item_text(cb, 3) == NULL);
+
+        cl_combobox_set_selected(cb, 2);
+        CHECK(cl_combobox_remove(cb, 0) == CL_OK);
+        CHECK(cl_combobox_selected(cb) == 1); /* shifted */
+        CHECK(strcmp(cl_combobox_selected_text(cb), "three") == 0);
+        CHECK(cl_combobox_remove(cb, 1) == CL_OK); /* removes selection */
+        CHECK(cl_combobox_selected(cb) == -1);
+        cl_combobox_clear(cb);
+        CHECK(cl_combobox_count(cb) == 0);
+        cl_widget_destroy(cb);
+        cl_application_destroy(app2);
+    }
+
     if (failures == 0)
         printf("all combobox tests passed\n");
     return failures == 0 ? 0 : 1;

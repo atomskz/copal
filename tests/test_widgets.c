@@ -293,8 +293,53 @@ static void test_progressbar(void)
     cl_application_destroy(app);
 }
 
+/* menu item_text/remove/clear and the symmetric widget getters. */
+static void test_api_symmetry(void)
+{
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_application_t *app;
+    cl_widget_t *menu;
+    cl_widget_t *sub;
+    cl_widget_t *box;
+
+    ad.platform = cl_platform_mock_create(cl_allocator_default());
+    ad.renderer = cl_renderer_mock_create(cl_allocator_default());
+    app = cl_application_create(&ad);
+
+    menu = cl_menu_create(app, &(cl_menu_desc_t){ CL_MENU_DESC_INIT_FIELDS });
+    sub = cl_menu_create(app, &(cl_menu_desc_t){ CL_MENU_DESC_INIT_FIELDS });
+    cl_menu_add_item(menu, "cut", NULL, NULL);
+    cl_menu_add_submenu(menu, "more", sub);
+    CHECK(cl_menu_count(menu) == 2);
+    CHECK(strcmp(cl_menu_item_text(menu, 1), "more") == 0);
+    CHECK(cl_menu_item_text(menu, 2) == NULL);
+    CHECK(cl_menu_remove(menu, 1) == CL_OK); /* destroys the submenu */
+    CHECK(cl_menu_count(menu) == 1);
+    cl_menu_clear(menu);
+    CHECK(cl_menu_count(menu) == 0);
+    cl_widget_destroy(menu);
+
+    box = cl_vbox_create(app, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS });
+    cl_widget_set_flex(box, 2.5f);
+    CHECK(cl_widget_flex(box) == 2.5f);
+    cl_widget_set_margin(box, (cl_insets_t){ 1, 2, 3, 4 });
+    CHECK(cl_widget_margin(box).top == 2.0f);
+    cl_widget_set_preferred_size(box, (cl_size_t){ 50, 60 });
+    CHECK(cl_widget_preferred_size(box).h == 60.0f);
+    cl_widget_set_align(box, CL_ALIGN_CENTER, CL_ALIGN_END);
+    CHECK(cl_widget_align_h(box) == CL_ALIGN_CENTER);
+    CHECK(cl_widget_align_v(box) == CL_ALIGN_END);
+    CHECK(!cl_widget_is_focusable(box));
+    cl_widget_set_focusable(box, true);
+    CHECK(cl_widget_is_focusable(box));
+    cl_widget_destroy(box);
+
+    cl_application_destroy(app);
+}
+
 int main(void)
 {
+    test_api_symmetry();
     test_imageview();
     test_list();
     test_progressbar();

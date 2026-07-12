@@ -40,6 +40,17 @@ CL_API cl_result_t cl_combobox_add_item(cl_widget_t *combo, const char *text);
 /** cl_combobox_count() - number of items. */
 CL_API size_t cl_combobox_count(cl_widget_t *combo);
 
+/** cl_combobox_item_text() - item text (borrowed; valid until the combobox
+ *  changes), or NULL for a bad index. */
+CL_API const char *cl_combobox_item_text(cl_widget_t *combo, size_t index);
+
+/** cl_combobox_remove() - remove item `index` (selection is adjusted;
+ *  on_change does NOT fire). */
+CL_API cl_result_t cl_combobox_remove(cl_widget_t *combo, size_t index);
+
+/** cl_combobox_clear() - remove every item and clear the selection. */
+CL_API void cl_combobox_clear(cl_widget_t *combo);
+
 /** cl_combobox_set_selected() - select by index (-1 = none). Does NOT fire
  *  on_change. */
 CL_API void cl_combobox_set_selected(cl_widget_t *combo, int index);

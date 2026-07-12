@@ -102,7 +102,7 @@ static void open_dropdown(cl_widget_t *w)
 
     if (!h || cb->count == 0)
         return;
-    menu = cl_menu_create(w->app);
+    menu = cl_menu_create(w->app, &(cl_menu_desc_t){ CL_MENU_DESC_INIT_FIELDS });
     if (!menu)
         return;
     cl_widget_set_userdata(menu, w); /* combo back-reference for the callback */
@@ -274,6 +274,54 @@ cl_result_t cl_combobox_add_item(cl_widget_t *combo, const char *text)
     cb->count++;
     cl_widget_invalidate_layout(combo);
     return CL_OK;
+}
+
+const char *cl_combobox_item_text(cl_widget_t *combo, size_t index)
+{
+    cl_combobox_t *cb = CL_WIDGET_CAST(cl_combobox, combo);
+
+    if (!cb || index >= cb->count) {
+        cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
+        return NULL;
+    }
+    return cb->items[index];
+}
+
+cl_result_t cl_combobox_remove(cl_widget_t *combo, size_t index)
+{
+    cl_combobox_t *cb = CL_WIDGET_CAST(cl_combobox, combo);
+    size_t i;
+
+    if (!cb || index >= cb->count)
+        return CL_ERROR_INVALID_ARGUMENT;
+    cl_free(cl_application_allocator(combo->app), cb->items[index]);
+    for (i = index; i + 1 < cb->count; i++)
+        cb->items[i] = cb->items[i + 1];
+    cb->count--;
+    if (cb->selected >= 0) {
+        if ((size_t)cb->selected == index)
+            cb->selected = -1; /* the selected item is gone */
+        else if ((size_t)cb->selected > index)
+            cb->selected--; /* shifted up */
+    }
+    cl_widget_invalidate_layout(combo);
+    return CL_OK;
+}
+
+void cl_combobox_clear(cl_widget_t *combo)
+{
+    cl_combobox_t *cb = CL_WIDGET_CAST(cl_combobox, combo);
+    const cl_allocator_t *a;
+    size_t i;
+
+    if (!cb)
+        return;
+    a = cl_application_allocator(combo->app);
+    for (i = 0; i < cb->count; i++)
+        cl_free(a, cb->items[i]);
+    cb->count = 0;
+    cb->selected = -1;
+    cl_widget_invalidate_layout(combo);
 }
 
 size_t cl_combobox_count(cl_widget_t *combo)
