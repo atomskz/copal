@@ -7,8 +7,8 @@
 function(copal_add_test name)
     cmake_parse_arguments(ARG "SKIP77" "" "" ${ARGN})
     add_executable(test_${name} test_${name}.c)
-    target_link_libraries(test_${name} PRIVATE copal::copal)
-    target_include_directories(test_${name} PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    # copal::mocks carries copal::copal and the internal src/ include path.
+    target_link_libraries(test_${name} PRIVATE copal::mocks)
     copal_set_warnings(test_${name})
     if(COPAL_ENABLE_SANITIZERS)
         copal_enable_sanitizers(test_${name})

@@ -39,9 +39,10 @@ else()
     set(COPAL_LIB_TYPE STATIC)
 endif()
 
-# Core sources: foundation + widget/layout/event/theme/text + mock backends.
-# The SDL2 platform and OpenGL renderer backends are added when their options
-# are enabled (they require SDL2/OpenGL).
+# Core sources: foundation + widget/layout/event/theme/text. The SDL2 platform
+# and OpenGL renderer backends are added when their options are enabled (they
+# require SDL2/OpenGL); the mock backends live in the separate copal_mocks
+# test-support library below.
 set(COPAL_SOURCES
     src/core/foundation/version.c
     src/core/foundation/error.c
@@ -52,9 +53,7 @@ set(COPAL_SOURCES
     src/text/stb_impl.c
     src/theme/theme.c
     src/render/paint_context.c
-    src/render/mock/renderer_mock.c
     src/render/soft/renderer_soft.c
-    src/platform/mock/platform_mock.c
     src/widget/widget.c
     src/layout/vbox.c
     src/layout/hbox.c
@@ -165,6 +164,28 @@ if(COPAL_ENABLE_SANITIZERS)
 endif()
 if(COPAL_ENABLE_COVERAGE)
     copal_enable_coverage(copal)
+endif()
+
+# ---------------------------------------------------------------------------
+# Mock backends (test support)
+# ---------------------------------------------------------------------------
+# A headless platform/renderer pair for white-box tests. A separate static
+# library so the mocks never end up in the installed artifact.
+if(COPAL_BUILD_TESTS)
+    add_library(copal_mocks STATIC
+        src/render/mock/renderer_mock.c
+        src/platform/mock/platform_mock.c)
+    add_library(copal::mocks ALIAS copal_mocks)
+    target_link_libraries(copal_mocks PUBLIC copal::copal)
+    target_include_directories(copal_mocks
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    copal_set_warnings(copal_mocks)
+    if(COPAL_ENABLE_SANITIZERS)
+        copal_enable_sanitizers(copal_mocks)
+    endif()
+    if(COPAL_ENABLE_COVERAGE)
+        copal_enable_coverage(copal_mocks)
+    endif()
 endif()
 
 # ---------------------------------------------------------------------------
