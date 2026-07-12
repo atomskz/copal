@@ -588,7 +588,7 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
         }
         if (!g)
             continue; /* unrasterizable: skip it, keep drawing the string */
-        if (g->w > 0 && g->h > 0 && nv <= MAX_TEXT_GLYPHS * 24 - 24) {
+        if (g->w > 0 && g->h > 0) {
             /* Bitmap geometry is device px; the projection is logical. */
             float inv = 1.0f / (r->scale > 0.0f ? r->scale : 1.0f);
             float x0 = penx + (float)g->xoff * inv;
@@ -601,6 +601,12 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
                 x1, y1, g->u1, g->v1, x0, y1, g->u0, g->v1,
             };
 
+            if (nv > MAX_TEXT_GLYPHS * 24 - 24) {
+                /* Batch full: draw it and keep going (strings longer than
+                 * the buffer used to be silently truncated here). */
+                flush_text(r, verts, nv, c);
+                nv = 0;
+            }
             memcpy(&verts[nv], quad, sizeof(quad));
             nv += 24;
         }
