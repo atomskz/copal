@@ -118,7 +118,8 @@ cl_result_t cl_widget_add_child(cl_widget_t *parent, cl_widget_t *child)
 {
     cl_widget_t *anc;
 
-    if (!parent || !child || child->parent)
+    if (!parent || !child || child->parent ||
+        ((parent->flags | child->flags) & CL_WF_DEAD))
         return CL_ERROR_INVALID_ARGUMENT;
     /* Reject self-adoption and adopting an ancestor: a cycle would recurse
      * forever in cl_widget_set_window (and every later tree walk). */
@@ -168,7 +169,7 @@ cl_result_t cl_widget_remove_child(cl_widget_t *parent, cl_widget_t *child)
     return CL_OK;
 }
 
-static void widget_destroy_subtree(cl_widget_t *w)
+void cl_widget_free_subtree(cl_widget_t *w)
 {
     cl_widget_t *c = w->first_child;
     const cl_allocator_t *a;
@@ -176,14 +177,9 @@ static void widget_destroy_subtree(cl_widget_t *w)
     while (c) {
         cl_widget_t *next = c->next_sibling;
 
-        widget_destroy_subtree(c);
+        cl_widget_free_subtree(c);
         c = next;
     }
-    if (w->window) {
-        /* silent sweep: a dying widget must not get callbacks */
-        cl_widget_host(w)->ops->widget_gone(cl_widget_host(w), w);
-    }
-
     a = cl_application_allocator(w->app);
     if (w->cls->vtable && w->cls->vtable->destroy)
         w->cls->vtable->destroy(w);
@@ -191,13 +187,41 @@ static void widget_destroy_subtree(cl_widget_t *w)
     cl_free(a, w);
 }
 
+/* Mark the subtree dead: sweep the host's weak references silently (a dying
+ * widget must not get callbacks), detach from the window and flag DEAD so
+ * hit-testing, events and re-attachment all refuse the node. */
+static void widget_mark_dead(cl_widget_t *w)
+{
+    cl_widget_t *c;
+
+    for (c = w->first_child; c; c = c->next_sibling)
+        widget_mark_dead(c);
+    if (w->window)
+        cl_widget_host(w)->ops->widget_gone(cl_widget_host(w), w);
+    w->window = NULL;
+    w->flags |= CL_WF_DEAD;
+}
+
 void cl_widget_destroy(cl_widget_t *w)
 {
-    if (!w)
-        return;
+    cl_widget_host_t *host;
+
+    if (!w || (w->flags & CL_WF_DEAD))
+        return; /* already queued */
+    host = cl_widget_host(w); /* before detach clears the window back-ref */
     if (w->parent)
-        cl_widget_remove_child(w->parent, w);
-    widget_destroy_subtree(w);
+        cl_widget_remove_child(w->parent, w); /* fires focus_lost via detach */
+    widget_mark_dead(w);
+    /*
+     * Attached widgets are freed at the end of the current loop iteration
+     * (the host's deferred queue), so handles stay valid while an event or
+     * timer callback unwinds - destroying ANY widget from a callback is
+     * safe. A detached tree cannot be referenced by the loop; free it now.
+     */
+    if (host)
+        host->ops->defer_destroy(host, w);
+    else
+        cl_widget_free_subtree(w);
 }
 
 cl_widget_t *cl_widget_parent(cl_widget_t *w)

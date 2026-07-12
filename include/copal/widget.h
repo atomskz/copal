@@ -21,13 +21,14 @@ CL_API cl_result_t cl_widget_add_child(cl_widget_t *parent, cl_widget_t *child);
 CL_API cl_result_t cl_widget_remove_child(cl_widget_t *parent,
                                           cl_widget_t *child);
 /**
- * cl_widget_destroy() - destroy a widget and its whole subtree immediately.
+ * cl_widget_destroy() - destroy a widget and its whole subtree.
  *
- * Destruction is NOT deferred, not even during event dispatch. Destroying a
- * widget from one of its own callbacks is safe only when the handler returns
- * true afterwards (so the event stops bubbling through the freed chain);
- * otherwise defer the destruction with cl_application_post(). Built-in
- * widgets invoke user callbacks as their last action.
+ * The subtree is detached at once (removed from the tree, invisible to
+ * hit-testing and events, every weak reference in the window dropped), but
+ * for widgets attached to a window the memory is freed only at the end of
+ * the current event-loop iteration. Destroying ANY widget from ANY callback
+ * is therefore safe; a second destroy of the same widget is a no-op. A tree
+ * that was never attached to a window is freed immediately.
  */
 CL_API void cl_widget_destroy(cl_widget_t *w);
 CL_API cl_widget_t *cl_widget_parent(cl_widget_t *w);

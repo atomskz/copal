@@ -84,6 +84,11 @@ static void host_set_ime_rect(cl_widget_host_t *h, cl_rect_t rect)
     cl_app_set_ime_rect(host_win(h)->app, rect);
 }
 
+static void host_defer_destroy(cl_widget_host_t *h, cl_widget_t *w)
+{
+    cl_app_defer_widget_free(host_win(h)->app, w);
+}
+
 static const cl_widget_host_ops_t window_host_ops = {
     .mark_dirty = host_mark_dirty,
     .mark_layout_dirty = host_mark_layout_dirty,
@@ -95,6 +100,7 @@ static const cl_widget_host_ops_t window_host_ops = {
     .clipboard_get = host_clipboard_get,
     .clipboard_set = host_clipboard_set,
     .set_ime_rect = host_set_ime_rect,
+    .defer_destroy = host_defer_destroy,
 };
 
 cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *desc)

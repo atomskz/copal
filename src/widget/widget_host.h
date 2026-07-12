@@ -50,6 +50,14 @@ typedef struct cl_widget_host_ops {
 
     /* Position the IME candidate window near the caret (logical px). */
     void (*set_ime_rect)(cl_widget_host_t *h, cl_rect_t rect);
+
+    /*
+     * Take ownership of a detached, CL_WF_DEAD-marked subtree and free it
+     * (cl_widget_free_subtree) after the current loop iteration - the
+     * deferred-destruction queue. Handles into the subtree stay valid until
+     * then, so destroying widgets from any event callback is safe.
+     */
+    void (*defer_destroy)(cl_widget_host_t *h, cl_widget_t *w);
 } cl_widget_host_ops_t;
 
 struct cl_widget_host {

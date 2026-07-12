@@ -191,6 +191,92 @@ static void test_disabled(void)
     cl_application_destroy(app);
 }
 
+/* ---- destroying widgets from callbacks (deferred destruction) ------------- */
+
+static void kill_widget(cl_widget_t *w, void *user)
+{
+    (void)w;
+    cl_widget_destroy((cl_widget_t *)user);
+    cl_widget_destroy((cl_widget_t *)user); /* double destroy: no-op */
+}
+
+static void kill_self(cl_widget_t *w, void *user)
+{
+    (void)user;
+    cl_widget_destroy(w);
+}
+
+static void click_at(cl_platform_t *plat, cl_point_t pos)
+{
+    cl_platform_event_t pe = { 0 };
+
+    pe.kind = CL_PEV_MOUSE_DOWN;
+    pe.pos = pos;
+    pe.button = CL_MOUSE_LEFT;
+    cl_platform_mock_push(plat, pe);
+    pe.kind = CL_PEV_MOUSE_UP;
+    cl_platform_mock_push(plat, pe);
+}
+
+static void test_destroy_from_callback(void)
+{
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .width = 200, .height = 200 };
+    cl_vbox_desc_t vd = { CL_VBOX_DESC_INIT_FIELDS,
+                          .align_cross = CL_ALIGN_STRETCH };
+    cl_button_desc_t bd = { CL_BUTTON_DESC_INIT_FIELDS, .text = "x" };
+    cl_platform_t *plat = cl_platform_mock_create(cl_allocator_default());
+    cl_application_t *app;
+    cl_window_t *win;
+    cl_widget_t *box;
+    cl_widget_t *killer;
+    cl_widget_t *victim;
+    cl_rect_t kr;
+
+    ad.platform = plat;
+    ad.renderer = cl_renderer_mock_create(cl_allocator_default());
+    app = cl_application_create(&ad);
+    win = cl_window_create(app, &wd);
+    box = cl_vbox_create(app, &vd);
+    killer = cl_button_create(app, &bd);
+    victim = cl_button_create(app, &bd);
+    cl_widget_set_flex(killer, 1.0f);
+    cl_widget_set_flex(victim, 1.0f);
+    cl_widget_add_child(box, killer);
+    cl_widget_add_child(box, victim);
+    cl_window_set_content(win, box);
+    cl_application_step(app, false);
+
+    /* destroying a SIBLING mid-dispatch: freed only after the iteration */
+    cl_button_set_on_click(killer, kill_widget, victim);
+    kr = cl_widget_rect(killer);
+    click_at(plat, (cl_point_t){ kr.x + kr.w * 0.5f, kr.y + kr.h * 0.5f });
+    cl_application_step(app, false);
+    CHECK(cl_widget_parent(killer) == box);
+    /* the victim is gone from the tree */
+    CHECK(cl_widget_parent(killer) != NULL);
+
+    /* destroying SELF from the click callback */
+    cl_application_step(app, false);
+    cl_button_set_on_click(killer, kill_self, NULL);
+    kr = cl_widget_rect(killer);
+    click_at(plat, (cl_point_t){ kr.x + kr.w * 0.5f, kr.y + kr.h * 0.5f });
+    cl_application_step(app, false); /* no crash under ASan; reaped */
+
+    /* a dead widget cannot be re-adopted */
+    {
+        cl_widget_t *loner = cl_button_create(app, &bd);
+
+        cl_widget_add_child(box, loner);
+        cl_widget_destroy(loner);
+        CHECK(cl_widget_add_child(box, loner) == CL_ERROR_INVALID_ARGUMENT);
+        cl_application_step(app, false); /* reap */
+    }
+
+    cl_application_destroy(app);
+}
+
 /* ---- hover highlights the button ------------------------------------------ */
 
 static bool same_color(cl_color_t a, cl_color_t b)
@@ -441,6 +527,7 @@ int main(void)
     test_window_lifecycle();
     test_disabled();
     test_button_hover();
+    test_destroy_from_callback();
     test_log_callback();
     test_custom_widget();
 

@@ -24,7 +24,14 @@ enum cl_widget_flags {
     CL_WF_VISIBLE = 1u << 0,
     CL_WF_ENABLED = 1u << 1,
     CL_WF_FOCUSABLE = 1u << 2,
-    /* bits 3-4 reserved (were DIRTY/DEAD; never implemented) */
+    /* bit 3 reserved (was DIRTY; never implemented) */
+    /*
+     * Internal: set by cl_widget_destroy while the subtree awaits the
+     * deferred free at the end of the loop iteration. Never set or clear it;
+     * a DEAD widget is detached, invisible to hit-testing and events, and
+     * must not be re-attached.
+     */
+    CL_WF_DEAD = 1u << 4,
     CL_WF_CLIP = 1u << 5 /* clip children to this widget's rect while painting */
 };
 

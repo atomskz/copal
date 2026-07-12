@@ -27,6 +27,7 @@ struct cl_application {
     cl_mutex_t *task_mutex; /* guards the cross-thread task queue */
     cl_task_t *task_head;   /* FIFO of posted tasks (guarded) */
     cl_task_t *task_tail;
+    cl_widget_t *dead; /* deferred-destruction chain (via next_sibling) */
     bool quit;
     int exit_code;
     /* CL_RENDER_AUTO with built-in GL backends: a failed GL window may be
@@ -41,6 +42,11 @@ void cl_app_run_tasks(cl_application_t *app);
 /* Replace the built-in GL platform/renderer pair with the software pair
  * (one shot; only when soft_fallback_ok). Returns true when swapped. */
 bool cl_app_software_fallback(cl_application_t *app);
+
+/* Deferred widget destruction: queue a DEAD subtree root; free the whole
+ * queue (application.c, driven once per loop iteration and at shutdown). */
+void cl_app_defer_widget_free(cl_application_t *app, cl_widget_t *w);
+void cl_app_reap_dead(cl_application_t *app);
 
 /* Timer subsystem (src/app/timer.c), driven by the application loop. */
 int cl_app_timers_timeout(cl_application_t *app);  /* ms to next, or -1 */

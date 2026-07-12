@@ -6,6 +6,7 @@
 
 #include "app/app_internal.h"
 #include "theme/theme_internal.h"
+#include "widget/widget_internal.h"
 #include "core/foundation/foundation_internal.h"
 
 #if defined(CL_ENABLE_SDL)
@@ -177,6 +178,7 @@ void cl_application_destroy(cl_application_t *app)
      * dwell) via the live timer list before that list is torn down. */
     if (app->window)
         cl_window_destroy(app->window);
+    cl_app_reap_dead(app); /* free anything still on the deferred queue */
     cl_app_timers_free_all(app);
     /* Drop any tasks posted but never drained (they are not run at teardown). */
     if (app->task_mutex) {
@@ -275,12 +277,33 @@ int cl_application_run(cl_application_t *app)
         cl_app_timers_poll(app);
         if (app->window)
             cl_window_reap_overlay(app->window);
+        cl_app_reap_dead(app); /* free widgets destroyed this iteration */
         if (app->quit)
             break;
         if (app->window && app->window->dirty)
             cl_window_render(app->window);
     }
     return app->exit_code;
+}
+
+void cl_app_defer_widget_free(cl_application_t *app, cl_widget_t *w)
+{
+    /* LIFO; order does not matter, the subtrees are disjoint and detached */
+    w->next_sibling = app->dead;
+    app->dead = w;
+}
+
+void cl_app_reap_dead(cl_application_t *app)
+{
+    /* Freeing may enqueue more (a widget destroy callback destroying another
+     * detached tree), so drain until empty. */
+    while (app->dead) {
+        cl_widget_t *w = app->dead;
+
+        app->dead = w->next_sibling;
+        w->next_sibling = NULL;
+        cl_widget_free_subtree(w);
+    }
 }
 
 bool cl_application_step(cl_application_t *app, bool wait)
@@ -299,6 +322,7 @@ bool cl_application_step(cl_application_t *app, bool wait)
     cl_app_timers_poll(app);
     if (app->window)
         cl_window_reap_overlay(app->window);
+    cl_app_reap_dead(app); /* free widgets destroyed during this iteration */
     if (app->window && app->window->dirty)
         cl_window_render(app->window);
     return !app->quit;
