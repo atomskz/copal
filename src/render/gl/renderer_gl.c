@@ -12,7 +12,8 @@
 #define ATLAS_W 512
 #define ATLAS_H 512
 #define MAX_GLYPHS 512
-#define MAX_TEXT_GLYPHS 256
+#define GLYPH_HASH_SIZE 1024 /* 2x slots, power of two */
+#define MAX_TEXT_GLYPHS 256  /* quads per batch; draw_text flushes and refills */
 #define CL_GL_CLIP_STACK 16
 
 typedef struct glyph {
@@ -42,6 +43,8 @@ typedef struct gl_renderer {
     int pen_x, pen_y, row_h;
     glyph_t glyphs[MAX_GLYPHS];
     int glyph_count;
+    uint16_t glyph_hash[GLYPH_HASH_SIZE]; /* index + 1 into glyphs; 0 = empty */
+    bool cache_full; /* set by get_glyph: flush + gl_cache_reset, then retry */
     float proj[16];
     cl_size_t vp;   /* logical viewport size */
     float scale;    /* logical -> framebuffer pixel scale */
@@ -247,39 +250,64 @@ static void gl_init(gl_renderer_t *r)
     r->ok = true;
 }
 
-static glyph_t *get_glyph(gl_renderer_t *r, cl_font_t *font, uint32_t cp)
+static unsigned glyph_hash_of(const cl_font_t *font, uint32_t cp)
+{
+    uintptr_t f = (uintptr_t)font;
+    uint32_t h = (uint32_t)(f ^ (f >> 9));
+
+    h = h * 2654435761u ^ cp * 2246822519u;
+    return h & (GLYPH_HASH_SIZE - 1u);
+}
+
+/* Start the glyph cache and the atlas over. The texture is not cleared:
+ * every glyph samples only the rect it just uploaded. Callers must flush any
+ * pending text batch first - its quads still reference the old texels. */
+static void gl_cache_reset(gl_renderer_t *r)
+{
+    r->glyph_count = 0;
+    r->pen_x = 0;
+    r->pen_y = 0;
+    r->row_h = 0;
+    r->cache_full = false;
+    memset(r->glyph_hash, 0, sizeof(r->glyph_hash));
+}
+
+/*
+ * Cached glyph lookup/rasterization. Returns NULL with r->cache_full set when
+ * the glyph table or the atlas is out of space: the caller flushes pending
+ * geometry, calls gl_cache_reset() and retries with force=true, which caches
+ * an oversized bitmap as blank instead of failing again.
+ */
+static glyph_t *get_glyph(gl_renderer_t *r, cl_font_t *font, uint32_t cp,
+                          bool force)
 {
     struct gl_api *gl = &r->gl;
     const stbtt_fontinfo *info = cl_font_info(font);
     float scale = cl_font_pixel_scale(font);
     unsigned char *bmp;
     glyph_t *g;
+    unsigned slot;
     int w = 0;
     int h = 0;
     int xoff = 0;
     int yoff = 0;
     int adv = 0;
     int lsb = 0;
-    int i;
 
-    for (i = 0; i < r->glyph_count; i++) {
-        if (r->glyphs[i].font == font && r->glyphs[i].cp == cp)
-            return &r->glyphs[i];
+    for (slot = glyph_hash_of(font, cp); r->glyph_hash[slot];
+         slot = (slot + 1) & (GLYPH_HASH_SIZE - 1u)) {
+        g = &r->glyphs[r->glyph_hash[slot] - 1];
+        if (g->font == font && g->cp == cp)
+            return g;
     }
-    if (r->glyph_count >= MAX_GLYPHS)
+    if (r->glyph_count >= MAX_GLYPHS) {
+        r->cache_full = true;
         return NULL;
+    }
 
     bmp = stbtt_GetCodepointBitmap(info, 0, scale, (int)cp, &w, &h, &xoff,
                                    &yoff);
     stbtt_GetCodepointHMetrics(info, (int)cp, &adv, &lsb);
-
-    g = &r->glyphs[r->glyph_count++];
-    memset(g, 0, sizeof(*g));
-    g->font = font;
-    g->cp = cp;
-    g->advance = (float)adv * scale;
-    g->xoff = xoff;
-    g->yoff = yoff;
 
     if (bmp && w > 0 && h > 0) {
         if (r->pen_x + w + 1 > ATLAS_W) {
@@ -287,20 +315,36 @@ static glyph_t *get_glyph(gl_renderer_t *r, cl_font_t *font, uint32_t cp)
             r->pen_y += r->row_h + 1;
             r->row_h = 0;
         }
-        if (r->pen_y + h + 1 <= ATLAS_H) {
-            gl->BindTexture(GL_TEXTURE_2D, r->atlas);
-            gl->TexSubImage2D(GL_TEXTURE_2D, 0, r->pen_x, r->pen_y, w, h,
-                              GL_RED, GL_UNSIGNED_BYTE, bmp);
-            g->w = w;
-            g->h = h;
-            g->u0 = (float)r->pen_x / ATLAS_W;
-            g->v0 = (float)r->pen_y / ATLAS_H;
-            g->u1 = (float)(r->pen_x + w) / ATLAS_W;
-            g->v1 = (float)(r->pen_y + h) / ATLAS_H;
-            r->pen_x += w + 1;
-            if (h > r->row_h)
-                r->row_h = h;
+        if (r->pen_y + h + 1 > ATLAS_H && !force) {
+            /* Atlas full: ask the caller to flush + reset and retry. */
+            stbtt_FreeBitmap(bmp, NULL);
+            r->cache_full = true;
+            return NULL;
         }
+    }
+
+    g = &r->glyphs[r->glyph_count++];
+    r->glyph_hash[slot] = (uint16_t)r->glyph_count; /* index + 1 */
+    memset(g, 0, sizeof(*g));
+    g->font = font;
+    g->cp = cp;
+    g->advance = (float)adv * scale;
+    g->xoff = xoff;
+    g->yoff = yoff;
+
+    if (bmp && w > 0 && h > 0 && r->pen_y + h + 1 <= ATLAS_H) {
+        gl->BindTexture(GL_TEXTURE_2D, r->atlas);
+        gl->TexSubImage2D(GL_TEXTURE_2D, 0, r->pen_x, r->pen_y, w, h,
+                          GL_RED, GL_UNSIGNED_BYTE, bmp);
+        g->w = w;
+        g->h = h;
+        g->u0 = (float)r->pen_x / ATLAS_W;
+        g->v0 = (float)r->pen_y / ATLAS_H;
+        g->u1 = (float)(r->pen_x + w) / ATLAS_W;
+        g->v1 = (float)(r->pen_y + h) / ATLAS_H;
+        r->pen_x += w + 1;
+        if (h > r->row_h)
+            r->row_h = h;
     }
     if (bmp)
         stbtt_FreeBitmap(bmp, NULL);
@@ -484,6 +528,25 @@ static void gl_stroke_round_rect(cl_renderer_t *rr, cl_rect_t rc, float radius,
     draw_rect((gl_renderer_t *)rr, rc, radius, c, width);
 }
 
+/* Draw nv floats of accumulated text quads (draw_text's batch). */
+static void flush_text(gl_renderer_t *r, const float *verts, int nv,
+                       cl_color_t c)
+{
+    if (nv == 0)
+        return;
+    if (r->cur_prog != r->text_prog) {
+        r->gl.UseProgram(r->text_prog);
+        r->cur_prog = r->text_prog;
+    }
+    r->gl.Uniform4f(r->t_color, (float)c.r / 255.0f, (float)c.g / 255.0f,
+                    (float)c.b / 255.0f, (float)c.a / 255.0f);
+    r->gl.BindVertexArray(r->text_vao);
+    r->gl.BindBuffer(GL_ARRAY_BUFFER, r->text_vbo);
+    r->gl.BufferSubData(GL_ARRAY_BUFFER, 0, nv * (GLsizeiptr)sizeof(float),
+                        verts);
+    r->gl.DrawArrays(GL_TRIANGLES, 0, nv / 4);
+}
+
 static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
                          cl_point_t pos, cl_color_t c)
 {
@@ -501,11 +564,20 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
     baseline = pos.y + cl_font_ascent_px(font);
 
     while ((n = cl_utf8_next(utf8 + i, &cp)) != 0) {
-        glyph_t *g = get_glyph(r, font, cp);
+        glyph_t *g = get_glyph(r, font, cp, false);
 
         i += n;
+        if (!g && r->cache_full) {
+            /* Out of cache/atlas space. Draw what we have first: the reset
+             * lets new uploads overwrite texels the pending quads still
+             * reference. Then start over and retry this glyph. */
+            flush_text(r, verts, nv, c);
+            nv = 0;
+            gl_cache_reset(r);
+            g = get_glyph(r, font, cp, true);
+        }
         if (!g)
-            break;
+            continue; /* unrasterizable: skip it, keep drawing the string */
         if (g->w > 0 && g->h > 0 && nv <= MAX_TEXT_GLYPHS * 24 - 24) {
             float x0 = penx + (float)g->xoff;
             float y0 = baseline + (float)g->yoff;
@@ -522,20 +594,7 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
         }
         penx += g->advance;
     }
-    if (nv == 0)
-        return;
-
-    if (r->cur_prog != r->text_prog) {
-        r->gl.UseProgram(r->text_prog);
-        r->cur_prog = r->text_prog;
-    }
-    r->gl.Uniform4f(r->t_color, (float)c.r / 255.0f, (float)c.g / 255.0f,
-                    (float)c.b / 255.0f, (float)c.a / 255.0f);
-    r->gl.BindVertexArray(r->text_vao);
-    r->gl.BindBuffer(GL_ARRAY_BUFFER, r->text_vbo);
-    r->gl.BufferSubData(GL_ARRAY_BUFFER, 0, nv * (GLsizeiptr)sizeof(float),
-                        verts);
-    r->gl.DrawArrays(GL_TRIANGLES, 0, nv / 4);
+    flush_text(r, verts, nv, c);
 }
 
 static void gl_destroy(cl_renderer_t *rr)

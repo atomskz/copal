@@ -9,6 +9,7 @@
 #include <string.h>
 
 #define SOFT_MAX_GLYPHS 512
+#define SOFT_GLYPH_HASH 1024 /* 2x slots, power of two */
 #define SOFT_CLIP_STACK 16
 
 typedef struct soft_glyph {
@@ -34,6 +35,7 @@ typedef struct soft_renderer {
     cl_rect_t clip_stack[SOFT_CLIP_STACK]; /* physical px, already intersected */
     soft_glyph_t glyphs[SOFT_MAX_GLYPHS];
     int glyph_count;
+    uint16_t glyph_hash[SOFT_GLYPH_HASH]; /* index + 1 into glyphs; 0 = empty */
 } soft_renderer_t;
 
 /* ---- small math helpers -------------------------------------------------- */
@@ -305,6 +307,28 @@ static void soft_stroke_round_rect(cl_renderer_t *rr, cl_rect_t rect,
 
 /* ---- text ---------------------------------------------------------------- */
 
+static unsigned glyph_hash_of(const cl_font_t *font, uint32_t cp)
+{
+    uintptr_t f = (uintptr_t)font;
+    uint32_t h = (uint32_t)(f ^ (f >> 9));
+
+    h = h * 2654435761u ^ cp * 2246822519u;
+    return h & (SOFT_GLYPH_HASH - 1u);
+}
+
+/* Free every cached coverage bitmap and start over. Called when the cache
+ * fills up: the visible glyph set re-rasterizes within a frame, which beats
+ * silently never drawing new glyphs again. */
+static void soft_cache_reset(soft_renderer_t *r)
+{
+    int i;
+
+    for (i = 0; i < r->glyph_count; i++)
+        cl_free(r->a, r->glyphs[i].cov);
+    r->glyph_count = 0;
+    memset(r->glyph_hash, 0, sizeof(r->glyph_hash));
+}
+
 static soft_glyph_t *soft_get_glyph(soft_renderer_t *r, cl_font_t *font,
                                     uint32_t cp)
 {
@@ -312,18 +336,25 @@ static soft_glyph_t *soft_get_glyph(soft_renderer_t *r, cl_font_t *font,
     float scale = cl_font_pixel_scale(font);
     unsigned char *bmp;
     soft_glyph_t *g;
-    int w = 0, h = 0, xoff = 0, yoff = 0, adv = 0, lsb = 0, i;
+    unsigned slot;
+    int w = 0, h = 0, xoff = 0, yoff = 0, adv = 0, lsb = 0;
 
-    for (i = 0; i < r->glyph_count; i++)
-        if (r->glyphs[i].font == font && r->glyphs[i].cp == cp)
-            return &r->glyphs[i];
-    if (r->glyph_count >= SOFT_MAX_GLYPHS)
-        return NULL;
+    for (slot = glyph_hash_of(font, cp); r->glyph_hash[slot];
+         slot = (slot + 1) & (SOFT_GLYPH_HASH - 1u)) {
+        g = &r->glyphs[r->glyph_hash[slot] - 1];
+        if (g->font == font && g->cp == cp)
+            return g;
+    }
+    if (r->glyph_count >= SOFT_MAX_GLYPHS) {
+        soft_cache_reset(r);
+        slot = glyph_hash_of(font, cp); /* table is empty: first probe wins */
+    }
 
     bmp = stbtt_GetCodepointBitmap(info, 0, scale, (int)cp, &w, &h, &xoff,
                                    &yoff);
     stbtt_GetCodepointHMetrics(info, (int)cp, &adv, &lsb);
     g = &r->glyphs[r->glyph_count++];
+    r->glyph_hash[slot] = (uint16_t)r->glyph_count; /* index + 1 */
     memset(g, 0, sizeof(*g));
     g->font = font;
     g->cp = cp;
@@ -362,7 +393,7 @@ static void soft_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
 
         i += n;
         if (!g)
-            break;
+            continue; /* unrasterizable: skip it, keep drawing the string */
         if (g->cov) {
             float gx = penx + (float)g->xoff; /* logical top-left of bitmap */
             float gy = baseline + (float)g->yoff;
@@ -429,10 +460,8 @@ static void soft_pop_clip(cl_renderer_t *rr)
 static void soft_destroy(cl_renderer_t *rr)
 {
     soft_renderer_t *r = (soft_renderer_t *)rr;
-    int i;
 
-    for (i = 0; i < r->glyph_count; i++)
-        cl_free(r->a, r->glyphs[i].cov);
+    soft_cache_reset(r);
     cl_free(r->a, r);
 }
 
