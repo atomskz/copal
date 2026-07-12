@@ -92,9 +92,9 @@ static cl_widget_t *build_root(cl_application_t *app, calc_t *calc)
     return root;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
-    cl_application_desc_t ad = CL_APPLICATION_DESC_INIT; /* NULL -> SDL + GL */
+    cl_application_desc_t ad = CL_APPLICATION_DESC_INIT;
     cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
     calc_t calc = { 0 }; /* engine is reset below; display set during build */
     cl_application_t *app;
@@ -102,6 +102,7 @@ int main(void)
     cl_window_t *win;
     int rc;
 
+    ad.render_backend = example_backend(argc, argv); /* --software / --gl */
     app = cl_application_create(&ad);
     if (!app) {
         fprintf(stderr, "cannot create application: %s\n",

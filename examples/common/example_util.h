@@ -17,6 +17,13 @@
 cl_font_t *example_load_font(cl_application_t *app, float size_px);
 
 /*
+ * example_backend() - pick a render backend from the command line:
+ * "--software" -> CL_RENDER_SOFTWARE, "--gl" -> CL_RENDER_GL. Defaults to
+ * CL_RENDER_AUTO (which also honours the COPAL_RENDER environment variable).
+ */
+cl_render_backend_t example_backend(int argc, char **argv);
+
+/*
  * example_run() - run the application to completion and return its exit code.
  * If COPAL_MAX_FRAMES=N is set, renders N frames then returns 0 (used for
  * headless smoke tests); otherwise runs the normal blocking event loop.

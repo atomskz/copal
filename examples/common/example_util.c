@@ -3,6 +3,20 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+cl_render_backend_t example_backend(int argc, char **argv)
+{
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--software") == 0)
+            return CL_RENDER_SOFTWARE;
+        if (strcmp(argv[i], "--gl") == 0)
+            return CL_RENDER_GL;
+    }
+    return CL_RENDER_AUTO;
+}
 
 /*
  * When built with AddressSanitizer, LeakSanitizer also flags process-lifetime
