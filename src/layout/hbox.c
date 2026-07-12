@@ -129,9 +129,12 @@ static void hbox_arrange(cl_widget_t *w, cl_rect_t rect)
 
 cl_widget_t *cl_hbox_create(cl_application_t *app, const cl_hbox_desc_t *desc)
 {
-    cl_widget_t *w = cl_widget_alloc(app, &cl_hbox_class);
+    cl_widget_t *w;
     cl_hbox_t *self;
 
+    if (!CL_DESC_ABI_OK(desc, cl_hbox_desc_t))
+        return NULL;
+    w = cl_widget_alloc(app, &cl_hbox_class);
     if (!w)
         return NULL;
     self = CL_WIDGET_CAST(cl_hbox, w);

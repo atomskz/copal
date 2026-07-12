@@ -222,9 +222,12 @@ static void apply_range(cl_slider_t *s, float min, float max, float step)
 
 cl_widget_t *cl_slider_create(cl_application_t *app, const cl_slider_desc_t *desc)
 {
-    cl_widget_t *w = cl_widget_alloc(app, &cl_slider_class);
+    cl_widget_t *w;
     cl_slider_t *s;
 
+    if (!CL_DESC_ABI_OK(desc, cl_slider_desc_t))
+        return NULL;
+    w = cl_widget_alloc(app, &cl_slider_class);
     if (!w)
         return NULL;
     s = CL_WIDGET_CAST(cl_slider, w);

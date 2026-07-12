@@ -543,11 +543,8 @@ cl_widget_t *cl_scrollview_create(cl_application_t *app,
     cl_widget_t *w;
     cl_scrollview_t *sv;
 
-    if (desc && (desc->struct_size != sizeof(cl_scrollview_desc_t) ||
-                 desc->abi_version != CL_VERSION)) {
-        cl_set_last_error(CL_ERROR_ABI_MISMATCH);
+    if (!CL_DESC_ABI_OK(desc, cl_scrollview_desc_t))
         return NULL;
-    }
     w = cl_widget_alloc(app, &cl_scrollview_class);
     if (!w)
         return NULL;

@@ -2,13 +2,24 @@
 #include <copal/widget.h>
 #include <copal/widget_impl.h>
 #include <copal/application.h>
+#include <copal/version.h>
 
 #include <string.h>
 
+#include "core/foundation/foundation_internal.h"
 #include "widget/widget_internal.h"
 #include "app/app_internal.h"
 
 /* ---- construction / RTTI ------------------------------------------------ */
+
+bool cl_desc_abi_check(uint32_t abi_version, size_t struct_size,
+                       size_t expected)
+{
+    if (abi_version == CL_VERSION && struct_size == expected)
+        return true;
+    cl_set_last_error(CL_ERROR_ABI_MISMATCH);
+    return false;
+}
 
 void cl_widget_init_base(cl_widget_t *w, cl_application_t *app,
                          const cl_widget_class_t *cls)

@@ -174,9 +174,12 @@ static void radio_destroy(cl_widget_t *w)
 cl_widget_t *cl_radiobutton_create(cl_application_t *app,
                                    const cl_radiobutton_desc_t *desc)
 {
-    cl_widget_t *w = cl_widget_alloc(app, &cl_radiobutton_class);
+    cl_widget_t *w;
     cl_radiobutton_t *self;
 
+    if (!CL_DESC_ABI_OK(desc, cl_radiobutton_desc_t))
+        return NULL;
+    w = cl_widget_alloc(app, &cl_radiobutton_class);
     if (!w)
         return NULL;
     self = CL_WIDGET_CAST(cl_radiobutton, w);

@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "app/app_internal.h"
+#include "widget/widget_internal.h"
 #include "core/foundation/foundation_internal.h"
 
 #define TB_PAD_X 6.0f
@@ -1474,9 +1475,12 @@ static void set_text_internal(cl_textbox_t *tb, const char *utf8)
 cl_widget_t *cl_textbox_create(cl_application_t *app,
                                const cl_textbox_desc_t *desc)
 {
-    cl_widget_t *w = cl_widget_alloc(app, &cl_textbox_class);
+    cl_widget_t *w;
     cl_textbox_t *tb;
 
+    if (!CL_DESC_ABI_OK(desc, cl_textbox_desc_t))
+        return NULL;
+    w = cl_widget_alloc(app, &cl_textbox_class);
     if (!w)
         return NULL;
     tb = CL_WIDGET_CAST(cl_textbox, w);

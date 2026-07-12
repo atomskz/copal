@@ -239,9 +239,12 @@ static void combo_destroy(cl_widget_t *w)
 cl_widget_t *cl_combobox_create(cl_application_t *app,
                                 const cl_combobox_desc_t *desc)
 {
-    cl_widget_t *w = cl_widget_alloc(app, &cl_combobox_class);
+    cl_widget_t *w;
     cl_combobox_t *cb;
 
+    if (!CL_DESC_ABI_OK(desc, cl_combobox_desc_t))
+        return NULL;
+    w = cl_widget_alloc(app, &cl_combobox_class);
     if (!w)
         return NULL;
     cb = CL_WIDGET_CAST(cl_combobox, w);
