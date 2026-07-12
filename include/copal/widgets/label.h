@@ -24,7 +24,7 @@ typedef struct cl_label_desc {
 } cl_label_desc_t;
 
 #define CL_LABEL_DESC_INIT_FIELDS \
-    .abi_version = CL_VERSION, .struct_size = sizeof(cl_label_desc_t)
+    .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_label_desc_t)
 
 CL_API cl_widget_t *cl_label_create(cl_application_t *app,
                                     const cl_label_desc_t *desc);

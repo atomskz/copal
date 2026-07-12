@@ -51,7 +51,7 @@ typedef struct cl_application_desc {
 } cl_application_desc_t;
 
 #define CL_APPLICATION_DESC_INIT \
-    { .abi_version = CL_VERSION, .struct_size = sizeof(cl_application_desc_t) }
+    { .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_application_desc_t) }
 
 CL_API cl_application_t *cl_application_create(const cl_application_desc_t *desc);
 CL_API void cl_application_destroy(cl_application_t *app);

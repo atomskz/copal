@@ -43,7 +43,7 @@ typedef struct cl_scrollview_desc {
 } cl_scrollview_desc_t;
 
 #define CL_SCROLLVIEW_DESC_INIT_FIELDS \
-    .abi_version = CL_VERSION, .struct_size = sizeof(cl_scrollview_desc_t)
+    .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_scrollview_desc_t)
 
 CL_API cl_widget_t *cl_scrollview_create(cl_application_t *app,
                                          const cl_scrollview_desc_t *desc);

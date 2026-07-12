@@ -6,12 +6,12 @@
 
 uint32_t cl_version_runtime(void)
 {
-    return CL_VERSION;
+    return COPAL_VERSION;
 }
 
 const char *cl_version_string(void)
 {
-    return CL_STRINGIZE(CL_VERSION_MAJOR) "."
-           CL_STRINGIZE(CL_VERSION_MINOR) "."
-           CL_STRINGIZE(CL_VERSION_PATCH);
+    return CL_STRINGIZE(COPAL_VERSION_MAJOR) "."
+           CL_STRINGIZE(COPAL_VERSION_MINOR) "."
+           CL_STRINGIZE(COPAL_VERSION_PATCH);
 }

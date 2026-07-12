@@ -29,7 +29,7 @@ typedef struct cl_checkbox_desc {
 } cl_checkbox_desc_t;
 
 #define CL_CHECKBOX_DESC_INIT_FIELDS \
-    .abi_version = CL_VERSION, .struct_size = sizeof(cl_checkbox_desc_t)
+    .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_checkbox_desc_t)
 
 CL_API cl_widget_t *cl_checkbox_create(cl_application_t *app,
                                        const cl_checkbox_desc_t *desc);

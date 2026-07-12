@@ -31,7 +31,7 @@ typedef struct cl_window_desc {
 } cl_window_desc_t;
 
 #define CL_WINDOW_DESC_INIT \
-    { .abi_version = CL_VERSION, .struct_size = sizeof(cl_window_desc_t) }
+    { .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_window_desc_t) }
 
 /* MVP allows a single window; a second returns NULL + CL_ERROR_UNSUPPORTED. */
 CL_API cl_window_t *cl_window_create(cl_application_t *app,

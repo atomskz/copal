@@ -20,7 +20,7 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
     if (!app)
         return NULL;
     if (!desc || desc->struct_size != sizeof(cl_window_desc_t) ||
-        desc->abi_version != CL_VERSION) {
+        desc->abi_version != COPAL_VERSION) {
         cl_set_last_error(CL_ERROR_ABI_MISMATCH);
         return NULL;
     }

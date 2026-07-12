@@ -29,7 +29,7 @@ typedef struct cl_combobox_desc {
 } cl_combobox_desc_t;
 
 #define CL_COMBOBOX_DESC_INIT_FIELDS \
-    .abi_version = CL_VERSION, .struct_size = sizeof(cl_combobox_desc_t)
+    .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_combobox_desc_t)
 
 CL_API cl_widget_t *cl_combobox_create(cl_application_t *app,
                                        const cl_combobox_desc_t *desc);

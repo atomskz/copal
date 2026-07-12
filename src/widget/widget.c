@@ -15,7 +15,7 @@
 bool cl_desc_abi_check(uint32_t abi_version, size_t struct_size,
                        size_t expected)
 {
-    if (abi_version == CL_VERSION && struct_size == expected)
+    if (abi_version == COPAL_VERSION && struct_size == expected)
         return true;
     cl_set_last_error(CL_ERROR_ABI_MISMATCH);
     return false;
