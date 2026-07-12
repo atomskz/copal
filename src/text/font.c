@@ -12,6 +12,8 @@
 #include "core/foundation/foundation_internal.h"
 #include "text/font_internal.h"
 
+#define ADV_CACHE_SIZE 512
+
 struct cl_font {
     const cl_allocator_t *a;
     cl_application_t *app; /* weak: reaches the renderer for glyph eviction */
@@ -22,8 +24,20 @@ struct cl_font {
     float ascent;
     float descent;
     float line_gap;
-    float adv_cache[256]; /* pixel advance per Latin-1 codepoint; -1 = uncached */
+    /* Pixel advance per cached codepoint; -1 = uncached (see adv_slot). */
+    float adv_cache[ADV_CACHE_SIZE];
 };
+
+/* Cache slot for a codepoint: Latin-1 (0..255) and Cyrillic U+0400..U+04FF
+ * (256..511) - the ranges this project's UIs measure constantly. -1 = none. */
+static int adv_slot(uint32_t cp)
+{
+    if (cp < 256)
+        return (int)cp;
+    if (cp >= 0x400 && cp < 0x500)
+        return (int)(cp - 0x400 + 256);
+    return -1;
+}
 
 static cl_font_t *font_from_data(cl_application_t *app,
                                  const cl_allocator_t *a, unsigned char *data,
@@ -72,7 +86,7 @@ static cl_font_t *font_from_data(cl_application_t *app,
     f->ascent = (float)asc * f->scale;
     f->descent = (float)(-desc) * f->scale;
     f->line_gap = (float)gap * f->scale;
-    for (i = 0; i < 256; i++)
+    for (i = 0; i < ADV_CACHE_SIZE; i++)
         f->adv_cache[i] = -1.0f;
     return f;
 }
@@ -80,18 +94,20 @@ static cl_font_t *font_from_data(cl_application_t *app,
 /*
  * Pixel advance of a codepoint. stbtt_GetCodepointHMetrics does a cmap lookup +
  * hmtx read on every call, and text is measured repeatedly (measure() and
- * paint(), plus multiline wrap probes), so memoize the common Latin-1 range.
+ * paint(), plus multiline wrap probes), so memoize the Latin-1 and Cyrillic
+ * ranges (adv_slot).
  */
 static float advance_px(cl_font_t *f, uint32_t cp)
 {
+    int slot = adv_slot(cp);
     int advance;
     int lsb;
 
-    if (cp < 256 && f->adv_cache[cp] >= 0.0f)
-        return f->adv_cache[cp];
+    if (slot >= 0 && f->adv_cache[slot] >= 0.0f)
+        return f->adv_cache[slot];
     stbtt_GetCodepointHMetrics(&f->info, (int)cp, &advance, &lsb);
-    if (cp < 256)
-        f->adv_cache[cp] = (float)advance * f->scale;
+    if (slot >= 0)
+        f->adv_cache[slot] = (float)advance * f->scale;
     return (float)advance * f->scale;
 }
 
