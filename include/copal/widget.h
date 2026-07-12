@@ -20,6 +20,15 @@ typedef struct cl_window cl_window_t;
 CL_API cl_result_t cl_widget_add_child(cl_widget_t *parent, cl_widget_t *child);
 CL_API cl_result_t cl_widget_remove_child(cl_widget_t *parent,
                                           cl_widget_t *child);
+/**
+ * cl_widget_destroy() - destroy a widget and its whole subtree immediately.
+ *
+ * Destruction is NOT deferred, not even during event dispatch. Destroying a
+ * widget from one of its own callbacks is safe only when the handler returns
+ * true afterwards (so the event stops bubbling through the freed chain);
+ * otherwise defer the destruction with cl_application_post(). Built-in
+ * widgets invoke user callbacks as their last action.
+ */
 CL_API void cl_widget_destroy(cl_widget_t *w);
 CL_API cl_widget_t *cl_widget_parent(cl_widget_t *w);
 CL_API cl_window_t *cl_widget_window(cl_widget_t *w);

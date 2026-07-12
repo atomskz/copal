@@ -1101,6 +1101,7 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
     cl_key_t key = ev->data.key.key;
     bool handled = true;
     bool force_notify = false;
+    bool submit = false;
     tb_edit_kind_t commit = TB_EDIT_NONE;
     size_t lo;
     size_t hi;
@@ -1232,7 +1233,7 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
                     commit = TB_EDIT_OTHER; /* a newline breaks the undo group */
                 }
             } else if (tb->on_submit) {
-                tb->on_submit(w, tb->buf, tb->on_submit_user);
+                submit = true; /* fired below, after the state updates */
             } else {
                 handled = false;
             }
@@ -1316,10 +1317,13 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
     if (commit != TB_EDIT_NONE && edit_commit(tb, commit))
         force_notify = true; /* a real (buffer-changing) edit */
     if (handled) {
-        if (force_notify)
-            notify_changed(tb);
         update_scroll(tb);
         cl_widget_invalidate(w);
+        /* Callbacks last: they may destroy the textbox. */
+        if (force_notify)
+            notify_changed(tb);
+        if (submit && tb->on_submit)
+            tb->on_submit(w, tb->buf, tb->on_submit_user);
     }
     return handled;
 }
@@ -1385,17 +1389,20 @@ static bool textbox_text_input(cl_widget_t *w, const cl_event_t *ev)
 {
     cl_textbox_t *tb = CL_WIDGET_CAST(cl_textbox, w);
     const char *s = ev->data.text.utf8;
+    bool changed;
 
     if (!s || !s[0] || tb->readonly)
         return true;
     tb_clear_preedit(tb); /* the composition is committed by this input */
     edit_begin(tb);
     insert_text(tb, s, strlen(s));
-    if (edit_commit(tb, TB_EDIT_TYPE)) /* fire only when bytes changed */
-        notify_changed(tb);
+    changed = edit_commit(tb, TB_EDIT_TYPE); /* true only when bytes changed */
     update_scroll(tb);
     tb_update_ime_rect(tb);
     cl_widget_invalidate(w);
+    /* Last: the callback may destroy the textbox. */
+    if (changed)
+        notify_changed(tb);
     return true;
 }
 

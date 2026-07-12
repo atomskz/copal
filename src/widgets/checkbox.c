@@ -64,9 +64,10 @@ static char *dup_str(const cl_allocator_t *a, const char *s)
 static void toggle(cl_checkbox_t *cb)
 {
     cb->checked = !cb->checked;
+    cl_widget_invalidate(&cb->base);
+    /* Last: the callback may destroy the checkbox. */
     if (cb->on_toggle)
         cb->on_toggle(&cb->base, cb->checked, cb->user);
-    cl_widget_invalidate(&cb->base);
 }
 
 static cl_size_t checkbox_measure(cl_widget_t *w, cl_constraints_t c)
