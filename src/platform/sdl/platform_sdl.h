@@ -9,4 +9,10 @@
 /* Create the SDL2 platform backend (initialises SDL video). NULL on failure. */
 cl_platform_t *cl_platform_sdl_create(const cl_allocator_t *a);
 
+/*
+ * Create the SDL2 platform backend for software rendering: a plain window
+ * (no OpenGL context) whose surface is drawn into on the CPU. NULL on failure.
+ */
+cl_platform_t *cl_platform_sdl_soft_create(const cl_allocator_t *a);
+
 #endif /* CL_PLATFORM_SDL_H */

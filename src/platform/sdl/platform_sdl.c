@@ -16,7 +16,8 @@ typedef struct sdl_platform {
     const cl_allocator_t *a;
     SDL_Window *window;
     SDL_GLContext glctx;
-    cl_size_t size; /* logical px */
+    SDL_Surface *surface; /* window surface locked for software drawing */
+    cl_size_t size;       /* logical px */
     float scale;
 } sdl_platform_t;
 
@@ -363,6 +364,126 @@ cl_platform_t *cl_platform_sdl_create(const cl_allocator_t *a)
     }
     memset(s, 0, sizeof(*s));
     s->base.ops = &sdl_ops;
+    s->a = a;
+    s->scale = 1.0f;
+    return &s->base;
+}
+
+/* ---- software backend (no OpenGL; draws into the window's surface) ------- */
+
+static cl_result_t sdl_create_window_soft(cl_platform_t *p,
+                                          const cl_window_desc_t *desc)
+{
+    sdl_platform_t *s = (sdl_platform_t *)p;
+    Uint32 flags = 0;
+    int w = desc->width > 0 ? desc->width : 640;
+    int h = desc->height > 0 ? desc->height : 480;
+
+    if (desc->resizable)
+        flags |= SDL_WINDOW_RESIZABLE;
+
+    s->window = SDL_CreateWindow(desc->title ? desc->title : "copal",
+                                 SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                 w, h, flags);
+    if (!s->window)
+        return CL_ERROR_PLATFORM;
+
+    /* The window surface is at logical size (no HighDPI in the MVP soft path). */
+    s->size.w = (float)w;
+    s->size.h = (float)h;
+    s->scale = 1.0f;
+    return CL_OK;
+}
+
+static void sdl_present_soft(cl_platform_t *p)
+{
+    sdl_platform_t *s = (sdl_platform_t *)p;
+
+    if (s->window)
+        SDL_UpdateWindowSurface(s->window);
+}
+
+static bool sdl_lock_framebuffer(cl_platform_t *p, cl_pixmap_t *out)
+{
+    sdl_platform_t *s = (sdl_platform_t *)p;
+    SDL_Surface *surf;
+
+    if (!s->window)
+        return false;
+    surf = SDL_GetWindowSurface(s->window); /* re-created on resize */
+    if (!surf || surf->format->BytesPerPixel != 4)
+        return false;
+    if (SDL_MUSTLOCK(surf) && SDL_LockSurface(surf) != 0)
+        return false;
+    s->surface = surf;
+    out->pixels = surf->pixels;
+    out->w = surf->w;
+    out->h = surf->h;
+    out->pitch = surf->pitch;
+    out->r_mask = surf->format->Rmask;
+    out->g_mask = surf->format->Gmask;
+    out->b_mask = surf->format->Bmask;
+    out->a_mask = surf->format->Amask;
+    return true;
+}
+
+static void sdl_unlock_framebuffer(cl_platform_t *p)
+{
+    sdl_platform_t *s = (sdl_platform_t *)p;
+
+    if (s->surface) {
+        if (SDL_MUSTLOCK(s->surface))
+            SDL_UnlockSurface(s->surface);
+        s->surface = NULL;
+    }
+}
+
+static void sdl_destroy_soft(cl_platform_t *p)
+{
+    sdl_platform_t *s = (sdl_platform_t *)p;
+
+    if (s->window)
+        SDL_DestroyWindow(s->window);
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
+    SDL_Quit();
+    cl_free(s->a, s);
+}
+
+static const cl_platform_ops_t sdl_ops_soft = {
+    .create_window = sdl_create_window_soft,
+    .set_title = sdl_set_title,
+    .drawable_size = sdl_drawable_size,
+    .scale = sdl_scale,
+    .poll = sdl_poll,
+    .wait = sdl_wait,
+    .present = sdl_present_soft,
+    .wakeup = sdl_wakeup,
+    .start_text_input = sdl_start_text_input,
+    .set_ime_rect = sdl_set_ime_rect,
+    .clipboard_get = sdl_clipboard_get,
+    .clipboard_set = sdl_clipboard_set,
+    .destroy = sdl_destroy_soft,
+    .gl_get_proc = NULL,
+    .now_ms = sdl_now_ms,
+    .lock_framebuffer = sdl_lock_framebuffer,
+    .unlock_framebuffer = sdl_unlock_framebuffer,
+};
+
+cl_platform_t *cl_platform_sdl_soft_create(const cl_allocator_t *a)
+{
+    sdl_platform_t *s;
+
+    SDL_SetMainReady();
+    if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0)
+        return NULL;
+
+    s = cl_alloc(a, sizeof(*s));
+    if (!s) {
+        SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        return NULL;
+    }
+    memset(s, 0, sizeof(*s));
+    s->base.ops = &sdl_ops_soft;
     s->a = a;
     s->scale = 1.0f;
     return &s->base;

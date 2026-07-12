@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <copal/application.h>
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "app/app_internal.h"
@@ -8,9 +9,11 @@
 #include "core/foundation/foundation_internal.h"
 
 #if defined(CL_ENABLE_SDL) && defined(CL_ENABLE_OPENGL)
-/* Built-in native backends (provided by the SDL/GL backend TUs). */
+/* Built-in native backends (provided by the SDL/GL/soft backend TUs). */
 cl_platform_t *cl_platform_sdl_create(const cl_allocator_t *a);
+cl_platform_t *cl_platform_sdl_soft_create(const cl_allocator_t *a);
 cl_renderer_t *cl_renderer_gl_create(const cl_allocator_t *a, cl_platform_t *p);
+cl_renderer_t *cl_renderer_soft_create(const cl_allocator_t *a, cl_platform_t *p);
 #endif
 
 struct cl_task {
@@ -42,10 +45,31 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
     app->log_user = desc->log_user;
 
 #if defined(CL_ENABLE_SDL) && defined(CL_ENABLE_OPENGL)
-    if (!app->platform)
-        app->platform = cl_platform_sdl_create(&app->alloc);
-    if (!app->renderer && app->platform)
-        app->renderer = cl_renderer_gl_create(&app->alloc, app->platform);
+    {
+        bool software = desc->render_backend == CL_RENDER_SOFTWARE;
+
+        /* AUTO defaults to GL but honours a COPAL_RENDER=software override, so
+         * software can be selected at runtime (e.g. over RDP or in CI). */
+        if (desc->render_backend == CL_RENDER_AUTO) {
+            const char *env = getenv("COPAL_RENDER");
+
+            if (env && strcmp(env, "software") == 0)
+                software = true;
+        }
+        if (software) {
+            if (!app->platform)
+                app->platform = cl_platform_sdl_soft_create(&app->alloc);
+            if (!app->renderer && app->platform)
+                app->renderer =
+                    cl_renderer_soft_create(&app->alloc, app->platform);
+        } else {
+            if (!app->platform)
+                app->platform = cl_platform_sdl_create(&app->alloc);
+            if (!app->renderer && app->platform)
+                app->renderer =
+                    cl_renderer_gl_create(&app->alloc, app->platform);
+        }
+    }
 #endif
 
     if (!app->platform || !app->renderer) {

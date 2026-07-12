@@ -40,6 +40,18 @@ typedef struct cl_platform_event {
     int edit_cursor;          /* CL_PEV_TEXT_EDIT: caret pos (codepoints) */
 } cl_platform_event_t;
 
+/*
+ * A lockable CPU framebuffer exposed by software platform backends. Pixels are
+ * 32-bit; `pitch` is bytes per row. The channel masks describe the byte layout
+ * so a software renderer can pack colours without knowing the native format.
+ */
+typedef struct cl_pixmap {
+    void *pixels;
+    int w, h;   /* framebuffer size in physical pixels */
+    int pitch;  /* bytes per row */
+    uint32_t r_mask, g_mask, b_mask, a_mask; /* a_mask == 0 -> opaque surface */
+} cl_pixmap_t;
+
 typedef struct cl_platform_ops {
     cl_result_t (*create_window)(cl_platform_t *p, const cl_window_desc_t *desc);
     void (*set_title)(cl_platform_t *p, const char *utf8);
@@ -69,6 +81,13 @@ typedef struct cl_platform_ops {
      * case timers are unavailable (cl_timer_create returns NULL).
      */
     uint64_t (*now_ms)(cl_platform_t *p);
+    /*
+     * Software backends only: lock the window's pixel buffer for CPU drawing
+     * (fills *out; returns false if unavailable) and unlock it; present() then
+     * blits it to the screen. NULL for GPU backends.
+     */
+    bool (*lock_framebuffer)(cl_platform_t *p, cl_pixmap_t *out);
+    void (*unlock_framebuffer)(cl_platform_t *p);
 } cl_platform_ops_t;
 
 /* Concrete backends embed this as their first member. */

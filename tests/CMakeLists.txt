@@ -120,3 +120,12 @@ if(COPAL_ENABLE_SANITIZERS)
 endif()
 add_test(NAME ime COMMAND test_ime)
 
+add_executable(test_soft test_soft.c)
+target_link_libraries(test_soft PRIVATE copal::copal)
+target_include_directories(test_soft PRIVATE ${CMAKE_SOURCE_DIR}/src)
+copal_set_warnings(test_soft)
+if(COPAL_ENABLE_SANITIZERS)
+    copal_enable_sanitizers(test_soft)
+endif()
+add_test(NAME soft COMMAND test_soft)
+

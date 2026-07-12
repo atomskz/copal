@@ -24,10 +24,22 @@ typedef struct cl_theme cl_theme_t;
 typedef void (*cl_task_fn)(void *user);
 
 /*
+ * Built-in rendering backend to use when platform/renderer are not injected.
+ * The software backend uses a CPU rasterizer and does NOT create an OpenGL
+ * context, so it starts faster and uses far less memory at the cost of GPU
+ * acceleration (see ARCHITECTURE).
+ */
+typedef enum cl_render_backend {
+    CL_RENDER_AUTO = 0, /* OpenGL if available, otherwise software */
+    CL_RENDER_GL,       /* OpenGL renderer */
+    CL_RENDER_SOFTWARE  /* CPU rasterizer, no GPU context */
+} cl_render_backend_t;
+
+/*
  * Application descriptor. The platform/renderer backends may be injected
- * (dependency injection, ARCHITECTURE §3.9). If NULL, the built-in SDL2 +
- * OpenGL backends are used when compiled in (COPAL_ENABLE_SDL/OPENGL);
- * otherwise cl_application_create() fails with CL_ERROR_UNSUPPORTED.
+ * (dependency injection, ARCHITECTURE §3.9). If NULL, a built-in SDL2 backend
+ * is used when compiled in (COPAL_ENABLE_SDL/OPENGL); otherwise
+ * cl_application_create() fails with CL_ERROR_UNSUPPORTED.
  */
 typedef struct cl_application_desc {
     uint32_t abi_version;
@@ -37,6 +49,7 @@ typedef struct cl_application_desc {
     void *log_user;
     cl_platform_t *platform; /* injected backend; ownership transfers to app */
     cl_renderer_t *renderer; /* injected backend; ownership transfers to app */
+    cl_render_backend_t render_backend; /* built-in backend choice (0 = AUTO) */
 } cl_application_desc_t;
 
 #define CL_APPLICATION_DESC_INIT \

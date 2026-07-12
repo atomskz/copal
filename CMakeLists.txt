@@ -52,6 +52,7 @@ set(COPAL_SOURCES
     src/theme/theme.c
     src/render/paint_context.c
     src/render/mock/renderer_mock.c
+    src/render/soft/renderer_soft.c
     src/platform/mock/platform_mock.c
     src/widget/widget.c
     src/layout/vbox.c
