@@ -282,4 +282,23 @@ if(COPAL_ENABLE_INSTALL)
         ${CMAKE_CURRENT_BINARY_DIR}/copalConfig.cmake
         ${CMAKE_CURRENT_BINARY_DIR}/copalConfigVersion.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/copal)
+
+    # pkg-config metadata for non-CMake consumers. The private entries matter
+    # for static linking: copal is a static library by default, so consumers
+    # must also pull its own dependencies.
+    set(COPAL_PC_REQUIRES_PRIVATE "")
+    if(COPAL_ENABLE_SDL)
+        set(COPAL_PC_REQUIRES_PRIVATE "sdl2")
+    endif()
+    set(COPAL_PC_LIBS_PRIVATE "")
+    if(NOT WIN32)
+        set(COPAL_PC_LIBS_PRIVATE "-lm -pthread")
+    endif()
+    if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
+        string(STRIP "${COPAL_PC_LIBS_PRIVATE} -lGL" COPAL_PC_LIBS_PRIVATE)
+    endif()
+    configure_file(cmake/copal.pc.in ${CMAKE_CURRENT_BINARY_DIR}/copal.pc
+        @ONLY)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/copal.pc
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
