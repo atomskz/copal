@@ -37,6 +37,7 @@ typedef struct gl_renderer {
     GLuint text_vao, text_vbo;
     GLint r_proj, r_rect, r_radius, r_color, r_border;
     GLint t_proj, t_color, t_atlas;
+    GLuint cur_prog; /* program bound this frame; avoids redundant UseProgram */
     GLuint atlas;
     int pen_x, pen_y, row_h;
     glyph_t glyphs[MAX_GLYPHS];
@@ -216,6 +217,10 @@ static void gl_init(gl_renderer_t *r)
     gl->BindVertexArray(r->text_vao);
     gl->GenBuffers(1, &r->text_vbo);
     gl->BindBuffer(GL_ARRAY_BUFFER, r->text_vbo);
+    /* Size the buffer once; gl_draw_text refills it with BufferSubData. */
+    gl->BufferData(GL_ARRAY_BUFFER,
+                   MAX_TEXT_GLYPHS * 24 * (GLsizeiptr)sizeof(float), NULL,
+                   GL_DYNAMIC_DRAW);
     gl->EnableVertexAttribArray(0);
     gl->VertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * (GLsizei)sizeof(float),
                             (void *)0);
@@ -333,6 +338,22 @@ static void gl_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
     r->gl.Clear(GL_COLOR_BUFFER_BIT);
     r->gl.Enable(GL_BLEND);
     r->gl.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    /*
+     * Per-frame invariant state, hoisted out of the per-primitive path: bind
+     * each program once and upload the projection (uniforms are per-program
+     * storage, so each program needs its own copy), and point the text sampler
+     * at the single atlas. draw_rect/gl_draw_text then only switch programs when
+     * the kind of primitive actually changes.
+     */
+    r->gl.UseProgram(r->rect_prog);
+    r->gl.UniformMatrix4fv(r->r_proj, 1, GL_FALSE, r->proj);
+    r->gl.UseProgram(r->text_prog);
+    r->gl.UniformMatrix4fv(r->t_proj, 1, GL_FALSE, r->proj);
+    r->gl.ActiveTexture(GL_TEXTURE0);
+    r->gl.BindTexture(GL_TEXTURE_2D, r->atlas);
+    r->gl.Uniform1i(r->t_atlas, 0);
+    r->cur_prog = r->text_prog;
 }
 
 static cl_rect_t rect_intersect(cl_rect_t a, cl_rect_t b)
@@ -430,8 +451,10 @@ static void draw_rect(gl_renderer_t *r, cl_rect_t rc, float radius,
 {
     if (!r->ok)
         return;
-    r->gl.UseProgram(r->rect_prog);
-    r->gl.UniformMatrix4fv(r->r_proj, 1, GL_FALSE, r->proj);
+    if (r->cur_prog != r->rect_prog) {
+        r->gl.UseProgram(r->rect_prog);
+        r->cur_prog = r->rect_prog;
+    }
     r->gl.Uniform4f(r->r_rect, rc.x, rc.y, rc.w, rc.h);
     r->gl.Uniform1f(r->r_radius, radius);
     r->gl.Uniform4f(r->r_color, (float)c.r / 255.0f, (float)c.g / 255.0f,
@@ -499,17 +522,16 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
     if (nv == 0)
         return;
 
-    r->gl.UseProgram(r->text_prog);
-    r->gl.UniformMatrix4fv(r->t_proj, 1, GL_FALSE, r->proj);
+    if (r->cur_prog != r->text_prog) {
+        r->gl.UseProgram(r->text_prog);
+        r->cur_prog = r->text_prog;
+    }
     r->gl.Uniform4f(r->t_color, (float)c.r / 255.0f, (float)c.g / 255.0f,
                     (float)c.b / 255.0f, (float)c.a / 255.0f);
-    r->gl.ActiveTexture(GL_TEXTURE0);
-    r->gl.BindTexture(GL_TEXTURE_2D, r->atlas);
-    r->gl.Uniform1i(r->t_atlas, 0);
     r->gl.BindVertexArray(r->text_vao);
     r->gl.BindBuffer(GL_ARRAY_BUFFER, r->text_vbo);
-    r->gl.BufferData(GL_ARRAY_BUFFER, nv * (GLsizeiptr)sizeof(float), verts,
-                     GL_DYNAMIC_DRAW);
+    r->gl.BufferSubData(GL_ARRAY_BUFFER, 0, nv * (GLsizeiptr)sizeof(float),
+                        verts);
     r->gl.DrawArrays(GL_TRIANGLES, 0, nv / 4);
 }
 

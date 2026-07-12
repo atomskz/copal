@@ -50,6 +50,7 @@
     X(PFNGLGENBUFFERSPROC, GenBuffers)              \
     X(PFNGLBINDBUFFERPROC, BindBuffer)              \
     X(PFNGLBUFFERDATAPROC, BufferData)              \
+    X(PFNGLBUFFERSUBDATAPROC, BufferSubData)        \
     X(PFNGLDELETEBUFFERSPROC, DeleteBuffers)        \
     X(PFNGLVERTEXATTRIBPOINTERPROC, VertexAttribPointer) \
     X(PFNGLENABLEVERTEXATTRIBARRAYPROC, EnableVertexAttribArray)

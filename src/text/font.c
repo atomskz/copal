@@ -19,6 +19,7 @@ struct cl_font {
     float ascent;
     float descent;
     float line_gap;
+    float adv_cache[256]; /* pixel advance per Latin-1 codepoint; -1 = uncached */
 };
 
 static cl_font_t *font_from_data(const cl_allocator_t *a, unsigned char *data,
@@ -28,6 +29,7 @@ static cl_font_t *font_from_data(const cl_allocator_t *a, unsigned char *data,
     int asc;
     int desc;
     int gap;
+    int i;
 
     f = cl_alloc(a, sizeof(*f));
     if (!f) {
@@ -51,7 +53,27 @@ static cl_font_t *font_from_data(const cl_allocator_t *a, unsigned char *data,
     f->ascent = (float)asc * f->scale;
     f->descent = (float)(-desc) * f->scale;
     f->line_gap = (float)gap * f->scale;
+    for (i = 0; i < 256; i++)
+        f->adv_cache[i] = -1.0f;
     return f;
+}
+
+/*
+ * Pixel advance of a codepoint. stbtt_GetCodepointHMetrics does a cmap lookup +
+ * hmtx read on every call, and text is measured repeatedly (measure() and
+ * paint(), plus multiline wrap probes), so memoize the common Latin-1 range.
+ */
+static float advance_px(cl_font_t *f, uint32_t cp)
+{
+    int advance;
+    int lsb;
+
+    if (cp < 256 && f->adv_cache[cp] >= 0.0f)
+        return f->adv_cache[cp];
+    stbtt_GetCodepointHMetrics(&f->info, (int)cp, &advance, &lsb);
+    if (cp < 256)
+        f->adv_cache[cp] = (float)advance * f->scale;
+    return (float)advance * f->scale;
 }
 
 cl_font_t *cl_font_load_memory(cl_application_t *app, const void *data,
@@ -150,12 +172,8 @@ cl_size_t cl_text_measure_bytes(cl_font_t *font, const char *utf8, size_t len,
         return size;
 
     while (i < len && (n = cl_utf8_next_n(utf8 + i, len - i, &cp)) != 0) {
-        int advance;
-        int lsb;
-
         i += n;
-        stbtt_GetCodepointHMetrics(&font->info, (int)cp, &advance, &lsb);
-        size.w += (float)advance * font->scale;
+        size.w += advance_px(font, cp);
     }
     return size;
 }
