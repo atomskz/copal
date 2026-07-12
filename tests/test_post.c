@@ -8,7 +8,6 @@
  */
 #include <copal/copal.h>
 
-#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -67,15 +66,51 @@ struct poster {
     int count;
 };
 
-static void *post_worker(void *arg)
+static void post_all(struct poster *p)
 {
-    struct poster *p = arg;
     int i;
 
     for (i = 0; i < p->count; i++)
         cl_application_post(p->app, inc_received, NULL);
+}
+
+/* Minimal portable thread spawn/join for the concurrency case. */
+#if defined(_WIN32)
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+typedef HANDLE test_thread_t;
+static DWORD WINAPI thread_main(LPVOID arg)
+{
+    post_all(arg);
+    return 0;
+}
+static int thread_spawn(test_thread_t *t, struct poster *p)
+{
+    *t = CreateThread(NULL, 0, thread_main, p, 0, NULL);
+    return *t ? 0 : -1;
+}
+static void thread_wait(test_thread_t t)
+{
+    WaitForSingleObject(t, INFINITE);
+    CloseHandle(t);
+}
+#else
+#  include <pthread.h>
+typedef pthread_t test_thread_t;
+static void *thread_main(void *arg)
+{
+    post_all(arg);
     return NULL;
 }
+static int thread_spawn(test_thread_t *t, struct poster *p)
+{
+    return pthread_create(t, NULL, thread_main, p);
+}
+static void thread_wait(test_thread_t t)
+{
+    pthread_join(t, NULL);
+}
+#endif
 
 static cl_application_t *make_app(cl_platform_t **plat_out)
 {
@@ -142,20 +177,20 @@ int main(void)
         cl_application_t *app3 = make_app(NULL);
         struct poster pa = { app3, 500 };
         struct poster pb = { app3, 500 };
-        pthread_t ta;
-        pthread_t tb;
+        test_thread_t ta;
+        test_thread_t tb;
         int spins = 0;
 
         received = 0;
-        CHECK(pthread_create(&ta, NULL, post_worker, &pa) == 0);
-        CHECK(pthread_create(&tb, NULL, post_worker, &pb) == 0);
+        CHECK(thread_spawn(&ta, &pa) == 0);
+        CHECK(thread_spawn(&tb, &pb) == 0);
         /* Drain until every posted task has run (bounded to avoid a hang). */
         while (received < 1000 && spins < 2000000) {
             cl_application_step(app3, false);
             spins++;
         }
-        pthread_join(ta, NULL);
-        pthread_join(tb, NULL);
+        thread_wait(ta);
+        thread_wait(tb);
         cl_application_step(app3, false); /* drain any stragglers */
         CHECK(received == 1000);
 

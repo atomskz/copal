@@ -85,11 +85,10 @@ target_include_directories(copal
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb)
 
-# stb_truetype is third-party: build its implementation TU without our warnings.
-if(MSVC)
-    set_source_files_properties(src/text/stb_impl.c PROPERTIES
-        COMPILE_FLAGS "/w")
-else()
+# stb_truetype is third-party. GCC/Clang: build its implementation TU with
+# warnings off. MSVC: stb_impl.c silences warnings with a pragma instead — a
+# per-file /w would override the target's /W4 and trigger warning D9025.
+if(NOT MSVC)
     set_source_files_properties(src/text/stb_impl.c PROPERTIES
         COMPILE_FLAGS "-w")
 endif()
@@ -145,10 +144,7 @@ elseif(COPAL_ENABLE_OPENGL)
 endif()
 
 target_compile_definitions(copal PRIVATE COPAL_BUILDING)
-if(MSVC)
-    # fopen/fread etc. are standard C; silence MSVC's non-standard C4996 nags.
-    target_compile_definitions(copal PRIVATE _CRT_SECURE_NO_WARNINGS)
-endif()
+# _CRT_SECURE_NO_WARNINGS (MSVC C4996) is applied by copal_set_warnings() below.
 if(COPAL_BUILD_SHARED)
     target_compile_definitions(copal PUBLIC COPAL_SHARED)
     set_target_properties(copal PROPERTIES
