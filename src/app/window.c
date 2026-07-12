@@ -406,15 +406,17 @@ void cl_window_render(cl_window_t *win)
 }
 
 void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
-                            cl_point_t pos, cl_mouse_button_t button)
+                            cl_point_t pos, cl_mouse_button_t button,
+                            cl_key_mods_t mods, int clicks)
 {
     cl_event_t ev;
     cl_widget_t *target;
 
     memset(&ev, 0, sizeof(ev));
-    ev.mods = CL_MOD_NONE;
+    ev.mods = mods;
     ev.data.mouse.pos = pos;
     ev.data.mouse.button = button;
+    ev.data.mouse.clicks = clicks;
 
     /*
      * An open popup captures pointer input; a press outside dismisses it. A
@@ -472,14 +474,14 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
 }
 
 void cl_window_handle_wheel(cl_window_t *win, cl_point_t pos, float dx,
-                            float dy)
+                            float dy, cl_key_mods_t mods)
 {
     cl_event_t ev;
     cl_widget_t *target;
 
     memset(&ev, 0, sizeof(ev));
     ev.type = CL_EVENT_MOUSE_WHEEL;
-    ev.mods = CL_MOD_NONE;
+    ev.mods = mods;
     ev.data.wheel.pos = pos;
     ev.data.wheel.dx = dx;
     ev.data.wheel.dy = dy;

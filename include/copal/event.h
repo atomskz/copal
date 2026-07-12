@@ -70,6 +70,7 @@ typedef struct cl_event {
         struct {
             cl_point_t pos;
             cl_mouse_button_t button;
+            int clicks; /* consecutive presses: 1 single, 2 double, ... */
         } mouse;
         struct {
             cl_point_t pos;

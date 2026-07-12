@@ -168,12 +168,15 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                 out->pos.x = (float)e.button.x;
                 out->pos.y = (float)e.button.y;
                 out->button = map_button(e.button.button);
+                out->clicks = e.button.clicks;
+                out->mods = map_mods(SDL_GetModState());
                 return true;
 
             case SDL_MOUSEMOTION:
                 out->kind = CL_PEV_MOUSE_MOVE;
                 out->pos.x = (float)e.motion.x;
                 out->pos.y = (float)e.motion.y;
+                out->mods = map_mods(SDL_GetModState());
                 return true;
 
             case SDL_MOUSEWHEEL: {
@@ -189,6 +192,7 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                 out->pos.y = (float)my;
                 out->wheel_x = (float)e.wheel.x * dir;
                 out->wheel_y = (float)e.wheel.y * dir;
+                out->mods = map_mods(SDL_GetModState());
                 return true;
             }
 

@@ -171,13 +171,13 @@ static void process_events(cl_application_t *app)
             case CL_PEV_MOUSE_MOVE:
                 if (app->window)
                     cl_window_handle_mouse(app->window, ev.kind, ev.pos,
-                                           ev.button);
+                                           ev.button, ev.mods, ev.clicks);
                 break;
 
             case CL_PEV_MOUSE_WHEEL:
                 if (app->window)
                     cl_window_handle_wheel(app->window, ev.pos, ev.wheel_x,
-                                           ev.wheel_y);
+                                           ev.wheel_y, ev.mods);
                 break;
 
             case CL_PEV_KEY_DOWN:

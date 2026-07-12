@@ -64,9 +64,10 @@ struct cl_window {
 /* Window internals (defined in window.c), driven by the application loop. */
 void cl_window_render(cl_window_t *win);
 void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
-                            cl_point_t pos, cl_mouse_button_t button);
+                            cl_point_t pos, cl_mouse_button_t button,
+                            cl_key_mods_t mods, int clicks);
 void cl_window_handle_wheel(cl_window_t *win, cl_point_t pos, float dx,
-                            float dy);
+                            float dy, cl_key_mods_t mods);
 void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
                           cl_key_t key, cl_key_mods_t mods);
 void cl_window_handle_text(cl_window_t *win, const char *utf8);

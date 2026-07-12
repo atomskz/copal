@@ -33,9 +33,10 @@ typedef struct cl_platform_event {
     cl_size_t size;           /* CL_PEV_RESIZE (logical px) */
     cl_point_t pos;           /* mouse events (logical px) */
     cl_mouse_button_t button; /* mouse button events */
+    int clicks;               /* mouse button events: consecutive presses */
     float wheel_x, wheel_y;   /* CL_PEV_MOUSE_WHEEL (lines; +y = up/away) */
     cl_key_t key;             /* key events */
-    cl_key_mods_t mods;       /* key events */
+    cl_key_mods_t mods;       /* key and mouse events */
     char text[32];            /* CL_PEV_TEXT_INPUT / _EDIT (NUL-term UTF-8) */
     int edit_cursor;          /* CL_PEV_TEXT_EDIT: caret pos (codepoints) */
 } cl_platform_event_t;
