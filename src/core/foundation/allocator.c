@@ -41,6 +41,11 @@ void *cl_alloc(const cl_allocator_t *a, size_t size)
 
     if (!a)
         a = &g_default_allocator;
+    /* malloc(0)/realloc(p, 0) are implementation-defined (and the latter is
+     * UB in C23); normalising to 1 keeps "NULL means out of memory" true and
+     * spares user allocators from having to handle a zero size. */
+    if (size == 0)
+        size = 1;
 
     p = a->alloc(a->userdata, size);
     if (!p)
@@ -55,9 +60,11 @@ void *cl_realloc(const cl_allocator_t *a, void *ptr, size_t size)
 
     if (!a)
         a = &g_default_allocator;
+    if (size == 0)
+        size = 1;
 
     p = a->realloc(a->userdata, ptr, size);
-    if (!p && size != 0)
+    if (!p)
         cl_set_last_error(CL_ERROR_OUT_OF_MEMORY);
 
     return p;

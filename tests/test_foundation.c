@@ -45,6 +45,14 @@ static void test_allocator(void)
     p = cl_realloc(NULL, p, 128);
     CHECK(p != NULL);
     cl_free(NULL, p);
+
+    /* size 0 is normalised to 1: NULL always means out of memory */
+    p = cl_alloc(NULL, 0);
+    CHECK(p != NULL);
+    p = cl_realloc(NULL, p, 0);
+    CHECK(p != NULL);
+    cl_free(NULL, p);
+    cl_free(NULL, NULL); /* NULL pointer is a no-op */
 }
 
 static void test_mutex(void)
