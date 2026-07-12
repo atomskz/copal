@@ -73,6 +73,11 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
         }
 #if defined(CL_ENABLE_OPENGL)
         else {
+            /* AUTO with both backends built in may retry a failed GL window
+             * in software (cl_app_software_fallback); an explicit GL request
+             * or injected backends must fail loudly instead. */
+            app->soft_fallback_ok = desc->render_backend == CL_RENDER_AUTO &&
+                                    !desc->platform && !desc->renderer;
             if (!app->platform)
                 app->platform = cl_platform_sdl_create(&app->alloc);
             /* Mirror the software guard: the GL renderer resolves its entry
@@ -109,6 +114,40 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
         return NULL;
     }
     return app;
+}
+
+bool cl_app_software_fallback(cl_application_t *app)
+{
+#if defined(CL_ENABLE_SDL)
+    cl_platform_t *plat;
+    cl_renderer_t *rend;
+
+    if (!app->soft_fallback_ok)
+        return false;
+    app->soft_fallback_ok = false; /* one shot */
+    plat = cl_platform_sdl_soft_create(&app->alloc);
+    if (!plat)
+        return false;
+    rend = cl_renderer_soft_create(&app->alloc, plat);
+    if (!rend) {
+        plat->ops->destroy(plat);
+        return false;
+    }
+    /* Swap out the GL pair (created by us: soft_fallback_ok excludes DI). */
+    if (app->renderer && app->renderer->ops->destroy)
+        app->renderer->ops->destroy(app->renderer);
+    if (app->platform && app->platform->ops->destroy)
+        app->platform->ops->destroy(app->platform);
+    app->platform = plat;
+    app->renderer = rend;
+    cl_log(CL_LOG_WARN,
+           "application: OpenGL window failed; falling back to the software "
+           "renderer");
+    return true;
+#else
+    (void)app;
+    return false;
+#endif
 }
 
 void cl_application_destroy(cl_application_t *app)

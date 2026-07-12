@@ -30,6 +30,10 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
     }
 
     r = app->platform->ops->create_window(app->platform, desc);
+    /* CL_RENDER_AUTO promises "OpenGL if available": when the GL window
+     * cannot be created (no driver, headless, RDP), retry in software. */
+    if (r != CL_OK && cl_app_software_fallback(app))
+        r = app->platform->ops->create_window(app->platform, desc);
     if (r != CL_OK) {
         cl_set_last_error(r);
         return NULL;

@@ -179,6 +179,7 @@ static void gl_init(gl_renderer_t *r)
     r->init = true;
     if (!cl_gl_load(gl, gl_get, r->platform)) {
         cl_log(CL_LOG_ERROR, "gl: failed to load GL functions");
+        cl_set_last_error(CL_ERROR_RENDERER);
         return;
     }
 
@@ -192,8 +193,10 @@ static void gl_init(gl_renderer_t *r)
 
     r->rect_prog = link_program(gl, RECT_VS, RECT_FS);
     r->text_prog = link_program(gl, TEXT_VS, TEXT_FS);
-    if (!r->rect_prog || !r->text_prog)
+    if (!r->rect_prog || !r->text_prog) {
+        cl_set_last_error(CL_ERROR_RENDERER); /* every frame stays a no-op */
         return;
+    }
 
     r->r_proj = gl->GetUniformLocation(r->rect_prog, "u_proj");
     r->r_rect = gl->GetUniformLocation(r->rect_prog, "u_rect");

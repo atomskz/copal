@@ -30,9 +30,10 @@ typedef void (*cl_task_fn)(void *user);
  * acceleration (see ARCHITECTURE).
  */
 typedef enum cl_render_backend {
-    CL_RENDER_AUTO = 0, /* OpenGL if compiled in, otherwise software; the
-                         * env var COPAL_RENDER=software overrides at run
-                         * time (e.g. over RDP or in CI) */
+    CL_RENDER_AUTO = 0, /* OpenGL if compiled in AND the GL window comes up,
+                         * otherwise software (a failed GL window falls back
+                         * at run time); COPAL_RENDER=software forces the
+                         * software path (e.g. over RDP or in CI) */
     CL_RENDER_GL,       /* OpenGL renderer */
     CL_RENDER_SOFTWARE  /* CPU rasterizer, no GPU context */
 } cl_render_backend_t;

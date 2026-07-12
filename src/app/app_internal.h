@@ -28,11 +28,18 @@ struct cl_application {
     cl_task_t *task_tail;
     bool quit;
     int exit_code;
+    /* CL_RENDER_AUTO with built-in GL backends: a failed GL window may be
+     * retried once with the software pair (cl_app_software_fallback). */
+    bool soft_fallback_ok;
 };
 
 /* Run and free all queued cross-thread tasks (cl_application_post) on the loop
  * thread. Defined in application.c, driven by run()/step(). */
 void cl_app_run_tasks(cl_application_t *app);
+
+/* Replace the built-in GL platform/renderer pair with the software pair
+ * (one shot; only when soft_fallback_ok). Returns true when swapped. */
+bool cl_app_software_fallback(cl_application_t *app);
 
 /* Timer subsystem (src/app/timer.c), driven by the application loop. */
 int cl_app_timers_timeout(cl_application_t *app);  /* ms to next, or -1 */
