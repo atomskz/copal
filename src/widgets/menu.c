@@ -3,11 +3,11 @@
 #include <copal/widget_impl.h>
 #include <copal/application.h>
 #include <copal/allocator.h>
-#include <copal/window.h>
 
 #include <string.h>
 
 #include "widget/widget_internal.h"
+#include "widget/widget_host.h"
 #include "theme/theme_internal.h"
 
 #define MENU_HPAD 14.0f  /* item text left/right padding */
@@ -95,20 +95,20 @@ static void activate(cl_menu_t *m, int idx)
 {
     cl_action_fn fn;
     void *user;
-    cl_window_t *win;
+    cl_widget_host_t *h;
 
     if (idx < 0 || (size_t)idx >= m->count)
         return;
     fn = m->items[idx].fn;
     user = m->items[idx].user;
-    win = cl_widget_window(&m->base);
+    h = cl_widget_host(&m->base);
     /*
      * Request a deferred close BEFORE running the callback, then invoke it. The
-     * menu is destroyed only after event dispatch unwinds (window reap), so the
+     * menu is destroyed only after event dispatch unwinds (host reap), so the
      * callback safely runs with the menu still alive.
      */
-    if (win)
-        cl_window_close_popup(win);
+    if (h)
+        h->ops->close_popup(h);
     if (fn)
         fn(&m->base, user);
 }
@@ -226,10 +226,10 @@ static bool menu_key_down(cl_widget_t *w, const cl_event_t *ev)
             return true;
 
         case CL_KEY_ESCAPE: {
-            cl_window_t *win = cl_widget_window(w);
+            cl_widget_host_t *h = cl_widget_host(w);
 
-            if (win)
-                cl_window_close_popup(win);
+            if (h)
+                h->ops->close_popup(h);
             return true;
         }
 

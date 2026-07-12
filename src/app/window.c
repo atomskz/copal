@@ -12,6 +12,88 @@
 
 static void tooltip_dismiss(cl_window_t *win); /* defined with the hover layer */
 
+/* ---- the widget-host interface (widget_host.h) --------------------------- */
+/* The host object is the window's first member, so the cast is the identity. */
+
+static cl_window_t *host_win(cl_widget_host_t *h)
+{
+    return (cl_window_t *)h;
+}
+
+static void host_mark_dirty(cl_widget_host_t *h)
+{
+    cl_window_mark_dirty(host_win(h));
+}
+
+static void host_mark_layout_dirty(cl_widget_host_t *h)
+{
+    cl_window_mark_layout_dirty(host_win(h));
+}
+
+static void host_set_focus(cl_widget_host_t *h, cl_widget_t *w)
+{
+    cl_window_set_focus(host_win(h), w);
+}
+
+static cl_widget_t *host_focused(cl_widget_host_t *h)
+{
+    return host_win(h)->focus;
+}
+
+static void host_open_popup(cl_widget_host_t *h, cl_widget_t *owner,
+                            cl_widget_t *popup, cl_point_t anchor)
+{
+    cl_window_open_popup(host_win(h), popup, anchor);
+    cl_window_set_overlay_owner(host_win(h), owner);
+}
+
+static void host_close_popup(cl_widget_host_t *h)
+{
+    cl_window_close_popup(host_win(h));
+}
+
+static void host_widget_gone(cl_widget_host_t *h, cl_widget_t *w)
+{
+    cl_window_t *win = host_win(h);
+
+    if (win->mouse_target == w)
+        win->mouse_target = NULL;
+    if (win->focus == w)
+        win->focus = NULL; /* silent: no focus_lost on a dying widget */
+    if (win->content == w)
+        win->content = NULL; /* the root is going away underneath us */
+    cl_window_owner_destroyed(win, w);     /* tear down its popup, if any */
+    cl_window_tooltip_target_gone(win, w); /* drop its hover tooltip */
+}
+
+static char *host_clipboard_get(cl_widget_host_t *h)
+{
+    return cl_app_clipboard_get(host_win(h)->app);
+}
+
+static void host_clipboard_set(cl_widget_host_t *h, const char *utf8)
+{
+    cl_app_clipboard_set(host_win(h)->app, utf8);
+}
+
+static void host_set_ime_rect(cl_widget_host_t *h, cl_rect_t rect)
+{
+    cl_app_set_ime_rect(host_win(h)->app, rect);
+}
+
+static const cl_widget_host_ops_t window_host_ops = {
+    .mark_dirty = host_mark_dirty,
+    .mark_layout_dirty = host_mark_layout_dirty,
+    .set_focus = host_set_focus,
+    .focused = host_focused,
+    .open_popup = host_open_popup,
+    .close_popup = host_close_popup,
+    .widget_gone = host_widget_gone,
+    .clipboard_get = host_clipboard_get,
+    .clipboard_set = host_clipboard_set,
+    .set_ime_rect = host_set_ime_rect,
+};
+
 cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *desc)
 {
     cl_window_t *win;
@@ -48,6 +130,7 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
         return NULL;
     }
     memset(win, 0, sizeof(*win));
+    win->host.ops = &window_host_ops;
     win->app = app;
     win->native = native;
     /* Ask the platform for the size it actually created: the SDL backends

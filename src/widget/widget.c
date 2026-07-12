@@ -8,7 +8,7 @@
 
 #include "core/foundation/foundation_internal.h"
 #include "widget/widget_internal.h"
-#include "app/app_internal.h"
+#include "widget/widget_host.h"
 
 /* ---- construction / RTTI ------------------------------------------------ */
 
@@ -81,13 +81,13 @@ bool cl_widget_is_a(cl_widget_t *w, const cl_widget_class_t *cls)
 void cl_widget_invalidate(cl_widget_t *w)
 {
     if (w && w->window)
-        cl_window_mark_dirty(w->window);
+        cl_widget_host(w)->ops->mark_dirty(cl_widget_host(w));
 }
 
 void cl_widget_invalidate_layout(cl_widget_t *w)
 {
     if (w && w->window)
-        cl_window_mark_layout_dirty(w->window);
+        cl_widget_host(w)->ops->mark_layout_dirty(cl_widget_host(w));
 }
 
 /* ---- tree --------------------------------------------------------------- */
@@ -103,14 +103,11 @@ void cl_widget_set_window(cl_widget_t *w, cl_window_t *win)
      * pointers can never dangle into detached or freed memory.
      */
     if (old && old != win) {
-        if (old->focus == w)
-            cl_window_set_focus(old, NULL);
-        if (old->mouse_target == w)
-            old->mouse_target = NULL;
-        if (old->content == w)
-            old->content = NULL; /* the root itself is being detached */
-        cl_window_owner_destroyed(old, w);   /* tear down a popup w opened */
-        cl_window_tooltip_target_gone(old, w); /* drop its hover tooltip */
+        cl_widget_host_t *h = (cl_widget_host_t *)old;
+
+        if (h->ops->focused(h) == w)
+            h->ops->set_focus(h, NULL); /* with the focus_lost callback */
+        h->ops->widget_gone(h, w); /* every remaining weak ref, silently */
     }
     w->window = win;
     for (c = w->first_child; c; c = c->next_sibling)
@@ -182,13 +179,9 @@ static void widget_destroy_subtree(cl_widget_t *w)
         widget_destroy_subtree(c);
         c = next;
     }
-    if (w->window && w->window->mouse_target == w)
-        w->window->mouse_target = NULL;
-    if (w->window && w->window->focus == w)
-        w->window->focus = NULL;
     if (w->window) {
-        cl_window_owner_destroyed(w->window, w); /* tear down its popup, if any */
-        cl_window_tooltip_target_gone(w->window, w); /* drop its hover tooltip */
+        /* silent sweep: a dying widget must not get callbacks */
+        cl_widget_host(w)->ops->widget_gone(cl_widget_host(w), w);
     }
 
     a = cl_application_allocator(w->app);
@@ -230,8 +223,9 @@ void cl_widget_set_visible(cl_widget_t *w, bool v)
         w->flags |= CL_WF_VISIBLE;
     } else {
         w->flags &= ~(uint32_t)CL_WF_VISIBLE;
-        if (w->window && w->window->focus == w)
-            cl_window_set_focus(w->window, NULL);
+        if (w->window &&
+            cl_widget_host(w)->ops->focused(cl_widget_host(w)) == w)
+            cl_widget_host(w)->ops->set_focus(cl_widget_host(w), NULL);
     }
     cl_widget_invalidate_layout(w);
 }
@@ -247,8 +241,9 @@ void cl_widget_set_enabled(cl_widget_t *w, bool e)
         w->flags |= CL_WF_ENABLED;
     } else {
         w->flags &= ~(uint32_t)CL_WF_ENABLED;
-        if (w->window && w->window->focus == w)
-            cl_window_set_focus(w->window, NULL);
+        if (w->window &&
+            cl_widget_host(w)->ops->focused(cl_widget_host(w)) == w)
+            cl_widget_host(w)->ops->set_focus(cl_widget_host(w), NULL);
     }
     cl_widget_invalidate(w);
 }
@@ -259,8 +254,9 @@ void cl_widget_set_focusable(cl_widget_t *w, bool focusable)
         w->flags |= CL_WF_FOCUSABLE;
     } else {
         w->flags &= ~(uint32_t)CL_WF_FOCUSABLE;
-        if (w->window && w->window->focus == w)
-            cl_window_set_focus(w->window, NULL);
+        if (w->window &&
+            cl_widget_host(w)->ops->focused(cl_widget_host(w)) == w)
+            cl_widget_host(w)->ops->set_focus(cl_widget_host(w), NULL);
     }
 }
 
@@ -270,13 +266,14 @@ bool cl_widget_focus(cl_widget_t *w)
 
     if (!w || !w->window || (w->flags & need) != need)
         return false;
-    cl_window_set_focus(w->window, w);
+    cl_widget_host(w)->ops->set_focus(cl_widget_host(w), w);
     return true;
 }
 
 bool cl_widget_has_focus(cl_widget_t *w)
 {
-    return w && w->window && w->window->focus == w;
+    return w && w->window &&
+           cl_widget_host(w)->ops->focused(cl_widget_host(w)) == w;
 }
 
 bool cl_widget_is_enabled(cl_widget_t *w)

@@ -12,6 +12,7 @@
 #include "platform/platform.h"
 #include "render/renderer.h"
 #include "core/foundation/mutex_internal.h"
+#include "widget/widget_host.h"
 
 typedef struct cl_task cl_task_t; /* cross-thread task node (application.c) */
 
@@ -47,6 +48,9 @@ void cl_app_timers_poll(cl_application_t *app);     /* fire due timers */
 void cl_app_timers_free_all(cl_application_t *app); /* free all at shutdown */
 
 struct cl_window {
+    /* MUST stay first: the widget layer reaches its host by casting the
+     * window pointer (src/widget/widget_host.h). */
+    cl_widget_host_t host;
     cl_application_t *app;      /* weak */
     cl_platform_window_t *native; /* backend window handle (create_window) */
     cl_widget_t *content;       /* owned */

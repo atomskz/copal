@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "app/app_internal.h"
+#include "widget/widget_host.h"
 #include "widget/widget_internal.h"
 #include "core/foundation/foundation_internal.h"
 
@@ -710,7 +710,10 @@ static void clipboard_copy(cl_textbox_t *tb)
         return;
     s = selection_dup(tb);
     if (s) {
-        cl_app_clipboard_set(tb->base.app, s);
+        cl_widget_host_t *h = cl_widget_host(&tb->base);
+
+        if (h)
+            h->ops->clipboard_set(h, s);
         cl_free(cl_application_allocator(tb->base.app), s);
     }
 }
@@ -1401,7 +1404,8 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
         case CL_KEY_V:
             if (ctrl) {
                 if (!tb->readonly) {
-                    char *clip = cl_app_clipboard_get(w->app);
+                    cl_widget_host_t *h = cl_widget_host(w);
+                    char *clip = h ? h->ops->clipboard_get(h) : NULL;
 
                     if (clip) {
                         if (!tb->multiline)
@@ -1489,7 +1493,8 @@ static void tb_update_ime_rect(cl_textbox_t *tb)
     }
     caret.w = 1.0f;
     caret.h = lh;
-    cl_app_set_ime_rect(w->app, caret);
+    if (cl_widget_host(w))
+        cl_widget_host(w)->ops->set_ime_rect(cl_widget_host(w), caret);
 }
 
 static bool textbox_text_edit(cl_widget_t *w, const cl_event_t *ev)

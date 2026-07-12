@@ -11,7 +11,7 @@
 
 #include "widget/widget_internal.h"
 #include "core/foundation/foundation_internal.h"
-#include "app/app_internal.h"
+#include "widget/widget_host.h"
 #include "theme/theme_internal.h"
 
 #define CB_PAD_X 10.0f
@@ -96,11 +96,11 @@ static void combo_item_chosen(cl_widget_t *menu_w, void *user)
 static void open_dropdown(cl_widget_t *w)
 {
     cl_combobox_t *cb = CL_WIDGET_CAST(cl_combobox, w);
-    cl_window_t *win = cl_widget_window(w);
+    cl_widget_host_t *h = cl_widget_host(w);
     cl_widget_t *menu;
     size_t i;
 
-    if (!win || cb->count == 0)
+    if (!h || cb->count == 0)
         return;
     menu = cl_menu_create(w->app);
     if (!menu)
@@ -109,11 +109,10 @@ static void open_dropdown(cl_widget_t *w)
     for (i = 0; i < cb->count; i++)
         cl_menu_add_item(menu, cb->items[i], combo_item_chosen,
                          (void *)(intptr_t)i);
-    cl_window_open_popup(win, menu,
-                         (cl_point_t){ w->rect.x, w->rect.y + w->rect.h });
-    /* Tie the popup's lifetime to this combo: if the combo is destroyed while
-     * the dropdown is open, the window tears the popup down (no dangling refs). */
-    cl_window_set_overlay_owner(win, w);
+    /* The popup's lifetime is tied to this combo: if the combo is destroyed
+     * while the dropdown is open, the host tears the popup down. */
+    h->ops->open_popup(h, w, menu,
+                       (cl_point_t){ w->rect.x, w->rect.y + w->rect.h });
 }
 
 static cl_size_t combo_measure(cl_widget_t *w, cl_constraints_t c)
