@@ -9,14 +9,11 @@
 #include "core/foundation/foundation_internal.h"
 
 #if defined(CL_ENABLE_SDL)
-/* SDL software backend (no OpenGL dependency). */
-cl_platform_t *cl_platform_sdl_soft_create(const cl_allocator_t *a);
-cl_renderer_t *cl_renderer_soft_create(const cl_allocator_t *a, cl_platform_t *p);
+#include "platform/sdl/platform_sdl.h"
+#include "render/soft/renderer_soft.h"
 #endif
 #if defined(CL_ENABLE_OPENGL)
-/* OpenGL window + renderer. */
-cl_platform_t *cl_platform_sdl_create(const cl_allocator_t *a);
-cl_renderer_t *cl_renderer_gl_create(const cl_allocator_t *a, cl_platform_t *p);
+#include "render/gl/renderer_gl.h"
 #endif
 
 struct cl_task {
