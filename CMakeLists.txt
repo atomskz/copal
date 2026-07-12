@@ -17,6 +17,7 @@ option(COPAL_ENABLE_SDL        "Enable SDL2 platform backend"       OFF) # Stage
 option(COPAL_ENABLE_OPENGL     "Enable OpenGL renderer backend"     OFF) # Stage 6
 option(COPAL_FETCH_SDL2        "Download and build SDL2 via FetchContent" OFF)
 option(COPAL_ENABLE_SANITIZERS "Enable ASan/UBSan"                  OFF)
+option(COPAL_ENABLE_COVERAGE   "Instrument for gcov/llvm-cov coverage" OFF)
 option(COPAL_ENABLE_INSTALL    "Enable install rules"               ON)
 
 # Detect whether we are the top-level project (for add_subdirectory use).
@@ -161,6 +162,9 @@ set_target_properties(copal PROPERTIES
 copal_set_warnings(copal)
 if(COPAL_ENABLE_SANITIZERS)
     copal_enable_sanitizers(copal)
+endif()
+if(COPAL_ENABLE_COVERAGE)
+    copal_enable_coverage(copal)
 endif()
 
 # ---------------------------------------------------------------------------

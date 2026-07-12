@@ -31,3 +31,16 @@ function(copal_enable_sanitizers target)
             -fsanitize=address,undefined)
     endif()
 endfunction()
+
+# gcov/llvm-cov instrumentation (COPAL_ENABLE_COVERAGE). Debug-friendly flags:
+# coverage numbers are meaningless on optimized builds.
+function(copal_enable_coverage target)
+    if(NOT MSVC)
+        target_compile_options(${target} PRIVATE --coverage -O0 -g)
+        # PUBLIC: everything linking an instrumented static library needs
+        # libgcov too (tests, examples).
+        target_link_options(${target} PUBLIC --coverage)
+    else()
+        message(WARNING "COPAL_ENABLE_COVERAGE is not supported with MSVC")
+    endif()
+endfunction()
