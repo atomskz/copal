@@ -33,6 +33,7 @@ typedef struct gl_renderer {
     cl_platform_t *platform;
     struct gl_api gl;
     bool init;
+    bool loaded; /* cl_gl_load succeeded: every entry point is callable */
     bool ok;
     GLuint rect_prog;
     GLuint text_prog;
@@ -205,6 +206,7 @@ static void gl_init(gl_renderer_t *r)
         cl_set_last_error(CL_ERROR_RENDERER);
         return;
     }
+    r->loaded = true;
 
     if (getenv("COPAL_GL_DEBUG")) {
         const GLubyte *ver = gl->GetString(GL_VERSION);
@@ -737,7 +739,11 @@ static void gl_destroy(cl_renderer_t *rr)
 {
     gl_renderer_t *r = (gl_renderer_t *)rr;
 
-    if (r->ok) {
+    /* Free whatever init managed to create, even after a partial failure
+     * (e.g. programs linked before the one that did not): deleting the name
+     * 0 is a silent no-op in GL, so still-unset handles are safe. Only the
+     * entry points themselves must have loaded. */
+    if (r->loaded) {
         int i;
 
         for (i = 0; i < r->image_count; i++)
