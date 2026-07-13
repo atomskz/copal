@@ -13,6 +13,8 @@
 static void tooltip_dismiss(cl_window_t *win); /* defined with the hover layer */
 static void window_update_hover(cl_window_t *win, cl_widget_t *w);
 static void overlay_drop(cl_window_t *win, int i); /* overlay stack below */
+static void overlay_request_close_from(cl_window_t *win, int from);
+static int overlay_chain_base(cl_window_t *win);
 
 /* ---- the widget-host interface (widget_host.h) --------------------------- */
 /* The host object is the window's first member, so the cast is the identity. */
@@ -51,7 +53,12 @@ static void host_open_popup(cl_widget_host_t *h, cl_widget_t *owner,
 
 static void host_close_popup(cl_widget_host_t *h)
 {
-    cl_window_close_popup(host_win(h));
+    /* Widgets dismiss the popup CHAIN they live in; a modal below the chain
+     * (a dialog hosting the combobox/menu) stays open. Dialogs close
+     * themselves through the public cl_window_close_popup instead. */
+    cl_window_t *win = host_win(h);
+
+    overlay_request_close_from(win, overlay_chain_base(win));
 }
 
 static void host_push_popup(cl_widget_host_t *h, cl_widget_t *owner,
@@ -324,6 +331,20 @@ static void overlay_request_close_from(cl_window_t *win, int from)
         cl_window_mark_dirty(win);
 }
 
+/* The first index ABOVE the topmost modal entry: the base of the current
+ * light-dismissable popup chain (0 when no modal is open). Modal entries are
+ * barriers - chain operations never cross them. */
+static int overlay_chain_base(cl_window_t *win)
+{
+    int i;
+
+    for (i = win->overlay_count - 1; i >= 0; i--) {
+        if (win->overlays[i].modal)
+            return i + 1;
+    }
+    return 0;
+}
+
 static bool overlay_push(cl_window_t *win, cl_widget_t *owner,
                          cl_widget_t *popup, cl_point_t at, bool owned,
                          bool modal, bool center)
@@ -350,17 +371,25 @@ static bool overlay_push(cl_window_t *win, cl_widget_t *owner,
 
 void cl_window_open_popup(cl_window_t *win, cl_widget_t *popup, cl_point_t at)
 {
+    int base;
     int i;
 
     if (!win || !popup)
         return;
-    /* Replace whatever is open (the pre-stack semantics of this call). */
-    for (i = win->overlay_count - 1; i >= 0; i--) {
+    /*
+     * Replace whatever is open - but only within the current chain: a modal
+     * below stays (a combobox inside a dialog must not destroy the dialog,
+     * and with it the very widget that is dispatching right now).
+     */
+    base = overlay_chain_base(win);
+    for (i = win->overlay_count - 1; i >= base; i--) {
         if (win->overlays[i].widget != popup)
             overlay_drop(win, i);
     }
-    if (win->overlay_count > 0 && win->overlays[0].widget == popup)
-        return; /* re-opening the same widget: keep it */
+    if (win->overlay_count > base && win->overlays[base].widget == popup) {
+        win->overlays[base].closing = false; /* re-opened: undoom it */
+        return;
+    }
     overlay_push(win, NULL, popup, at, true, false, false);
 }
 
@@ -714,8 +743,10 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
             cl_widget_t *tgt;
 
             if (hit < 0) {
-                if (!win->overlays[top].modal)
-                    cl_window_close_popup(win); /* light-dismiss the chain */
+                /* Light-dismiss the chain above the topmost modal; with the
+                 * modal itself on top this closes nothing - the press is
+                 * swallowed either way. */
+                overlay_request_close_from(win, overlay_chain_base(win));
                 return;
             }
             overlay_request_close_from(win, hit + 1);

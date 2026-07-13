@@ -363,6 +363,84 @@ int main(void)
         CHECK(cl_window_popup(win) == NULL);
     }
 
+    /* A combobox INSIDE a modal dialog: the dropdown stacks on top of the
+     * modal instead of destroying it (was a use-after-free), and choosing
+     * an item closes only the dropdown chain. */
+    {
+        cl_widget_t *dlg = cl_vbox_create(
+            app, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS,
+                                    .align_cross = CL_ALIGN_STRETCH });
+        cl_widget_t *combo = cl_combobox_create(
+            app, &(cl_combobox_desc_t){ CL_COMBOBOX_DESC_INIT_FIELDS });
+        cl_rect_t cr;
+
+        cl_combobox_add_item(combo, "red");
+        cl_combobox_add_item(combo, "green");
+        cl_widget_add_child(dlg, combo);
+        cl_window_open_modal(win, dlg);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == dlg);
+
+        /* open the dropdown: the modal must survive underneath */
+        cr = cl_widget_rect(combo);
+        mouse(plat, CL_PEV_MOUSE_DOWN, cr.x + 5.0f, cr.y + cr.h * 0.5f);
+        mouse(plat, CL_PEV_MOUSE_UP, cr.x + 5.0f, cr.y + cr.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) != NULL);
+        CHECK(cl_window_popup(win) != dlg); /* the dropdown is on top */
+
+        /* choose item 1: dropdown closes, the DIALOG stays open (ASan-clean:
+         * the combobox must not have been freed) */
+        {
+            cl_rect_t mr = cl_widget_rect(cl_window_popup(win));
+
+            mouse(plat, CL_PEV_MOUSE_DOWN, mr.x + 10.0f, item_y(mr.y, 1));
+            mouse(plat, CL_PEV_MOUSE_UP, mr.x + 10.0f, item_y(mr.y, 1));
+        }
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == dlg);
+        CHECK(cl_combobox_selected(combo) == 1);
+
+        cl_window_close_popup(win);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == NULL);
+    }
+
+    /* An outside click with a popup ABOVE a modal closes only the popup:
+     * the modal barrier holds. */
+    {
+        cl_widget_t *dlg = cl_vbox_create(
+            app, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS,
+                                    .align_cross = CL_ALIGN_STRETCH });
+        cl_widget_t *bar = cl_menubar_create(
+            app, &(cl_menubar_desc_t){ CL_MENUBAR_DESC_INIT_FIELDS });
+        cl_widget_t *m = cl_menu_create(
+            app, &(cl_menu_desc_t){ CL_MENU_DESC_INIT_FIELDS });
+        cl_rect_t br;
+
+        cl_menu_add_item(m, "Close", on_item, (void *)(intptr_t)3);
+        cl_menubar_add_menu(bar, "Edit", m);
+        cl_widget_add_child(dlg, bar);
+        cl_window_open_modal(win, dlg);
+        cl_application_step(app, false);
+
+        br = cl_widget_rect(bar);
+        mouse(plat, CL_PEV_MOUSE_DOWN, br.x + 5.0f, br.y + br.h * 0.5f);
+        mouse(plat, CL_PEV_MOUSE_UP, br.x + 5.0f, br.y + br.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == m); /* the bar menu is on top */
+
+        /* outside click: the menu goes, the modal dialog STAYS */
+        mouse(plat, CL_PEV_MOUSE_DOWN, 395.0f, 195.0f);
+        mouse(plat, CL_PEV_MOUSE_UP, 395.0f, 195.0f);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == dlg);
+
+        cl_window_close_popup(win);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == NULL);
+    }
+
     /* A popup still open at window destruction is cleaned up (no leak). */
     cl_window_open_popup(win, make_menu(app), (cl_point_t){ 10.0f, 10.0f });
     cl_application_destroy(app);

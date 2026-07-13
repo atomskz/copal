@@ -309,8 +309,12 @@ cl_result_t cl_list_remove(cl_widget_t *list, size_t index)
         else if ((size_t)l->selected > index)
             l->selected--; /* shifted up */
     }
-    if (l->hovered >= 0 && (size_t)l->hovered >= l->count)
-        l->hovered = -1;
+    if (l->hovered >= 0) {
+        if ((size_t)l->hovered == index)
+            l->hovered = -1;
+        else if ((size_t)l->hovered > index)
+            l->hovered--;
+    }
     cl_widget_invalidate_layout(list);
     return CL_OK;
 }

@@ -52,15 +52,17 @@ static const cl_widget_class_t cl_msgbox_class = {
 
 static void msg_finish(cl_msgbox_t *mb, int index)
 {
-    cl_widget_host_t *h = cl_widget_host(&mb->base);
+    /* The host op closes only the chain ABOVE a modal; the dialog must close
+     * ITSELF, so it uses the public whole-chain close. */
+    cl_window_t *win = cl_widget_window(&mb->base);
     cl_msgbox_fn fn = mb->fn;
     void *user = mb->user;
 
     if (mb->done)
         return;
     mb->done = true;
-    if (h)
-        h->ops->close_popup(h); /* deferred; the dialog outlives the call */
+    if (win)
+        cl_window_close_popup(win); /* deferred; the dialog outlives this */
     if (fn)
         fn(index, user); /* last: may open another dialog */
 }
