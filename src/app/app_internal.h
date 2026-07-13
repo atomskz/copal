@@ -7,6 +7,7 @@
 #include <copal/application.h>
 #include <copal/window.h>
 #include <copal/timer.h>
+#include <copal/animation.h>
 #include <copal/allocator.h>
 
 #include "platform/platform.h"
@@ -24,6 +25,9 @@ struct cl_application {
     cl_window_t *window; /* single window in MVP */
     cl_timer_t *timers;  /* owned; linked list of active timers */
     bool timer_firing;   /* true while firing: defers timer reaping */
+    cl_animation_t *animations; /* owned; running animations (animation.c) */
+    cl_timer_t *anim_timer;     /* shared ~60 Hz ticker, NULL while idle */
+    bool anim_firing;           /* true while ticking: defers animation reap */
     cl_mutex_t *task_mutex; /* guards the cross-thread task queue */
     cl_task_t *task_head;   /* FIFO of posted tasks (guarded) */
     cl_task_t *task_tail;
@@ -52,6 +56,10 @@ void cl_app_reap_dead(cl_application_t *app);
 int cl_app_timers_timeout(cl_application_t *app);  /* ms to next, or -1 */
 void cl_app_timers_poll(cl_application_t *app);     /* fire due timers */
 void cl_app_timers_free_all(cl_application_t *app); /* free all at shutdown */
+
+/* Free every remaining animation at shutdown, without callbacks; the shared
+ * ticker is freed with the timer list (src/app/animation.c). */
+void cl_app_animations_free_all(cl_application_t *app);
 
 #define CL_WINDOW_MAX_OVERLAYS 8
 

@@ -113,7 +113,8 @@ set(COPAL_SOURCES
     src/widgets/tooltip.c
     src/app/application.c
     src/app/window.c
-    src/app/timer.c)
+    src/app/timer.c
+    src/app/animation.c)
 
 add_library(copal ${COPAL_LIB_TYPE} ${COPAL_SOURCES})
 add_library(copal::copal ALIAS copal)

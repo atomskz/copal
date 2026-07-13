@@ -179,6 +179,7 @@ void cl_application_destroy(cl_application_t *app)
     if (app->window)
         cl_window_destroy(app->window);
     cl_app_reap_dead(app); /* free anything still on the deferred queue */
+    cl_app_animations_free_all(app); /* before the timer list: cancels none */
     cl_app_timers_free_all(app);
     /* Drop any tasks posted but never drained (they are not run at teardown). */
     if (app->task_mutex) {
