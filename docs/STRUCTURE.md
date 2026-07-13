@@ -103,7 +103,9 @@ copal/
 │   ├── CMakeLists.txt              общий util-lib + хелпер copal_add_gui_example
 │   ├── common/example_util.{h,c}  загрузка шрифта, headless-run (COPAL_MAX_FRAMES), LSan-суппрессии
 │   ├── test_version/main.c        smoke-тест: печатает версию (без бэкендов)
-│   ├── helloworld/main.c          тур по виджетам (layout, scroll, tooltip, timer, multiline, dark)
+│   ├── helloworld/main.c          галерея всего API: все виджеты, меню/диалоги,
+│   │                              анимации (easing, смена темы), изображения,
+│   │                              курсоры, кастомный виджет, таймеры, post
 │   └── calc/                      калькулятор: calc_engine (модель) + calc_widgets
 │                                  (calc_key/calc_display — кастомные виджеты) + main.c
 ├── tests/
