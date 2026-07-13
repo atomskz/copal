@@ -119,8 +119,10 @@ static void test_imageview(void)
     CHECK(cl_widget_rect(iv).h == 2.0f);
     n = cl_renderer_mock_count(rend);
     for (i = 0; i < n; i++)
-        if (cl_renderer_mock_get(rend, i)->kind == CL_MOCK_IMAGE)
+        if (cl_renderer_mock_get(rend, i)->kind == CL_MOCK_IMAGE) {
             saw_image = true;
+            CHECK(cl_renderer_mock_get(rend, i)->image == img);
+        }
     CHECK(saw_image);
 
     cl_imageview_set_image(iv, NULL); /* allowed: paints nothing */

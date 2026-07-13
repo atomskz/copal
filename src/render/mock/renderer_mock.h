@@ -27,6 +27,7 @@ typedef struct cl_mock_command {
     float width;
     cl_point_t pos;
     char text[64];
+    const cl_image_t *image; /* CL_MOCK_IMAGE: which image was drawn */
     cl_rect_t clip; /* effective clip in force when the command was recorded */
 } cl_mock_command_t;
 

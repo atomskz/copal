@@ -120,10 +120,10 @@ static void mock_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
 {
     cl_mock_command_t c;
 
-    (void)img;
     memset(&c, 0, sizeof(c));
     c.kind = CL_MOCK_IMAGE;
     c.rect = dst;
+    c.image = img;
     mock_record((mock_renderer_t *)rr, &c);
 }
 
