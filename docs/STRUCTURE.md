@@ -35,6 +35,7 @@ copal/
 │   ├── allocator.h                cl_allocator_t + обёртки cl_alloc/realloc/free
 │   ├── event.h                    типы событий, клавиши, модификаторы, cl_event_t, callback-типы
 │   ├── font.h                     загрузка шрифтов, метрики, измерение текста
+│   ├── image.h                    cl_image_t: RGBA8-ресурс для draw_image/imageview
 │   ├── theme.h                    роли цветов, light/dark, cl_text_style_t, тема
 │   ├── render.h                   cl_paint_context_t (рисование в paint)
 │   ├── widget.h                   базовый виджет (публичная часть для приложения)
@@ -43,8 +44,10 @@ copal/
 │   ├── application.h              приложение, event loop, post
 │   ├── window.h                   окно, content, overlay-popup, tooltip
 │   ├── timer.h                    таймеры цикла приложения
-│   └── widgets/                   label button checkbox radiobutton slider
-│                                  menu combobox textbox scrollview
+│   ├── animation.h                time-based анимации: easing, отмена, lerp-хелперы
+│   └── widgets/                   label button checkbox radiobutton slider imageview
+│                                  menu menubar combobox textbox scrollview list
+│                                  progressbar messagebox panel spacer radiogroup
 ├── src/
 │   ├── core/foundation/           фундамент (ни от чего не зависит)
 │   │   ├── foundation_internal.h  внутренние объявления (cl_set_last_error)
@@ -90,6 +93,7 @@ copal/
 │       ├── application.c          создание/цикл, таймеры, task-очередь, IME-rect, диспетчер событий
 │       ├── window.c               окно, content, overlay/tooltip-слой, focus/reveal, рендер
 │       ├── timer.c                список таймеров приложения (FIFO, монотонные часы)
+│       ├── animation.c            анимации на общем тикере (прогресс от now_ms, easing)
 │       └── app_internal.h         приватные объявления app/window/timer/task
 ├── third_party/
 │   ├── stb/stb_truetype.h         вендоренный растеризатор глифов
@@ -116,7 +120,12 @@ copal/
 │   ├── test_popup.c               overlay-popup/menu, light-dismiss
 │   ├── test_tooltip.c             hover-подсказка (dwell-таймер, отмена)
 │   ├── test_timer.c               one-shot/repeat, cancel/restart, коалесинг
+│   ├── test_animation.c           анимации: время-прогресс, easing, отмена, цепочки
+│   ├── test_damage.c              damage-регионы: union инвалидаций, полные кадры
 │   ├── test_post.c                cross-thread cl_application_post
+│   ├── test_oom.c                 fail-after-N аллокатор: пути ошибок создания
+│   ├── test_layout.c              flex/align/margin, вложенные боксы
+│   ├── test_lifecycle.c           окно/фокус/hover/курсор, destroy из callback
 │   └── test_gui.c                 интеграционный сценарий на mock-бэкендах
 └── docs/                          ARCHITECTURE.md CODESTYLE.md API.md STRUCTURE.md
 ```
@@ -136,6 +145,7 @@ copal/
 | `include/copal/application.h` | `cl_application_*`, event loop, `cl_application_post` | да |
 | `include/copal/window.h` | окно, content, overlay-popup, tooltip | да |
 | `include/copal/timer.h` | таймеры цикла приложения | да |
+| `include/copal/animation.h` | time-based анимации (easing, отмена, lerp-хелперы) | да |
 | `src/core/foundation/mutex.c` | непрозрачный мьютекс под потокобезопасную task-очередь | нет |
 | `src/widget/widget.c` | vtable-диспетчер, RTTI/каст, дерево, clip/hit/reveal, event-dispatch | нет |
 | `src/app/application.c` | цикл, таймеры, task-очередь, диспетчеризация нейтральных событий | нет |

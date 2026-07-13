@@ -47,6 +47,34 @@
   `cl_menu_item_text/remove/clear`, геттеры
   `cl_widget_preferred_size/margin/align_h/align_v/flex/is_focusable`.
 
+- Анимации (`animation.h`): `cl_animation_start`/`cl_animation_cancel` —
+  callback-анимации на общем ~60 Гц тикере с прогрессом от прошедшего
+  времени (отставший цикл перепрыгивает вперёд, а не замедляется), easing
+  linear/in/out/in-out, `on_done` с исходом (завершена/отменена), цепочки и
+  параллельная композиция; хелперы `cl_ease`, `cl_lerp`, `cl_color_lerp`,
+  `cl_rect_lerp`.
+- Примитивы рендера: `cl_paint_push_transform`/`pop_transform`
+  (translate + scale для поддерева, действует и на клипы) и
+  `cl_paint_push_opacity`/`pop_opacity` (групповое умножение альфы) во всех
+  трёх рендерах; новые операции SPI `push_transform`/`push_opacity` с
+  парными pop.
+- Damage-регионы: `cl_widget_invalidate` копит bounding-rect инвалидаций;
+  software-путь очищает, рисует и презентует только его (операция SPI
+  `set_damage` рендера, `present_region` платформы —
+  `SDL_UpdateWindowSurfaceRects`). GL и полные инвалидации перерисовывают
+  кадр целиком, как раньше.
+- Пейсинг software-пути: презенты троттлятся до частоты дисплея
+  frame-limiter'ом по `now_ms` (фолбэк 60 Гц) — анимация больше не
+  презентует со скоростью цикла.
+- Ввод в модальных диалогах: клик фокусирует ближайший фокусируемый виджет и
+  захватывает указатель на время драга; клавиши и текст идут фокусу внутри
+  верхнего оверлея (всплывая до корня диалога — Enter/Escape), Tab циклит
+  фокусируемые виджеты диалога, hover и курсор работают над оверлеями.
+- Mock-рендерер: команды несут указатель нарисованного изображения; регион
+  `set_damage` последнего кадра доступен тестам; push/pop
+  transform/opacity записываются, геометрия draw-команд — уже
+  трансформированной.
+
 ### Изменено
 
 - `cl_menu_create` принимает `cl_menu_desc_t` (последний виджет без desc);
