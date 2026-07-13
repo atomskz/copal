@@ -110,6 +110,14 @@ typedef struct cl_platform_ops {
     bool (*poll)(cl_platform_t *p, cl_platform_event_t *out);
     void (*wait)(cl_platform_t *p, int timeout_ms);
     void (*present)(cl_platform_t *p, cl_platform_window_t *win);
+    /*
+     * Optional: like present, but only `rect` (logical px) is guaranteed to
+     * reach the screen - the rest may stay as previously presented. Paired
+     * with partial redraws (renderer set_damage); NULL when unsupported,
+     * in which case the application falls back to present.
+     */
+    void (*present_region)(cl_platform_t *p, cl_platform_window_t *win,
+                           cl_rect_t rect);
     void (*wakeup)(cl_platform_t *p);
     void (*start_text_input)(cl_platform_t *p, cl_platform_window_t *win,
                              bool enable);

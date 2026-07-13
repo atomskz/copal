@@ -228,6 +228,26 @@ int main(void)
         CHECK(ch >= 130 && ch <= 170); /* white over the 0.25 blend at 0.5 */
     }
 
+    /* Damage region: only the declared rect is cleared and drawn; pixels
+     * outside it survive from the previous frame; consumed by one frame. */
+    {
+        cl_color_t green = { 0, 200, 0, 255 };
+
+        r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+        r->ops->fill_rect(r, (cl_rect_t){ 0, 0, W, H }, fill);
+        r->ops->end_frame(r);
+        r->ops->set_damage(r, (cl_rect_t){ 8, 8, 8, 8 });
+        r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+        r->ops->fill_rect(r, (cl_rect_t){ 0, 0, W, H }, green); /* clipped */
+        r->ops->end_frame(r);
+        CHECK(is_rgb(at(buf, 9, 9), green));   /* inside damage: redrawn */
+        CHECK(is_rgb(at(buf, 20, 20), fill));  /* outside: previous frame */
+        CHECK(is_rgb(at(buf, 7, 7), fill));
+        r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+        r->ops->end_frame(r);
+        CHECK(is_rgb(at(buf, 20, 20), bg)); /* damage consumed: full clear */
+    }
+
     /* An opaque surface (a_mask == 0) must render the same colours. */
     stub.a_mask = 0;
     r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);

@@ -522,6 +522,26 @@ static void sdl_present_soft(cl_platform_t *p, cl_platform_window_t *win)
         SDL_UpdateWindowSurface(s->window);
 }
 
+/* Partial present: blit only the damaged rect of the window surface (the
+ * soft path is 1:1 logical-to-surface pixels). */
+static void sdl_present_region_soft(cl_platform_t *p,
+                                    cl_platform_window_t *win, cl_rect_t rect)
+{
+    sdl_platform_t *s = (sdl_platform_t *)p;
+    SDL_Rect r;
+
+    (void)win;
+    if (!s->window)
+        return;
+    r.x = (int)SDL_floorf(rect.x);
+    r.y = (int)SDL_floorf(rect.y);
+    r.w = (int)SDL_ceilf(rect.x + rect.w) - r.x;
+    r.h = (int)SDL_ceilf(rect.y + rect.h) - r.y;
+    if (r.w <= 0 || r.h <= 0)
+        return; /* nothing changed on screen */
+    SDL_UpdateWindowSurfaceRects(s->window, &r, 1);
+}
+
 static bool sdl_lock_framebuffer(cl_platform_t *p, cl_platform_window_t *win,
                                  cl_pixmap_t *out)
 {
@@ -597,6 +617,7 @@ static const cl_platform_ops_t sdl_ops_soft = {
     .poll = sdl_poll,
     .wait = sdl_wait,
     .present = sdl_present_soft,
+    .present_region = sdl_present_region_soft,
     .wakeup = sdl_wakeup,
     .start_text_input = sdl_start_text_input,
     .set_cursor = sdl_set_cursor,

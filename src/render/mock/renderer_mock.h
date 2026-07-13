@@ -48,4 +48,9 @@ size_t cl_renderer_mock_dropped(cl_renderer_t *r);
 const cl_mock_command_t *cl_renderer_mock_get(cl_renderer_t *r, size_t i);
 cl_color_t cl_renderer_mock_clear_color(cl_renderer_t *r);
 
+/* Whether the last begun frame declared a damage region (set_damage), and
+ * which one - false means a full redraw. */
+bool cl_renderer_mock_frame_damaged(cl_renderer_t *r);
+cl_rect_t cl_renderer_mock_frame_damage(cl_renderer_t *r);
+
 #endif /* CL_RENDERER_MOCK_H */

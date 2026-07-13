@@ -23,6 +23,10 @@ typedef struct mock_renderer {
     size_t tf_depth;
     float op_stack[CL_MOCK_TF_STACK]; /* composed group opacity per level */
     size_t op_depth;
+    cl_rect_t pending_damage; /* set_damage, consumed by begin_frame */
+    bool pending_damage_set;
+    cl_rect_t frame_damage; /* damage of the last begun frame (introspection) */
+    bool frame_damaged;
 } mock_renderer_t;
 
 static struct mock_tf mock_tf_cur(const mock_renderer_t *m)
@@ -111,6 +115,9 @@ static void mock_begin_frame(cl_renderer_t *r, cl_size_t size, float scale,
     m->clip_stack[0] = (cl_rect_t){ 0.0f, 0.0f, size.w, size.h };
     m->tf_depth = 0;
     m->op_depth = 0;
+    m->frame_damaged = m->pending_damage_set;
+    m->frame_damage = m->pending_damage;
+    m->pending_damage_set = false;
 }
 
 static void mock_end_frame(cl_renderer_t *r)
@@ -273,6 +280,14 @@ static void mock_pop_opacity(cl_renderer_t *r)
     mock_record(m, &c);
 }
 
+static void mock_set_damage(cl_renderer_t *r, cl_rect_t rect)
+{
+    mock_renderer_t *m = (mock_renderer_t *)r;
+
+    m->pending_damage = rect;
+    m->pending_damage_set = true;
+}
+
 static void mock_destroy(cl_renderer_t *r)
 {
     mock_renderer_t *m = (mock_renderer_t *)r;
@@ -295,6 +310,7 @@ static const cl_renderer_ops_t mock_ops = {
     .pop_transform = mock_pop_transform,
     .push_opacity = mock_push_opacity,
     .pop_opacity = mock_pop_opacity,
+    .set_damage = mock_set_damage,
     .destroy = mock_destroy,
 };
 
@@ -330,4 +346,14 @@ cl_color_t cl_renderer_mock_clear_color(cl_renderer_t *r)
 size_t cl_renderer_mock_dropped(cl_renderer_t *r)
 {
     return ((mock_renderer_t *)r)->dropped;
+}
+
+bool cl_renderer_mock_frame_damaged(cl_renderer_t *r)
+{
+    return ((mock_renderer_t *)r)->frame_damaged;
+}
+
+cl_rect_t cl_renderer_mock_frame_damage(cl_renderer_t *r)
+{
+    return ((mock_renderer_t *)r)->frame_damage;
 }

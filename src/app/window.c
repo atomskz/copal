@@ -34,6 +34,11 @@ static void host_mark_layout_dirty(cl_widget_host_t *h)
     cl_window_mark_layout_dirty(host_win(h));
 }
 
+static void host_damage(cl_widget_host_t *h, cl_rect_t rect)
+{
+    cl_window_damage(host_win(h), rect);
+}
+
 static void host_set_focus(cl_widget_host_t *h, cl_widget_t *w)
 {
     cl_window_set_focus(host_win(h), w);
@@ -111,6 +116,7 @@ static void host_defer_destroy(cl_widget_host_t *h, cl_widget_t *w)
 static const cl_widget_host_ops_t window_host_ops = {
     .mark_dirty = host_mark_dirty,
     .mark_layout_dirty = host_mark_layout_dirty,
+    .damage = host_damage,
     .set_focus = host_set_focus,
     .focused = host_focused,
     .open_popup = host_open_popup,
@@ -172,6 +178,7 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
         win->scale = 1.0f;
     win->dirty = true;
     win->layout_dirty = true;
+    win->damage_all = true;
     app->window = win;
     app->platform->ops->start_text_input(app->platform, native, true);
     return win;
@@ -247,11 +254,37 @@ void cl_window_set_on_close(cl_window_t *win, cl_window_close_fn fn, void *user)
 void cl_window_mark_dirty(cl_window_t *win)
 {
     win->dirty = true;
+    win->damage_all = true;
 }
 
 void cl_window_mark_layout_dirty(cl_window_t *win)
 {
     win->layout_dirty = true;
+    win->dirty = true;
+    win->damage_all = true; /* layout moves widgets: repaint everything */
+}
+
+void cl_window_damage(cl_window_t *win, cl_rect_t rect)
+{
+    if (rect.w <= 0.0f || rect.h <= 0.0f)
+        return;
+    if (!win->damage_all) {
+        if (win->dirty && win->damage.w > 0.0f) {
+            /* union bounding rect with the damage accumulated so far */
+            float x0 = rect.x < win->damage.x ? rect.x : win->damage.x;
+            float y0 = rect.y < win->damage.y ? rect.y : win->damage.y;
+            float x1 = rect.x + rect.w > win->damage.x + win->damage.w
+                           ? rect.x + rect.w
+                           : win->damage.x + win->damage.w;
+            float y1 = rect.y + rect.h > win->damage.y + win->damage.h
+                           ? rect.y + rect.h
+                           : win->damage.y + win->damage.h;
+
+            win->damage = (cl_rect_t){ x0, y0, x1 - x0, y1 - y0 };
+        } else {
+            win->damage = rect;
+        }
+    }
     win->dirty = true;
 }
 
@@ -604,6 +637,8 @@ void cl_window_render(cl_window_t *win)
 {
     cl_application_t *app = win->app;
     struct cl_paint_context ctx;
+    cl_rect_t dmg;
+    bool partial;
 
     /* Drop a bubble whose target was hidden, disabled, or collapsed since the
      * last pointer move (the hover layer otherwise only reconciles on motion). */
@@ -645,6 +680,35 @@ void cl_window_render(cl_window_t *win)
         win->focus_reveal_pending = false;
     }
 
+    /*
+     * Partial redraw: when every invalidation this frame carried a rect and
+     * the renderer supports damage clipping, only that region is cleared and
+     * repainted (the whole tree is still walked - the renderer clips). GL
+     * has no set_damage: its double-buffered target does not persist.
+     */
+    partial = !win->damage_all && app->renderer->ops->set_damage;
+    dmg = win->damage;
+    if (partial) {
+        /* clamp to the window */
+        if (dmg.x < 0.0f) {
+            dmg.w += dmg.x;
+            dmg.x = 0.0f;
+        }
+        if (dmg.y < 0.0f) {
+            dmg.h += dmg.y;
+            dmg.y = 0.0f;
+        }
+        if (dmg.x + dmg.w > win->size.w)
+            dmg.w = win->size.w - dmg.x;
+        if (dmg.y + dmg.h > win->size.h)
+            dmg.h = win->size.h - dmg.y;
+        if (dmg.w < 0.0f)
+            dmg.w = 0.0f;
+        if (dmg.h < 0.0f)
+            dmg.h = 0.0f;
+        app->renderer->ops->set_damage(app->renderer, dmg);
+    }
+
     app->renderer->ops->begin_frame(app->renderer, win->size, win->scale,
                                     cl_theme_color(app->theme,
                                                    CL_COLOR_BACKGROUND));
@@ -663,8 +727,13 @@ void cl_window_render(cl_window_t *win)
     if (win->tooltip)
         cl_widget_do_paint(win->tooltip, &ctx); /* tooltip paints on top */
     app->renderer->ops->end_frame(app->renderer);
-    app->platform->ops->present(app->platform, win->native);
+    if (partial && app->platform->ops->present_region)
+        app->platform->ops->present_region(app->platform, win->native, dmg);
+    else
+        app->platform->ops->present(app->platform, win->native);
     win->dirty = false;
+    win->damage_all = false;
+    win->damage = (cl_rect_t){ 0.0f, 0.0f, 0.0f, 0.0f };
 }
 
 /* The effective cursor of a widget: its own shape, or the nearest ancestor's

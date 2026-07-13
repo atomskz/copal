@@ -23,6 +23,10 @@ typedef struct cl_widget_host_ops {
     /* Schedule a repaint / a relayout for the next frame. */
     void (*mark_dirty)(cl_widget_host_t *h);
     void (*mark_layout_dirty)(cl_widget_host_t *h);
+    /* Schedule a repaint of just `rect` (window logical px): the host may
+     * accumulate a damage region and redraw only that. Equivalent to
+     * mark_dirty for a host that always repaints in full. */
+    void (*damage)(cl_widget_host_t *h, cl_rect_t rect);
 
     /* Keyboard focus. set_focus(NULL) clears it; both fire the widgets'
      * focus_gained/focus_lost callbacks. */

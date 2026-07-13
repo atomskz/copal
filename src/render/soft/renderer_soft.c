@@ -33,6 +33,11 @@ typedef struct soft_renderer {
     int rsh, gsh, bsh, ash; /* channel shifts derived from the surface masks */
     bool has_alpha;
     float scale; /* logical -> physical pixel scale */
+    /* Damage region for the next frame (set_damage): only this part of the
+     * persistent surface is cleared and drawn; the rest survives. */
+    bool damage_pending;
+    cl_rect_t damage;     /* logical px, consumed by the next begin_frame */
+    cl_rect_t frame_clip; /* physical px: the whole target, or the damage */
     int clip_depth;
     cl_rect_t clip_stack[SOFT_CLIP_STACK]; /* physical px, already intersected */
     /* Transform stack: composed translate+scale per level (identity at 0). */
@@ -139,7 +144,7 @@ static cl_rect_t clip_cur(const soft_renderer_t *r)
     int top = r->clip_depth < SOFT_CLIP_STACK ? r->clip_depth : SOFT_CLIP_STACK;
 
     if (top == 0)
-        return (cl_rect_t){ 0.0f, 0.0f, (float)r->w, (float)r->h };
+        return r->frame_clip; /* the whole target, or this frame's damage */
     return r->clip_stack[top - 1];
 }
 
@@ -205,9 +210,12 @@ static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
     soft_renderer_t *r = (soft_renderer_t *)rr;
     cl_pixmap_t pm;
     uint32_t packed;
+    /* consume the pending damage even if the frame fails to start */
+    bool damaged = r->damage_pending;
     int x, y;
 
     (void)size;
+    r->damage_pending = false;
     r->px = NULL;
     r->clip_depth = 0;
     if (!r->platform->ops->lock_framebuffer ||
@@ -234,14 +242,29 @@ static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
     r->has_alpha = pm.a_mask != 0;
     r->scale = scale > 0.0f ? scale : 1.0f;
 
+    /* Damage-clipped frame: the surface persists between frames, so only
+     * the declared region is cleared (and, via frame_clip, drawn into). */
+    r->frame_clip = (cl_rect_t){ 0.0f, 0.0f, (float)r->w, (float)r->h };
+    if (damaged) {
+        cl_rect_t phys = { r->damage.x * r->scale, r->damage.y * r->scale,
+                           r->damage.w * r->scale, r->damage.h * r->scale };
+
+        r->frame_clip = rect_intersect(r->frame_clip, phys);
+    }
+
     packed = ((uint32_t)clear.r << r->rsh) | ((uint32_t)clear.g << r->gsh) |
              ((uint32_t)clear.b << r->bsh) |
              (r->has_alpha ? (uint32_t)0xFFu << r->ash : 0u);
-    for (y = 0; y < r->h; y++) {
-        uint32_t *row = (uint32_t *)(r->px + (size_t)y * r->pitch);
+    {
+        int x0, y0, x1, y1;
 
-        for (x = 0; x < r->w; x++)
-            row[x] = packed;
+        clip_ibounds(r, &x0, &y0, &x1, &y1); /* == frame_clip: depth is 0 */
+        for (y = y0; y < y1; y++) {
+            uint32_t *row = (uint32_t *)(r->px + (size_t)y * r->pitch);
+
+            for (x = x0; x < x1; x++)
+                row[x] = packed;
+        }
     }
 }
 
@@ -619,6 +642,15 @@ static void soft_evict_font(cl_renderer_t *rr, cl_font_t *font)
     soft_cache_reset((soft_renderer_t *)rr);
 }
 
+/* Damage region for the next begin_frame (backend/renderer.h). */
+static void soft_set_damage(cl_renderer_t *rr, cl_rect_t rect)
+{
+    soft_renderer_t *r = (soft_renderer_t *)rr;
+
+    r->damage_pending = true;
+    r->damage = rect;
+}
+
 static void soft_destroy(cl_renderer_t *rr)
 {
     soft_renderer_t *r = (soft_renderer_t *)rr;
@@ -644,6 +676,7 @@ static const cl_renderer_ops_t soft_ops = {
     .push_opacity = soft_push_opacity,
     .pop_opacity = soft_pop_opacity,
     .evict_font = soft_evict_font,
+    .set_damage = soft_set_damage,
     .destroy = soft_destroy,
 };
 

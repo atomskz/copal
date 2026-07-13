@@ -100,6 +100,14 @@ struct cl_window {
     float scale;
     bool dirty;
     bool layout_dirty;
+    /*
+     * Damage accumulated since the last render: the union bounding rect of
+     * cl_widget_invalidate calls (window logical px). damage_all marks a
+     * full repaint (mark_dirty, layout changes, overlays); a partial-redraw
+     * renderer (set_damage) then only repaints the damage region.
+     */
+    cl_rect_t damage;
+    bool damage_all;
     cl_window_close_fn on_close;
     void *on_close_user;
 };
@@ -120,6 +128,8 @@ void cl_window_focus_next(cl_window_t *win, bool forward);
 void cl_window_resize(cl_window_t *win, cl_size_t size);
 void cl_window_mark_dirty(cl_window_t *win);
 void cl_window_mark_layout_dirty(cl_window_t *win);
+/* Accumulate a partial repaint region (window logical px). */
+void cl_window_damage(cl_window_t *win, cl_rect_t rect);
 void cl_window_reap_overlay(cl_window_t *win); /* destroy closed popups safely */
 /* Tie the top popup's lifetime to the widget that opened it. */
 void cl_window_set_overlay_owner(cl_window_t *win, cl_widget_t *owner);

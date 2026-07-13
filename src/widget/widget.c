@@ -80,8 +80,22 @@ bool cl_widget_is_a(cl_widget_t *w, const cl_widget_class_t *cls)
 
 void cl_widget_invalidate(cl_widget_t *w)
 {
-    if (w && w->window)
-        cl_widget_host(w)->ops->mark_dirty(cl_widget_host(w));
+    cl_widget_host_t *h;
+
+    if (!w || !w->window)
+        return;
+    h = cl_widget_host(w);
+    /* A laid-out widget only damages its own box (inflated by a pixel:
+     * anti-aliasing and strokes bleed just outside the rect). Before the
+     * first arrange the rect is empty - repaint everything. */
+    if (w->rect.w > 0.0f && w->rect.h > 0.0f) {
+        cl_rect_t r = { w->rect.x - 1.0f, w->rect.y - 1.0f, w->rect.w + 2.0f,
+                        w->rect.h + 2.0f };
+
+        h->ops->damage(h, r);
+    } else {
+        h->ops->mark_dirty(h);
+    }
 }
 
 void cl_widget_invalidate_layout(cl_widget_t *w)

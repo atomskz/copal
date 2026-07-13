@@ -89,6 +89,16 @@ typedef struct cl_renderer_ops {
     /* Same contract for cached image textures (cl_image_release). NULL slot
      * = no image cache. Never called inside a frame. */
     void (*evict_image)(cl_renderer_t *r, cl_image_t *img);
+    /*
+     * Optional: declare the damage region for the NEXT begin_frame (window
+     * logical px, consumed by it; a frame without a preceding set_damage
+     * redraws in full). Pixels outside the region survive from the previous
+     * frame: begin_frame clears only inside it and clips all drawing to it.
+     * Only meaningful when the target persists across frames (the software
+     * surface); NULL when the renderer always redraws in full (GL: the
+     * double-buffered back buffer does not persist).
+     */
+    void (*set_damage)(cl_renderer_t *r, cl_rect_t rect);
     void (*destroy)(cl_renderer_t *r);
 } cl_renderer_ops_t;
 
