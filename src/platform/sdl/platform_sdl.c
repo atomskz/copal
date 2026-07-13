@@ -20,6 +20,10 @@ typedef struct sdl_platform {
     SDL_Surface *surface; /* window surface locked for software drawing */
     cl_size_t size;       /* logical px */
     float scale;
+    /* Software-path frame pacing (sdl_pace_soft): surface blits have no
+     * vsync, so presents are throttled to the display refresh instead. */
+    int refresh_hz;           /* display refresh at window creation */
+    uint64_t last_present_ms; /* 0 = nothing presented yet */
     SDL_Cursor *cursors[CL_CURSOR__COUNT]; /* lazily created system cursors */
 } sdl_platform_t;
 
@@ -508,9 +512,47 @@ static cl_result_t sdl_create_window_soft(cl_platform_t *p,
     s->size.w = (float)w;
     s->size.h = (float)h;
     s->scale = 1.0f;
+
+    /* The refresh rate the frame limiter paces presents to (sdl_pace_soft).
+     * Queried once here; 60 Hz when the display does not report one. */
+    s->refresh_hz = 0;
+    s->last_present_ms = 0;
+    {
+        int idx = SDL_GetWindowDisplayIndex(s->window);
+        SDL_DisplayMode dm;
+
+        if (idx >= 0 && SDL_GetCurrentDisplayMode(idx, &dm) == 0 &&
+            dm.refresh_rate > 0)
+            s->refresh_hz = dm.refresh_rate;
+    }
+    if (s->refresh_hz <= 0)
+        s->refresh_hz = 60;
+
     /* Single-window backend: the platform itself stands in for the handle. */
     *out = (cl_platform_window_t *)s;
     return CL_OK;
+}
+
+/*
+ * Pace software presents to the display refresh. SDL_UpdateWindowSurface is
+ * a plain blit with no vsync: a dirty-every-frame animation would present as
+ * fast as the loop spins. A frame limiter keyed to the wall clock caps that
+ * at the refresh rate and evens animation timing.
+ *
+ * This is the documented choice over an SDL_Renderer + PRESENTVSYNC blit
+ * path: damage regions rely on the window surface persisting between frames
+ * (SDL_LockTexture does not preserve pixels), and true vsync would buy a
+ * second present pipeline to maintain. Light tearing remains a known,
+ * accepted artifact of the software path.
+ */
+static void sdl_pace_soft(sdl_platform_t *s)
+{
+    uint64_t frame = 1000u / (unsigned)(s->refresh_hz > 0 ? s->refresh_hz : 60);
+    uint64_t now = sdl_now_ms(&s->base);
+
+    if (s->last_present_ms != 0 && now - s->last_present_ms < frame)
+        SDL_Delay((Uint32)(frame - (now - s->last_present_ms)));
+    s->last_present_ms = sdl_now_ms(&s->base);
 }
 
 static void sdl_present_soft(cl_platform_t *p, cl_platform_window_t *win)
@@ -518,8 +560,10 @@ static void sdl_present_soft(cl_platform_t *p, cl_platform_window_t *win)
     sdl_platform_t *s = (sdl_platform_t *)p;
 
     (void)win;
-    if (s->window)
+    if (s->window) {
+        sdl_pace_soft(s);
         SDL_UpdateWindowSurface(s->window);
+    }
 }
 
 /* Partial present: blit only the damaged rect of the window surface (the
@@ -539,6 +583,7 @@ static void sdl_present_region_soft(cl_platform_t *p,
     r.h = (int)SDL_ceilf(rect.y + rect.h) - r.y;
     if (r.w <= 0 || r.h <= 0)
         return; /* nothing changed on screen */
+    sdl_pace_soft(s);
     SDL_UpdateWindowSurfaceRects(s->window, &r, 1);
 }
 
