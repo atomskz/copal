@@ -42,6 +42,27 @@ CL_API void cl_paint_draw_image(cl_paint_context_t *ctx, cl_image_t *img,
 CL_API void cl_paint_push_clip(cl_paint_context_t *ctx, cl_rect_t r);
 CL_API void cl_paint_pop_clip(cl_paint_context_t *ctx);
 
+/*
+ * Transform stack: translate + uniform scale for everything drawn until the
+ * matching pop (a coordinate p lands where p * scale + offset would land
+ * before the push). Nested pushes compose. Pushes and pops must balance
+ * within a paint() call. No-op on a renderer without transform support (all
+ * built-in renderers support it).
+ */
+CL_API void cl_paint_push_transform(cl_paint_context_t *ctx, cl_point_t offset,
+                                    float scale);
+CL_API void cl_paint_pop_transform(cl_paint_context_t *ctx);
+
+/*
+ * Group opacity stack: multiplies the alpha of everything drawn until the
+ * matching pop by alpha in [0, 1]; nested pushes multiply. The factor is
+ * applied per primitive (no intermediate buffer), so overlapping pieces
+ * inside the group show through each other while fading. No-op on a renderer
+ * without support (all built-in renderers support it).
+ */
+CL_API void cl_paint_push_opacity(cl_paint_context_t *ctx, float alpha);
+CL_API void cl_paint_pop_opacity(cl_paint_context_t *ctx);
+
 CL_API cl_theme_t *cl_paint_theme(cl_paint_context_t *ctx);
 CL_API cl_color_t cl_paint_theme_color(cl_paint_context_t *ctx,
                                        cl_color_role_t role);

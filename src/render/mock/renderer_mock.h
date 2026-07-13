@@ -2,7 +2,11 @@
 #ifndef CL_RENDERER_MOCK_H
 #define CL_RENDERER_MOCK_H
 
-/* Headless record renderer: captures draw commands for tests (ADR-010). */
+/* Headless record renderer: captures draw commands for tests (ADR-010).
+ * Draw commands are recorded with the CURRENT transform already applied to
+ * their geometry (rect/pos/radius/width) and the group opacity multiplied
+ * into color.a, so tests assert final on-screen values. The push/pop calls
+ * themselves are also recorded (with their raw, local parameters). */
 #include <stddef.h>
 
 #include <copal/allocator.h>
@@ -16,7 +20,11 @@ typedef enum cl_mock_cmd_kind {
     CL_MOCK_TEXT,
     CL_MOCK_IMAGE,
     CL_MOCK_PUSH_CLIP,
-    CL_MOCK_POP_CLIP
+    CL_MOCK_POP_CLIP,
+    CL_MOCK_PUSH_TRANSFORM, /* pos = offset (local), width = scale */
+    CL_MOCK_POP_TRANSFORM,
+    CL_MOCK_PUSH_OPACITY,   /* width = alpha (local) */
+    CL_MOCK_POP_OPACITY
 } cl_mock_cmd_kind_t;
 
 typedef struct cl_mock_command {

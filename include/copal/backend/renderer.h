@@ -55,10 +55,30 @@ typedef struct cl_renderer_ops {
     /*
      * Clip stack. push_clip intersects rect with the current clip and makes it
      * the active scissor; pop_clip restores the previous one. Calls nest and
-     * must be balanced. Coordinates are absolute logical pixels.
+     * must be balanced. Coordinates are absolute logical pixels (before any
+     * pushed transform, which applies to clip rects like everything else).
      */
     void (*push_clip)(cl_renderer_t *r, cl_rect_t rect);
     void (*pop_clip)(cl_renderer_t *r);
+    /*
+     * Transform stack (optional pair: NULL when unsupported). push_transform
+     * composes a translate + uniform scale ON TOP of the current transform:
+     * a coordinate p used afterwards lands where p * scale + offset would
+     * land under the previous transform. It applies to every primitive and
+     * to push_clip rects. Calls nest and must be balanced within the frame.
+     * Glyphs may be scaled as bitmaps (transient animation quality).
+     */
+    void (*push_transform)(cl_renderer_t *r, cl_point_t offset, float scale);
+    void (*pop_transform)(cl_renderer_t *r);
+    /*
+     * Group opacity stack (optional pair: NULL when unsupported). Multiplies
+     * the alpha of everything drawn until the matching pop by alpha in
+     * [0, 1]; nested pushes multiply. The factor weights each primitive
+     * individually (no intermediate buffer), so overlapping pieces INSIDE
+     * the group show through each other while fading.
+     */
+    void (*push_opacity)(cl_renderer_t *r, float alpha);
+    void (*pop_opacity)(cl_renderer_t *r);
     /*
      * Drop every cached glyph derived from `font` (called by
      * cl_font_release: the caches key by the raw pointer, and a later font

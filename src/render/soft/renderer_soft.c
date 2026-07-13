@@ -12,6 +12,7 @@
 #define SOFT_MAX_GLYPHS 512
 #define SOFT_GLYPH_HASH 1024 /* 2x slots, power of two */
 #define SOFT_CLIP_STACK 16
+#define SOFT_TF_STACK 16 /* transform and opacity stacks */
 
 typedef struct soft_glyph {
     cl_font_t *font;
@@ -34,6 +35,13 @@ typedef struct soft_renderer {
     float scale; /* logical -> physical pixel scale */
     int clip_depth;
     cl_rect_t clip_stack[SOFT_CLIP_STACK]; /* physical px, already intersected */
+    /* Transform stack: composed translate+scale per level (identity at 0). */
+    struct soft_tf {
+        float s, tx, ty;
+    } tf_stack[SOFT_TF_STACK];
+    int tf_depth;
+    float op_stack[SOFT_TF_STACK]; /* composed group opacity per level */
+    int op_depth;
     soft_glyph_t glyphs[SOFT_MAX_GLYPHS];
     int glyph_count;
     uint16_t glyph_hash[SOFT_GLYPH_HASH]; /* index + 1 into glyphs; 0 = empty */
@@ -80,6 +88,33 @@ static float sd_round_box(float px, float py, float bx, float by, float r)
     if (inner > 0.0f)
         inner = 0.0f;
     return inner + outer - r;
+}
+
+/* ---- transform and group opacity ----------------------------------------- */
+
+static struct soft_tf tf_cur(const soft_renderer_t *r)
+{
+    int top = r->tf_depth < SOFT_TF_STACK ? r->tf_depth : SOFT_TF_STACK;
+
+    if (top == 0)
+        return (struct soft_tf){ 1.0f, 0.0f, 0.0f };
+    return r->tf_stack[top - 1];
+}
+
+/* Map a logical rect through the current transform (window logical px). */
+static cl_rect_t tf_rect(const soft_renderer_t *r, cl_rect_t rc)
+{
+    struct soft_tf t = tf_cur(r);
+
+    return (cl_rect_t){ rc.x * t.s + t.tx, rc.y * t.s + t.ty, rc.w * t.s,
+                        rc.h * t.s };
+}
+
+static float op_cur(const soft_renderer_t *r)
+{
+    int top = r->op_depth < SOFT_TF_STACK ? r->op_depth : SOFT_TF_STACK;
+
+    return top == 0 ? 1.0f : r->op_stack[top - 1];
 }
 
 /* ---- clipping ------------------------------------------------------------ */
@@ -182,6 +217,8 @@ static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
     r->w = pm.w;
     r->h = pm.h;
     r->pitch = pm.pitch;
+    r->tf_depth = 0;
+    r->op_depth = 0;
     /* We access the buffer as uint32_t; a misaligned base/pitch would be UB.
      * Fail closed (like the lock failure) rather than risk it. */
     if (((uintptr_t)r->px & 3u) || (r->pitch & 3)) {
@@ -222,11 +259,13 @@ static void soft_end_frame(cl_renderer_t *rr)
 static void soft_fill_rect(cl_renderer_t *rr, cl_rect_t rect, cl_color_t color)
 {
     soft_renderer_t *r = (soft_renderer_t *)rr;
+    float op = op_cur(r);
     int cx0, cy0, cx1, cy1;
     int x0, y0, x1, y1, x, y;
 
-    if (!r->px)
+    if (!r->px || op <= 0.0f)
         return;
+    rect = tf_rect(r, rect);
     clip_ibounds(r, &cx0, &cy0, &cx1, &cy1);
     x0 = (int)floorf(rect.x * r->scale);
     y0 = (int)floorf(rect.y * r->scale);
@@ -242,18 +281,22 @@ static void soft_fill_rect(cl_renderer_t *rr, cl_rect_t rect, cl_color_t color)
         y1 = cy1;
     for (y = y0; y < y1; y++)
         for (x = x0; x < x1; x++)
-            blend_px(r, x, y, color, 1.0f);
+            blend_px(r, x, y, color, op);
 }
 
 /* Nearest-sampled, source-over scaled blit of an RGBA8 image. */
 static void soft_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
 {
     soft_renderer_t *r = (soft_renderer_t *)rr;
+    float op = op_cur(r);
     int cx0, cy0, cx1, cy1;
     int x0, y0, x1, y1, ix, iy;
     float pw, ph;
 
-    if (!r->px || !img || dst.w <= 0.0f || dst.h <= 0.0f)
+    if (!r->px || !img || op <= 0.0f)
+        return;
+    dst = tf_rect(r, dst);
+    if (dst.w <= 0.0f || dst.h <= 0.0f)
         return;
     clip_ibounds(r, &cx0, &cy0, &cx1, &cy1);
     x0 = (int)floorf(dst.x * r->scale);
@@ -297,7 +340,7 @@ static void soft_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
             c.g = px[1];
             c.b = px[2];
             c.a = px[3];
-            blend_px(r, ix, iy, c, 1.0f);
+            blend_px(r, ix, iy, c, op);
         }
     }
 }
@@ -306,16 +349,22 @@ static void soft_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
 static void soft_round(soft_renderer_t *r, cl_rect_t rect, float radius,
                        float border, cl_color_t color)
 {
+    float ts = tf_cur(r).s;
+    float op = op_cur(r);
     int cx0, cy0, cx1, cy1;
     int x0, y0, x1, y1, ix, iy;
-    float ccx = rect.x + rect.w * 0.5f; /* logical centre */
-    float ccy = rect.y + rect.h * 0.5f;
-    float hbx = rect.w * 0.5f;
-    float hby = rect.h * 0.5f;
+    float ccx, ccy, hbx, hby;
     const float aa = 1.0f;
 
-    if (!r->px)
+    if (!r->px || op <= 0.0f)
         return;
+    rect = tf_rect(r, rect); /* radius and border scale with the transform */
+    radius *= ts;
+    border *= ts;
+    ccx = rect.x + rect.w * 0.5f; /* logical centre */
+    ccy = rect.y + rect.h * 0.5f;
+    hbx = rect.w * 0.5f;
+    hby = rect.h * 0.5f;
     clip_ibounds(r, &cx0, &cy0, &cx1, &cy1);
     x0 = (int)floorf(rect.x * r->scale);
     y0 = (int)floorf(rect.y * r->scale);
@@ -346,7 +395,7 @@ static void soft_round(soft_renderer_t *r, cl_rect_t rect, float radius,
                 cov = clampf(outer - inner, 0.0f, 1.0f);
             }
             if (cov > 0.0f)
-                blend_px(r, ix, iy, color, cov);
+                blend_px(r, ix, iy, color, cov * op);
         }
     }
 }
@@ -436,14 +485,18 @@ static void soft_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
                            cl_point_t pos, cl_color_t color)
 {
     soft_renderer_t *r = (soft_renderer_t *)rr;
+    struct soft_tf tf = tf_cur(r);
+    float op = op_cur(r);
     int cx0, cy0, cx1, cy1;
     float penx, baseline;
     size_t i = 0, n;
     uint32_t cp;
 
-    if (!r->px || !font || !utf8)
+    if (!r->px || !font || !utf8 || tf.s <= 0.0f || op <= 0.0f)
         return;
     clip_ibounds(r, &cx0, &cy0, &cx1, &cy1);
+    /* The pen advances in the LOCAL (pre-transform) space; each glyph maps
+     * its box through the transform and is stretched as a bitmap. */
     baseline = pos.y + cl_font_ascent_px(font);
     penx = pos.x;
     while ((n = cl_utf8_next(utf8 + i, &cp)) != 0) {
@@ -453,12 +506,13 @@ static void soft_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
         if (!g)
             continue; /* unrasterizable: skip it, keep drawing the string */
         if (g->cov) {
-            float gx = penx + (float)g->xoff; /* logical top-left of bitmap */
-            float gy = baseline + (float)g->yoff;
+            /* window-logical top-left of the (transformed) bitmap box */
+            float gx = (penx + (float)g->xoff) * tf.s + tf.tx;
+            float gy = (baseline + (float)g->yoff) * tf.s + tf.ty;
             int px0 = (int)floorf(gx * r->scale);
             int py0 = (int)floorf(gy * r->scale);
-            int px1 = (int)ceilf((gx + (float)g->w) * r->scale);
-            int py1 = (int)ceilf((gy + (float)g->h) * r->scale);
+            int px1 = (int)ceilf((gx + (float)g->w * tf.s) * r->scale);
+            int py1 = (int)ceilf((gy + (float)g->h * tf.s) * r->scale);
             int ix, iy;
 
             if (px0 < cx0)
@@ -473,19 +527,19 @@ static void soft_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
              * bitmap per pixel, so text honours the device scale like the SDF
              * primitives do. At scale == 1 this is a straight 1:1 blit. */
             for (iy = py0; iy < py1; iy++) {
-                int ty = (int)(((float)iy + 0.5f) / r->scale - gy);
+                int ty = (int)((((float)iy + 0.5f) / r->scale - gy) / tf.s);
 
                 if (ty < 0 || ty >= g->h)
                     continue;
                 for (ix = px0; ix < px1; ix++) {
-                    int tx = (int)(((float)ix + 0.5f) / r->scale - gx);
+                    int tx = (int)((((float)ix + 0.5f) / r->scale - gx) / tf.s);
                     float cov;
 
                     if (tx < 0 || tx >= g->w)
                         continue;
                     cov = (float)g->cov[ty * g->w + tx] / 255.0f;
                     if (cov > 0.0f)
-                        blend_px(r, ix, iy, color, cov);
+                        blend_px(r, ix, iy, color, cov * op);
                 }
             }
         }
@@ -498,8 +552,9 @@ static void soft_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
 static void soft_push_clip(cl_renderer_t *rr, cl_rect_t rect)
 {
     soft_renderer_t *r = (soft_renderer_t *)rr;
-    cl_rect_t phys = { rect.x * r->scale, rect.y * r->scale, rect.w * r->scale,
-                       rect.h * r->scale };
+    cl_rect_t win = tf_rect(r, rect); /* clip rects transform like geometry */
+    cl_rect_t phys = { win.x * r->scale, win.y * r->scale, win.w * r->scale,
+                       win.h * r->scale };
     cl_rect_t merged = rect_intersect(clip_cur(r), phys);
 
     if (r->clip_depth < SOFT_CLIP_STACK)
@@ -513,6 +568,48 @@ static void soft_pop_clip(cl_renderer_t *rr)
 
     if (r->clip_depth > 0)
         r->clip_depth--;
+}
+
+static void soft_push_transform(cl_renderer_t *rr, cl_point_t offset,
+                                float scale)
+{
+    soft_renderer_t *r = (soft_renderer_t *)rr;
+    struct soft_tf cur = tf_cur(r);
+    struct soft_tf next;
+
+    /* Compose: p -> cur(p * scale + offset). */
+    next.s = cur.s * scale;
+    next.tx = cur.tx + cur.s * offset.x;
+    next.ty = cur.ty + cur.s * offset.y;
+    if (r->tf_depth < SOFT_TF_STACK)
+        r->tf_stack[r->tf_depth] = next;
+    r->tf_depth++; /* always advance so a later pop stays balanced */
+}
+
+static void soft_pop_transform(cl_renderer_t *rr)
+{
+    soft_renderer_t *r = (soft_renderer_t *)rr;
+
+    if (r->tf_depth > 0)
+        r->tf_depth--;
+}
+
+static void soft_push_opacity(cl_renderer_t *rr, float alpha)
+{
+    soft_renderer_t *r = (soft_renderer_t *)rr;
+    float next = op_cur(r) * clampf(alpha, 0.0f, 1.0f);
+
+    if (r->op_depth < SOFT_TF_STACK)
+        r->op_stack[r->op_depth] = next;
+    r->op_depth++; /* always advance so a later pop stays balanced */
+}
+
+static void soft_pop_opacity(cl_renderer_t *rr)
+{
+    soft_renderer_t *r = (soft_renderer_t *)rr;
+
+    if (r->op_depth > 0)
+        r->op_depth--;
 }
 
 /* Coarse but correct: entries of other fonts simply re-rasterize. */
@@ -542,6 +639,10 @@ static const cl_renderer_ops_t soft_ops = {
     .draw_image = soft_draw_image,
     .push_clip = soft_push_clip,
     .pop_clip = soft_pop_clip,
+    .push_transform = soft_push_transform,
+    .pop_transform = soft_pop_transform,
+    .push_opacity = soft_push_opacity,
+    .pop_opacity = soft_pop_opacity,
     .evict_font = soft_evict_font,
     .destroy = soft_destroy,
 };

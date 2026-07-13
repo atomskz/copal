@@ -428,6 +428,42 @@ static void test_panel_spacer_radiogroup(void)
     cl_application_destroy(app);
 }
 
+/* The mock renderer records draw commands with the transform applied to
+ * their geometry and the group opacity folded into color.a. */
+static void test_mock_transform_opacity(void)
+{
+    cl_renderer_t *r = cl_renderer_mock_create(cl_allocator_default());
+    const cl_mock_command_t *c;
+
+    r->ops->begin_frame(r, (cl_size_t){ 100, 100 }, 1.0f,
+                        (cl_color_t){ 0, 0, 0, 255 });
+    r->ops->push_transform(r, (cl_point_t){ 10, 20 }, 2.0f);
+    r->ops->push_opacity(r, 0.5f);
+    r->ops->fill_rect(r, (cl_rect_t){ 1, 2, 3, 4 },
+                      (cl_color_t){ 1, 2, 3, 200 });
+    r->ops->pop_opacity(r);
+    r->ops->pop_transform(r);
+    r->ops->fill_rect(r, (cl_rect_t){ 1, 2, 3, 4 },
+                      (cl_color_t){ 1, 2, 3, 200 });
+    r->ops->end_frame(r);
+
+    CHECK(cl_renderer_mock_count(r) == 6);
+    c = cl_renderer_mock_get(r, 0);
+    CHECK(c->kind == CL_MOCK_PUSH_TRANSFORM);
+    CHECK(c->pos.x == 10.0f && c->width == 2.0f); /* raw parameters */
+    c = cl_renderer_mock_get(r, 1);
+    CHECK(c->kind == CL_MOCK_PUSH_OPACITY && c->width == 0.5f);
+    c = cl_renderer_mock_get(r, 2);
+    CHECK(c->kind == CL_MOCK_FILL_RECT);
+    CHECK(c->rect.x == 12.0f && c->rect.y == 24.0f); /* 1*2+10, 2*2+20 */
+    CHECK(c->rect.w == 6.0f && c->rect.h == 8.0f);
+    CHECK(c->color.a == 100); /* 200 * 0.5 */
+    c = cl_renderer_mock_get(r, 5);
+    CHECK(c->kind == CL_MOCK_FILL_RECT);
+    CHECK(c->rect.x == 1.0f && c->color.a == 200); /* stacks restored */
+    r->ops->destroy(r);
+}
+
 int main(void)
 {
     test_api_symmetry();
@@ -435,6 +471,7 @@ int main(void)
     test_imageview();
     test_list();
     test_progressbar();
+    test_mock_transform_opacity();
     const cl_allocator_t *a = cl_allocator_default();
 
     /* --- HBox lays children left-to-right with padding + spacing --- */

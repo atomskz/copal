@@ -61,6 +61,31 @@ void cl_paint_pop_clip(cl_paint_context_t *ctx)
     ctx->renderer->ops->pop_clip(ctx->renderer);
 }
 
+void cl_paint_push_transform(cl_paint_context_t *ctx, cl_point_t offset,
+                             float scale)
+{
+    if (ctx->renderer->ops->push_transform)
+        ctx->renderer->ops->push_transform(ctx->renderer, offset, scale);
+}
+
+void cl_paint_pop_transform(cl_paint_context_t *ctx)
+{
+    if (ctx->renderer->ops->pop_transform)
+        ctx->renderer->ops->pop_transform(ctx->renderer);
+}
+
+void cl_paint_push_opacity(cl_paint_context_t *ctx, float alpha)
+{
+    if (ctx->renderer->ops->push_opacity)
+        ctx->renderer->ops->push_opacity(ctx->renderer, alpha);
+}
+
+void cl_paint_pop_opacity(cl_paint_context_t *ctx)
+{
+    if (ctx->renderer->ops->pop_opacity)
+        ctx->renderer->ops->pop_opacity(ctx->renderer);
+}
+
 cl_theme_t *cl_paint_theme(cl_paint_context_t *ctx)
 {
     return ctx->theme;

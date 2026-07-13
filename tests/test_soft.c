@@ -161,6 +161,73 @@ int main(void)
     CHECK(is_rgb(at(buf, 23, 20), bg));   /* interior stays bg */
     CHECK(is_rgb(at(buf, 4, 20), bg));    /* outside stays bg */
 
+    /* Transform: translate + scale maps geometry; pop restores identity. */
+    r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+    r->ops->push_transform(r, (cl_point_t){ 8, 4 }, 2.0f);
+    r->ops->fill_rect(r, (cl_rect_t){ 2, 2, 4, 4 }, fill); /* -> 12,8..20,16 */
+    r->ops->pop_transform(r);
+    r->ops->fill_rect(r, (cl_rect_t){ 40, 40, 4, 4 }, fill);
+    r->ops->end_frame(r);
+    CHECK(is_rgb(at(buf, 13, 9), fill));  /* inside the transformed rect */
+    CHECK(is_rgb(at(buf, 19, 15), fill));
+    CHECK(is_rgb(at(buf, 11, 7), bg));    /* just outside it */
+    CHECK(is_rgb(at(buf, 3, 3), bg));     /* NOT at the local coordinates */
+    CHECK(is_rgb(at(buf, 41, 41), fill)); /* identity restored after pop */
+
+    /* Nested transforms compose: (2,2)x2 then (1,1)x2 -> scale 4, offset 4. */
+    r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+    r->ops->push_transform(r, (cl_point_t){ 2, 2 }, 2.0f);
+    r->ops->push_transform(r, (cl_point_t){ 1, 1 }, 2.0f);
+    r->ops->fill_rect(r, (cl_rect_t){ 0, 0, 2, 2 }, fill); /* -> 4,4..12,12 */
+    r->ops->pop_transform(r);
+    r->ops->pop_transform(r);
+    r->ops->end_frame(r);
+    CHECK(is_rgb(at(buf, 5, 5), fill));
+    CHECK(is_rgb(at(buf, 11, 11), fill));
+    CHECK(is_rgb(at(buf, 3, 3), bg));
+    CHECK(is_rgb(at(buf, 12, 12), bg));
+
+    /* The transform applies to clip rects too. */
+    r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+    r->ops->push_transform(r, (cl_point_t){ 8, 8 }, 1.0f);
+    r->ops->push_clip(r, (cl_rect_t){ 0, 0, 4, 4 }); /* window 8..12 x 8..12 */
+    r->ops->fill_rect(r, (cl_rect_t){ -8, -8, W, H }, fill);
+    r->ops->pop_clip(r);
+    r->ops->pop_transform(r);
+    r->ops->end_frame(r);
+    CHECK(is_rgb(at(buf, 9, 9), fill));   /* inside the shifted clip */
+    CHECK(is_rgb(at(buf, 13, 13), bg));   /* outside it */
+    CHECK(is_rgb(at(buf, 5, 5), bg));
+
+    /* Group opacity: an opaque white fill at 0.5 lands halfway to white. */
+    {
+        cl_color_t white = { 255, 255, 255, 255 };
+        int ch;
+
+        r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+        r->ops->push_opacity(r, 0.5f);
+        r->ops->fill_rect(r, (cl_rect_t){ 0, 0, W, H }, white);
+        r->ops->pop_opacity(r);
+        r->ops->end_frame(r);
+        ch = (int)((at(buf, 30, 30) >> 16) & 0xFFu); /* ~ 10 + 245*0.5 = 133 */
+        CHECK(ch >= 131 && ch <= 135);
+
+        /* Nested opacities multiply: 0.5 * 0.5 = 0.25. */
+        r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);
+        r->ops->push_opacity(r, 0.5f);
+        r->ops->push_opacity(r, 0.5f);
+        r->ops->fill_rect(r, (cl_rect_t){ 0, 0, W, H }, white);
+        r->ops->pop_opacity(r);
+        /* back to 0.5 after one pop */
+        r->ops->fill_rect(r, (cl_rect_t){ 0, 0, 8, 8 }, white);
+        r->ops->pop_opacity(r);
+        r->ops->end_frame(r);
+        ch = (int)((at(buf, 30, 30) >> 16) & 0xFFu); /* ~ 10 + 245*0.25 = 71 */
+        CHECK(ch >= 69 && ch <= 74);
+        ch = (int)((at(buf, 4, 4) >> 16) & 0xFFu); /* 0.25 then 0.5 on top */
+        CHECK(ch >= 130 && ch <= 170); /* white over the 0.25 blend at 0.5 */
+    }
+
     /* An opaque surface (a_mask == 0) must render the same colours. */
     stub.a_mask = 0;
     r->ops->begin_frame(r, (cl_size_t){ W, H }, 1.0f, bg);

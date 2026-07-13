@@ -16,6 +16,7 @@
 #define GLYPH_HASH_SIZE 1024 /* 2x slots, power of two */
 #define MAX_TEXT_GLYPHS 256  /* quads per batch; draw_text flushes and refills */
 #define CL_GL_CLIP_STACK 16
+#define CL_GL_TF_STACK 16 /* transform and opacity stacks */
 #define CL_GL_MAX_IMAGES 64
 
 typedef struct glyph {
@@ -42,7 +43,7 @@ typedef struct gl_renderer {
     GLuint text_vao, text_vbo;
     GLint r_proj, r_rect, r_radius, r_color, r_border;
     GLint t_proj, t_color, t_atlas;
-    GLint i_proj, i_tex;
+    GLint i_proj, i_tex, i_alpha;
     GLuint cur_prog; /* program bound this frame; avoids redundant UseProgram */
     GLuint atlas;
     int pen_x, pen_y, row_h;
@@ -57,6 +58,13 @@ typedef struct gl_renderer {
     int fb_w, fb_h; /* framebuffer size in physical px (matches glViewport) */
     cl_rect_t clip_stack[CL_GL_CLIP_STACK];
     int clip_depth;
+    /* Transform stack: composed translate+scale per level (identity at 0). */
+    struct gl_tf {
+        float s, tx, ty;
+    } tf_stack[CL_GL_TF_STACK];
+    int tf_depth;
+    float op_stack[CL_GL_TF_STACK]; /* composed group opacity per level */
+    int op_depth;
     /* Uploaded image textures, keyed by the image pointer (evict_image). */
     struct {
         const cl_image_t *img;
@@ -131,9 +139,11 @@ static const char *IMG_FS =
     "#version 330 core\n"
     "in vec2 v_uv;\n"
     "uniform sampler2D u_tex;\n"
+    "uniform float u_alpha;\n"
     "out vec4 frag;\n"
     "void main(){\n"
-    "  frag = texture(u_tex, v_uv);\n"
+    "  vec4 c = texture(u_tex, v_uv);\n"
+    "  frag = vec4(c.rgb, c.a * u_alpha);\n"
     "}\n";
 
 static void *gl_get(void *ctx, const char *name)
@@ -234,6 +244,7 @@ static void gl_init(gl_renderer_t *r)
     r->t_atlas = gl->GetUniformLocation(r->text_prog, "u_atlas");
     r->i_proj = gl->GetUniformLocation(r->img_prog, "u_proj");
     r->i_tex = gl->GetUniformLocation(r->img_prog, "u_tex");
+    r->i_alpha = gl->GetUniformLocation(r->img_prog, "u_alpha");
 
     gl->GenVertexArrays(1, &r->rect_vao);
     gl->BindVertexArray(r->rect_vao);
@@ -415,6 +426,8 @@ static void gl_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
     r->fb_w = (int)(size.w * r->scale);
     r->fb_h = (int)(size.h * r->scale);
     r->clip_depth = 0;
+    r->tf_depth = 0;
+    r->op_depth = 0;
     set_proj(r, size.w, size.h);
     r->gl.Viewport(0, 0, (GLsizei)r->fb_w, (GLsizei)r->fb_h);
     r->gl.Disable(GL_SCISSOR_TEST);
@@ -457,6 +470,80 @@ static cl_rect_t rect_intersect(cl_rect_t a, cl_rect_t b)
     if (out.h < 0.0f)
         out.h = 0.0f;
     return out;
+}
+
+/* ---- transform and group opacity ----------------------------------------- */
+
+static struct gl_tf gl_tf_cur(const gl_renderer_t *r)
+{
+    int top = r->tf_depth < CL_GL_TF_STACK ? r->tf_depth : CL_GL_TF_STACK;
+
+    if (top == 0)
+        return (struct gl_tf){ 1.0f, 0.0f, 0.0f };
+    return r->tf_stack[top - 1];
+}
+
+/* Map a logical rect through the current transform (window logical px). */
+static cl_rect_t gl_tf_rect(const gl_renderer_t *r, cl_rect_t rc)
+{
+    struct gl_tf t = gl_tf_cur(r);
+
+    return (cl_rect_t){ rc.x * t.s + t.tx, rc.y * t.s + t.ty, rc.w * t.s,
+                        rc.h * t.s };
+}
+
+static float gl_op_cur(const gl_renderer_t *r)
+{
+    int top = r->op_depth < CL_GL_TF_STACK ? r->op_depth : CL_GL_TF_STACK;
+
+    return top == 0 ? 1.0f : r->op_stack[top - 1];
+}
+
+static void gl_push_transform(cl_renderer_t *rr, cl_point_t offset,
+                              float scale)
+{
+    gl_renderer_t *r = (gl_renderer_t *)rr;
+    struct gl_tf cur = gl_tf_cur(r);
+    struct gl_tf next;
+
+    /* Compose: p -> cur(p * scale + offset). */
+    next.s = cur.s * scale;
+    next.tx = cur.tx + cur.s * offset.x;
+    next.ty = cur.ty + cur.s * offset.y;
+    if (r->tf_depth < CL_GL_TF_STACK)
+        r->tf_stack[r->tf_depth] = next;
+    r->tf_depth++; /* always advance so a later pop stays balanced */
+}
+
+static void gl_pop_transform(cl_renderer_t *rr)
+{
+    gl_renderer_t *r = (gl_renderer_t *)rr;
+
+    if (r->tf_depth > 0)
+        r->tf_depth--;
+}
+
+static void gl_push_opacity(cl_renderer_t *rr, float alpha)
+{
+    gl_renderer_t *r = (gl_renderer_t *)rr;
+    float next;
+
+    if (alpha < 0.0f)
+        alpha = 0.0f;
+    if (alpha > 1.0f)
+        alpha = 1.0f;
+    next = gl_op_cur(r) * alpha;
+    if (r->op_depth < CL_GL_TF_STACK)
+        r->op_stack[r->op_depth] = next;
+    r->op_depth++; /* always advance so a later pop stays balanced */
+}
+
+static void gl_pop_opacity(cl_renderer_t *rr)
+{
+    gl_renderer_t *r = (gl_renderer_t *)rr;
+
+    if (r->op_depth > 0)
+        r->op_depth--;
 }
 
 /* Apply a logical-pixel rect as the GL scissor (framebuffer px, y flipped). */
@@ -505,7 +592,8 @@ static void gl_push_clip(cl_renderer_t *rr, cl_rect_t rect)
 
     if (!r->ok)
         return;
-    merged = rect_intersect(gl_clip_cur(r), rect);
+    /* Clip rects transform like geometry. */
+    merged = rect_intersect(gl_clip_cur(r), gl_tf_rect(r, rect));
     idx = r->clip_depth++; /* always advance so a later pop stays balanced */
     if (idx < CL_GL_CLIP_STACK) {
         r->clip_stack[idx] = merged;
@@ -537,8 +625,14 @@ static void gl_end_frame(cl_renderer_t *rr)
 static void draw_rect(gl_renderer_t *r, cl_rect_t rc, float radius,
                       cl_color_t c, float border)
 {
-    if (!r->ok)
+    float ts = gl_tf_cur(r).s;
+    float op = gl_op_cur(r);
+
+    if (!r->ok || op <= 0.0f)
         return;
+    rc = gl_tf_rect(r, rc); /* radius and border scale with the transform */
+    radius *= ts;
+    border *= ts;
     if (r->cur_prog != r->rect_prog) {
         r->gl.UseProgram(r->rect_prog);
         r->cur_prog = r->rect_prog;
@@ -546,7 +640,7 @@ static void draw_rect(gl_renderer_t *r, cl_rect_t rc, float radius,
     r->gl.Uniform4f(r->r_rect, rc.x, rc.y, rc.w, rc.h);
     r->gl.Uniform1f(r->r_radius, radius);
     r->gl.Uniform4f(r->r_color, (float)c.r / 255.0f, (float)c.g / 255.0f,
-                    (float)c.b / 255.0f, (float)c.a / 255.0f);
+                    (float)c.b / 255.0f, (float)c.a / 255.0f * op);
     r->gl.Uniform1f(r->r_border, border);
     r->gl.BindVertexArray(r->rect_vao);
     r->gl.DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -592,6 +686,8 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
                          cl_point_t pos, cl_color_t c)
 {
     gl_renderer_t *r = (gl_renderer_t *)rr;
+    struct gl_tf tf = gl_tf_cur(r);
+    float op = gl_op_cur(r);
     float verts[MAX_TEXT_GLYPHS * 24];
     int nv = 0;
     float baseline;
@@ -600,8 +696,9 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
     size_t n;
     uint32_t cp;
 
-    if (!r->ok || !font || !utf8)
+    if (!r->ok || !font || !utf8 || tf.s <= 0.0f || op <= 0.0f)
         return;
+    c.a = (uint8_t)((float)c.a * op + 0.5f);
     baseline = pos.y + cl_font_ascent_px(font);
 
     while ((n = cl_utf8_next(utf8 + i, &cp)) != 0) {
@@ -620,12 +717,16 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
         if (!g)
             continue; /* unrasterizable: skip it, keep drawing the string */
         if (g->w > 0 && g->h > 0) {
-            /* Bitmap geometry is device px; the projection is logical. */
+            /* Bitmap geometry is device px; the projection is logical. The
+             * pen advances in the LOCAL space; the quad corners map through
+             * the transform (glyphs stretch as textures). */
             float inv = 1.0f / (r->scale > 0.0f ? r->scale : 1.0f);
-            float x0 = penx + (float)g->xoff * inv;
-            float y0 = baseline + (float)g->yoff * inv;
-            float x1 = x0 + (float)g->w * inv;
-            float y1 = y0 + (float)g->h * inv;
+            float lx0 = penx + (float)g->xoff * inv;
+            float ly0 = baseline + (float)g->yoff * inv;
+            float x0 = lx0 * tf.s + tf.tx;
+            float y0 = ly0 * tf.s + tf.ty;
+            float x1 = x0 + (float)g->w * inv * tf.s;
+            float y1 = y0 + (float)g->h * inv * tf.s;
             const float quad[24] = {
                 x0, y0, g->u0, g->v0, x1, y0, g->u1, g->v0,
                 x1, y1, g->u1, g->v1, x0, y0, g->u0, g->v0,
@@ -686,14 +787,16 @@ static GLuint image_texture(gl_renderer_t *r, const cl_image_t *img)
 static void gl_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
 {
     gl_renderer_t *r = (gl_renderer_t *)rr;
+    float op = gl_op_cur(r);
     GLuint tex;
     float x0, y0, x1, y1;
     float verts[24];
 
-    if (!r->ok || !img)
+    if (!r->ok || !img || op <= 0.0f)
         return;
     tex = image_texture(r, img);
 
+    dst = gl_tf_rect(r, dst);
     x0 = dst.x;
     y0 = dst.y;
     x1 = dst.x + dst.w;
@@ -710,6 +813,7 @@ static void gl_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
         r->gl.UseProgram(r->img_prog);
         r->cur_prog = r->img_prog;
     }
+    r->gl.Uniform1f(r->i_alpha, op);
     r->gl.BindTexture(GL_TEXTURE_2D, tex);
     r->gl.BindVertexArray(r->text_vao); /* same pos+uv layout as text */
     r->gl.BindBuffer(GL_ARRAY_BUFFER, r->text_vbo);
@@ -772,6 +876,10 @@ static const cl_renderer_ops_t gl_ops = {
     .draw_image = gl_draw_image,
     .push_clip = gl_push_clip,
     .pop_clip = gl_pop_clip,
+    .push_transform = gl_push_transform,
+    .pop_transform = gl_pop_transform,
+    .push_opacity = gl_push_opacity,
+    .pop_opacity = gl_pop_opacity,
     .evict_font = gl_evict_font,
     .evict_image = gl_evict_image,
     .destroy = gl_destroy,
