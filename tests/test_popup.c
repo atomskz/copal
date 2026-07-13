@@ -14,6 +14,7 @@
 
 #include "platform/mock/platform_mock.h"
 #include "render/mock/renderer_mock.h"
+#include "app/app_internal.h" /* white-box: focus/hover assertions */
 
 static int failures;
 
@@ -79,6 +80,16 @@ static void press(cl_platform_t *p, cl_key_t key)
     memset(&ev, 0, sizeof(ev));
     ev.kind = CL_PEV_KEY_DOWN;
     ev.key = key;
+    cl_platform_mock_push(p, ev);
+}
+
+static void type_text(cl_platform_t *p, const char *utf8)
+{
+    cl_platform_event_t ev;
+
+    memset(&ev, 0, sizeof(ev));
+    ev.kind = CL_PEV_TEXT_INPUT;
+    strncpy(ev.text, utf8, sizeof(ev.text) - 1);
     cl_platform_mock_push(p, ev);
 }
 
@@ -435,6 +446,81 @@ int main(void)
         mouse(plat, CL_PEV_MOUSE_UP, 395.0f, 195.0f);
         cl_application_step(app, false);
         CHECK(cl_window_popup(win) == dlg);
+
+        cl_window_close_popup(win);
+        cl_application_step(app, false);
+        CHECK(cl_window_popup(win) == NULL);
+    }
+
+    /* Input INSIDE a modal dialog: a press focuses the clicked widget, text
+     * reaches it, hover applies its cursor, a drag stays captured past the
+     * dialog bounds, and Tab cycles the dialog's focusables. Text never
+     * leaks to the focused widget in the content below. */
+    {
+        cl_widget_t *ctb = cl_textbox_create(
+            app, &(cl_textbox_desc_t){ CL_TEXTBOX_DESC_INIT_FIELDS });
+        cl_widget_t *dlg = cl_vbox_create(
+            app, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS,
+                                    .align_cross = CL_ALIGN_STRETCH,
+                                    .spacing = 8.0f });
+        cl_widget_t *tb = cl_textbox_create(
+            app, &(cl_textbox_desc_t){ CL_TEXTBOX_DESC_INIT_FIELDS });
+        cl_widget_t *sl = cl_slider_create(
+            app, &(cl_slider_desc_t){ CL_SLIDER_DESC_INIT_FIELDS,
+                                      .min = 0.0f, .max = 100.0f });
+        cl_rect_t r;
+
+        /* focus a textbox in the CONTENT first */
+        cl_window_set_content(win, ctb);
+        cl_application_step(app, false);
+        r = cl_widget_rect(ctb);
+        mouse(plat, CL_PEV_MOUSE_DOWN, r.x + 5.0f, r.y + r.h * 0.5f);
+        mouse(plat, CL_PEV_MOUSE_UP, r.x + 5.0f, r.y + r.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(win->focus == ctb);
+
+        cl_widget_add_child(dlg, tb);
+        cl_widget_add_child(dlg, sl);
+        cl_window_open_modal(win, dlg);
+        cl_application_step(app, false);
+
+        /* focus still sits in the content: the modal swallows the text */
+        type_text(plat, "x");
+        cl_application_step(app, false);
+        CHECK(cl_textbox_text(ctb)[0] == '\0');
+
+        /* a click inside the dialog focuses ITS textbox; typing lands there */
+        r = cl_widget_rect(tb);
+        mouse(plat, CL_PEV_MOUSE_DOWN, r.x + 5.0f, r.y + r.h * 0.5f);
+        mouse(plat, CL_PEV_MOUSE_UP, r.x + 5.0f, r.y + r.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(win->focus == tb);
+        type_text(plat, "hi");
+        cl_application_step(app, false);
+        CHECK(strcmp(cl_textbox_text(tb), "hi") == 0);
+        CHECK(cl_textbox_text(ctb)[0] == '\0');
+
+        /* hover inside the dialog applies the hovered widget's cursor */
+        mouse(plat, CL_PEV_MOUSE_MOVE, r.x + 5.0f, r.y + r.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(cl_platform_mock_cursor(plat) == CL_CURSOR_IBEAM);
+        r = cl_widget_rect(sl);
+        mouse(plat, CL_PEV_MOUSE_MOVE, r.x + r.w * 0.5f, r.y + r.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(cl_platform_mock_cursor(plat) == CL_CURSOR_DEFAULT);
+
+        /* drag the slider out past the dialog: the capture keeps feeding it */
+        mouse(plat, CL_PEV_MOUSE_DOWN, r.x + r.w * 0.5f, r.y + r.h * 0.5f);
+        mouse(plat, CL_PEV_MOUSE_MOVE, 399.0f, r.y + r.h * 0.5f);
+        mouse(plat, CL_PEV_MOUSE_UP, 399.0f, r.y + r.h * 0.5f);
+        cl_application_step(app, false);
+        CHECK(cl_slider_value(sl) == 100.0f);
+        CHECK(win->focus == sl); /* the press moved focus to the slider */
+
+        /* Tab cycles within the dialog's focusables (slider -> textbox) */
+        press(plat, CL_KEY_TAB);
+        cl_application_step(app, false);
+        CHECK(win->focus == tb);
 
         cl_window_close_popup(win);
         cl_application_step(app, false);

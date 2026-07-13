@@ -125,6 +125,8 @@ void cl_window_handle_text(cl_window_t *win, const char *utf8);
 void cl_window_handle_text_edit(cl_window_t *win, const char *utf8, int cursor);
 void cl_window_set_focus(cl_window_t *win, cl_widget_t *w);
 void cl_window_focus_next(cl_window_t *win, bool forward);
+/* Tab traversal scoped to a subtree (the content, or a dialog overlay). */
+void cl_window_focus_next_in(cl_window_t *win, cl_widget_t *root, bool forward);
 void cl_window_resize(cl_window_t *win, cl_size_t size);
 void cl_window_mark_dirty(cl_window_t *win);
 void cl_window_mark_layout_dirty(cl_window_t *win);

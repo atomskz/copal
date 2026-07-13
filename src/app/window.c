@@ -736,6 +736,30 @@ void cl_window_render(cl_window_t *win)
     win->damage = (cl_rect_t){ 0.0f, 0.0f, 0.0f, 0.0f };
 }
 
+/* The root ancestor of w: the content root, an overlay entry, the tooltip. */
+static cl_widget_t *widget_root(cl_widget_t *w)
+{
+    while (w->parent)
+        w = w->parent;
+    return w;
+}
+
+/* True when w lives inside one of the open overlay entries. */
+static bool widget_in_overlays(cl_window_t *win, cl_widget_t *w)
+{
+    cl_widget_t *root;
+    int i;
+
+    if (!w)
+        return false;
+    root = widget_root(w);
+    for (i = 0; i < win->overlay_count; i++) {
+        if (win->overlays[i].widget == root)
+            return true;
+    }
+    return false;
+}
+
 /* The effective cursor of a widget: its own shape, or the nearest ancestor's
  * non-default one (a container can set a cursor for a whole subtree). */
 static cl_cursor_t effective_cursor(cl_widget_t *w)
@@ -811,6 +835,7 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
         if (kind == CL_PEV_MOUSE_DOWN) {
             cl_widget_t *tgt;
 
+            win->mouse_target = NULL; /* any prior capture ends here */
             if (hit < 0) {
                 /* Light-dismiss the chain above the topmost modal; with the
                  * modal itself on top this closes nothing - the press is
@@ -821,7 +846,35 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
             overlay_request_close_from(win, hit + 1);
             /* hit-test INTO the entry: dialogs carry child widgets */
             tgt = cl_widget_hit(win->overlays[hit].widget, pos);
-            cl_widget_dispatch(tgt ? tgt : win->overlays[hit].widget, &ev);
+            if (!tgt)
+                tgt = win->overlays[hit].widget;
+            /*
+             * A modal DIALOG behaves like content: the press moves focus to
+             * the nearest focusable ancestor and captures the pointer, so
+             * textboxes focus and sliders drag inside it. Menus keep their
+             * capture-less routing (drag-to-select spans entries).
+             */
+            if (win->overlays[hit].modal) {
+                cl_widget_t *f;
+
+                win->mouse_target = tgt;
+                for (f = tgt; f && !(f->flags & CL_WF_FOCUSABLE);
+                     f = f->parent)
+                    ;
+                if (f)
+                    cl_window_set_focus(win, f);
+            }
+            cl_widget_dispatch(tgt, &ev);
+            return;
+        }
+        /* A press captured inside a modal entry routes its drag/release to
+         * the captured widget, exactly like content capture. */
+        if (win->mouse_target && widget_in_overlays(win, win->mouse_target)) {
+            cl_widget_t *tgt = win->mouse_target;
+
+            if (kind == CL_PEV_MOUSE_UP)
+                win->mouse_target = NULL;
+            cl_widget_dispatch(tgt, &ev);
             return;
         }
         /* moves/releases go to the entry under the pointer, falling back to
@@ -830,6 +883,11 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
             cl_widget_t *ow = win->overlays[hit >= 0 ? hit : top].widget;
             cl_widget_t *tgt = hit >= 0 ? cl_widget_hit(ow, pos) : NULL;
 
+            if (kind == CL_PEV_MOUSE_UP)
+                win->mouse_target = NULL; /* a release ends content capture */
+            else if (!win->mouse_target)
+                /* hover/cursor inside overlays (button highlight, I-beam) */
+                window_update_hover(win, hit >= 0 ? (tgt ? tgt : ow) : NULL);
             cl_widget_dispatch(tgt ? tgt : ow, &ev);
         }
         return;
@@ -950,7 +1008,22 @@ void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
 
     /* An open popup captures the keyboard (menu navigation, Escape). */
     if (win->overlay_count > 0) {
-        cl_widget_dispatch(win->overlays[win->overlay_count - 1].widget, &ev);
+        struct cl_overlay *ov = &win->overlays[win->overlay_count - 1];
+
+        /*
+         * Focus scope: when the focus lives INSIDE the top overlay (a widget
+         * in a dialog), keys route to it like content and bubble up to the
+         * dialog root (Enter/Escape). Otherwise the overlay root itself gets
+         * them (menu navigation). Tab cycles a modal dialog's focusables.
+         */
+        if (win->focus && widget_root(win->focus) == ov->widget)
+            handled = cl_widget_dispatch(win->focus, &ev);
+        else
+            handled = cl_widget_dispatch(ov->widget, &ev);
+        if (!handled && kind == CL_PEV_KEY_DOWN && key == CL_KEY_TAB &&
+            ov->modal)
+            cl_window_focus_next_in(win, ov->widget,
+                                    !(mods & CL_MOD_SHIFT));
         return;
     }
 
@@ -962,12 +1035,25 @@ void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
         cl_window_focus_next(win, !(mods & CL_MOD_SHIFT));
 }
 
+/* Text input reaches the focused widget when no overlay is open OR when the
+ * focus lives inside the topmost overlay (a textbox in a dialog); any other
+ * open popup swallows it. */
+static bool text_input_allowed(cl_window_t *win)
+{
+    if (!win->focus)
+        return false;
+    if (win->overlay_count == 0)
+        return true;
+    return widget_root(win->focus) ==
+           win->overlays[win->overlay_count - 1].widget;
+}
+
 void cl_window_handle_text(cl_window_t *win, const char *utf8)
 {
     cl_event_t ev;
 
-    if (win->overlay_count > 0 || !win->focus || !utf8 || !utf8[0])
-        return; /* a popup swallows text input */
+    if (!text_input_allowed(win) || !utf8 || !utf8[0])
+        return;
     memset(&ev, 0, sizeof(ev));
     ev.type = CL_EVENT_TEXT_INPUT;
     ev.data.text.utf8 = utf8;
@@ -979,7 +1065,7 @@ void cl_window_handle_text_edit(cl_window_t *win, const char *utf8, int cursor)
     cl_event_t ev;
 
     /* An empty composition string is meaningful: it clears the pre-edit. */
-    if (win->overlay_count > 0 || !win->focus || !utf8)
+    if (!text_input_allowed(win) || !utf8)
         return;
     memset(&ev, 0, sizeof(ev));
     ev.type = CL_EVENT_TEXT_EDIT;
@@ -1016,7 +1102,7 @@ static void collect_focusable(cl_widget_t *w, cl_widget_t **arr, int *n)
         collect_focusable(c, arr, n);
 }
 
-void cl_window_focus_next(cl_window_t *win, bool forward)
+void cl_window_focus_next_in(cl_window_t *win, cl_widget_t *root, bool forward)
 {
     cl_widget_t **arr;
     int total;
@@ -1025,21 +1111,22 @@ void cl_window_focus_next(cl_window_t *win, bool forward)
     int next;
     int i;
 
-    if (!win->content)
+    if (!root)
         return;
-    total = count_focusable(win->content);
+    total = count_focusable(root);
     if (total == 0)
         return;
     arr = cl_alloc(&win->app->alloc, (size_t)total * sizeof(*arr));
     if (!arr)
         return;
-    collect_focusable(win->content, arr, &n);
+    collect_focusable(root, arr, &n);
     for (i = 0; i < n; i++) {
         if (arr[i] == win->focus) {
             cur = i;
             break;
         }
     }
+    /* A focus outside the scope (or none) enters at the first/last entry. */
     if (cur < 0)
         next = forward ? 0 : n - 1;
     else if (forward)
@@ -1048,4 +1135,9 @@ void cl_window_focus_next(cl_window_t *win, bool forward)
         next = (cur - 1 + n) % n;
     cl_window_set_focus(win, arr[next]);
     cl_free(&win->app->alloc, arr);
+}
+
+void cl_window_focus_next(cl_window_t *win, bool forward)
+{
+    cl_window_focus_next_in(win, win->content, forward);
 }
