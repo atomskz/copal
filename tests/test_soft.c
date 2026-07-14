@@ -34,18 +34,21 @@ typedef struct stub_platform {
     cl_platform_t base;
     uint32_t *px;
     uint32_t a_mask; /* 0 = opaque surface (no alpha channel) */
+    int w, h;        /* physical framebuffer size; 0 -> default W x H */
 } stub_platform_t;
 
 static bool stub_lock(cl_platform_t *p, cl_platform_window_t *win,
                       cl_pixmap_t *out)
 {
     stub_platform_t *s = (stub_platform_t *)p;
+    int pw = s->w ? s->w : W;
+    int ph = s->h ? s->h : H;
 
     (void)win;
     out->pixels = s->px;
-    out->w = W;
-    out->h = H;
-    out->pitch = W * 4;
+    out->w = pw;
+    out->h = ph;
+    out->pitch = pw * 4;
     out->r_mask = 0x00FF0000u;
     out->g_mask = 0x0000FF00u;
     out->b_mask = 0x000000FFu;
@@ -326,6 +329,36 @@ int main(void)
         }
         if (app)
             cl_application_destroy(app);
+    }
+
+    /*
+     * Scale (HiDPI): the same logical geometry lands at physical pixels
+     * multiplied by the frame scale. Exercises the software renderer's
+     * scale-aware paths, which the SDL soft window (scale pinned to 1.0) never
+     * reaches at run time but the SPI supports for a HiDPI backend.
+     */
+    {
+        int pw = 2 * W, ph = 2 * H;
+        uint32_t *buf2 = malloc((size_t)pw * (size_t)ph * 4);
+
+        CHECK(buf2 != NULL);
+        if (buf2) {
+            stub.px = buf2;
+            stub.w = pw;
+            stub.h = ph;
+            r->ops->begin_frame(r, (cl_size_t){ W, H }, 2.0f, bg);
+            r->ops->fill_rect(r, (cl_rect_t){ 10, 10, 20, 16 }, fill);
+            r->ops->end_frame(r);
+            /* logical (10,10)-(30,26) -> physical (20,20)-(60,52) at scale 2. */
+            CHECK(is_rgb(buf2[36 * pw + 40], fill)); /* interior */
+            CHECK(is_rgb(buf2[25 * pw + 22], fill)); /* just inside top-left */
+            CHECK(is_rgb(buf2[10 * pw + 10], bg));   /* outside (physical 10,10) */
+            CHECK(is_rgb(buf2[60 * pw + 62], bg));   /* past the far edge */
+            stub.px = buf;
+            stub.w = 0;
+            stub.h = 0;
+            free(buf2);
+        }
     }
 
     r->ops->destroy(r);

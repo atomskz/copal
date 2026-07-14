@@ -508,7 +508,13 @@ static cl_result_t sdl_create_window_soft(cl_platform_t *p,
                                  desc->min_width > 0 ? desc->min_width : 1,
                                  desc->min_height > 0 ? desc->min_height : 1);
 
-    /* The window surface is at logical size (no HighDPI in the MVP soft path). */
+    /*
+     * The SDL software window is created at logical size and rendered at scale
+     * 1.0 (no HighDPI in the MVP soft path). The software renderer itself is
+     * scale-aware - it maps logical geometry to physical pixels by the frame
+     * scale (verified in test_soft.c at 2x) - so a future HiDPI soft backend
+     * only has to report a physical-size surface and a real scale here.
+     */
     s->size.w = (float)w;
     s->size.h = (float)h;
     s->scale = 1.0f;
