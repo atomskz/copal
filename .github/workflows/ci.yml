@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y fonts-dejavu-core libsdl2-dev
+          sudo apt-get install -y fonts-dejavu-core libsdl2-dev libgl1-mesa-dri
 
       # Debug + ASan/UBSan across the whole matrix: the white-box suite and
       # the headless example smoke runs all execute sanitized.
@@ -46,7 +46,15 @@ jobs:
       - name: Build
         run: cmake --build build -j
 
+      # Force Mesa's software GL so the sdl-gl config's gl_golden runs against
+      # llvmpipe: its driver-side allocations then come from libgallium, which
+      # tools/lsan.supp suppresses (the LSAN_OPTIONS env is set on the test).
+      # Without this the runner's default GL driver leaks under a name
+      # LeakSanitizer can't match and the sanitized run fails. No-op for the
+      # mock and sdl-software configs, which never touch GL.
       - name: Test
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
         run: ctest --test-dir build --output-on-failure
 
   # The shared library disables the white-box suite (it needs the static
