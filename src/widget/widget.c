@@ -128,19 +128,47 @@ void cl_widget_set_window(cl_widget_t *w, cl_window_t *win)
         cl_widget_set_window(c, win);
 }
 
+/* Height of w's subtree (w itself counts as 1), never descending more than
+ * `limit` levels. Because cl_widget_add_child enforces the depth cap on every
+ * link, a subtree can never legitimately exceed it; the bound keeps this
+ * measuring walk itself from overflowing the stack if that ever failed. */
+static int subtree_depth(const cl_widget_t *w, int limit)
+{
+    int deepest = 0;
+    const cl_widget_t *c;
+
+    if (limit <= 0)
+        return 1;
+    for (c = w->first_child; c; c = c->next_sibling) {
+        int d = subtree_depth(c, limit - 1);
+
+        if (d > deepest)
+            deepest = d;
+    }
+    return deepest + 1;
+}
+
 cl_result_t cl_widget_add_child(cl_widget_t *parent, cl_widget_t *child)
 {
     cl_widget_t *anc;
+    int above = 0;
 
     if (!parent || !child || child->parent ||
         ((parent->flags | child->flags) & CL_WF_DEAD))
         return CL_ERROR_INVALID_ARGUMENT;
     /* Reject self-adoption and adopting an ancestor: a cycle would recurse
-     * forever in cl_widget_set_window (and every later tree walk). */
+     * forever in cl_widget_set_window (and every later tree walk). Count
+     * parent's depth from the root (1 at the root) as we walk. */
     for (anc = parent; anc; anc = anc->parent) {
         if (anc == child)
             return CL_ERROR_INVALID_ARGUMENT;
+        above++;
     }
+    /* Bound total nesting depth: parent's depth plus the height of child's own
+     * subtree. Keeps the recursive paint/hit-test/measure/free walks off the
+     * C stack's limit (see CL_WIDGET_MAX_DEPTH). */
+    if (above + subtree_depth(child, CL_WIDGET_MAX_DEPTH) > CL_WIDGET_MAX_DEPTH)
+        return CL_ERROR_INVALID_ARGUMENT;
 
     child->parent = parent;
     child->next_sibling = NULL;

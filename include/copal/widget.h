@@ -17,6 +17,14 @@ typedef struct cl_application cl_application_t;
 typedef struct cl_window cl_window_t;
 
 /* Tree / ownership (ARCHITECTURE §4). */
+/**
+ * cl_widget_add_child() - append `child` to `parent`.
+ *
+ * Returns CL_ERROR_INVALID_ARGUMENT for a NULL/destroyed widget, a child that
+ * already has a parent, a cycle (adopting self or an ancestor), or a tree that
+ * would nest beyond an internal depth limit (a few hundred levels) - the bound
+ * that keeps the recursive layout, paint and destroy walks off the C stack.
+ */
 CL_API cl_result_t cl_widget_add_child(cl_widget_t *parent, cl_widget_t *child);
 CL_API cl_result_t cl_widget_remove_child(cl_widget_t *parent,
                                           cl_widget_t *child);
