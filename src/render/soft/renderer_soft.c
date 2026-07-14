@@ -6,6 +6,7 @@
 
 #include "stb_truetype.h"
 
+#include <assert.h>
 #include <math.h>
 #include <string.h>
 
@@ -181,9 +182,10 @@ static void blend_px(soft_renderer_t *r, int ix, int iy, cl_color_t color,
     uint32_t d;
     int dr, dg, db;
 
+    assert(ix >= 0 && iy >= 0); /* clip_ibounds clamped the caller's bounds */
     if (a <= 0.0f)
         return;
-    p = (uint32_t *)(r->px + (size_t)iy * r->pitch + (size_t)ix * 4);
+    p = (uint32_t *)(r->px + (size_t)iy * (size_t)r->pitch + (size_t)ix * 4);
     if (a >= 1.0f) {
         *p = ((uint32_t)color.r << r->rsh) | ((uint32_t)color.g << r->gsh) |
              ((uint32_t)color.b << r->bsh) | opaque;
@@ -260,7 +262,7 @@ static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
 
         clip_ibounds(r, &x0, &y0, &x1, &y1); /* == frame_clip: depth is 0 */
         for (y = y0; y < y1; y++) {
-            uint32_t *row = (uint32_t *)(r->px + (size_t)y * r->pitch);
+            uint32_t *row = (uint32_t *)(r->px + (size_t)y * (size_t)r->pitch);
 
             for (x = x0; x < x1; x++)
                 row[x] = packed;

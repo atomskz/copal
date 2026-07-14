@@ -17,6 +17,8 @@ function(copal_set_warnings target)
             -Wextra
             -Wpedantic
             -Wshadow
+            -Wconversion
+            -Wsign-conversion
             -Wstrict-prototypes
             -Wmissing-prototypes)
     endif()

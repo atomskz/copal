@@ -156,8 +156,8 @@ static cl_image_t *make_logo(void)
     for (y = 0; y < N; y++) {
         for (x = 0; x < N; x++) {
             unsigned char *p = px + (size_t)(y * N + x) * 4;
-            float fx = (x + 0.5f) / N - 0.5f;
-            float fy = (y + 0.5f) / N - 0.5f;
+            float fx = ((float)x + 0.5f) / N - 0.5f;
+            float fy = ((float)y + 0.5f) / N - 0.5f;
             float d = 0.5f - (fx * fx + fy * fy) * 2.0f; /* 0.5 centre, <0 rim */
             float a = d * 6.0f; /* soft edge */
 
