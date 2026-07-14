@@ -16,6 +16,13 @@ extern "C" {
 
 typedef struct cl_application cl_application_t;
 
+/*
+ * A single-line text label. It measures to its natural text width; there is no
+ * wrapping or ellipsis, so a label given less width than that by its parent is
+ * clipped to its own rect (the text is cut off rather than drawn over its
+ * neighbours). Size it to its measured width, or place it in a wider/scrolling
+ * container, when the whole string must be visible.
+ */
 typedef struct cl_label_desc {
     uint32_t abi_version;
     size_t struct_size;

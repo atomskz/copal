@@ -72,7 +72,12 @@ static void label_paint(cl_widget_t *w, cl_paint_context_t *ctx)
                             : cl_paint_theme_color(ctx, CL_COLOR_TEXT);
     pos.x = w->rect.x;
     pos.y = w->rect.y;
+    /* Clip to our rect: a label whose parent gives it less width than its
+     * measured text (no wrapping/ellipsis in the MVP) is cut off at its box
+     * rather than overflowing onto sibling widgets. */
+    cl_paint_push_clip(ctx, w->rect);
     cl_paint_draw_text(ctx, font, self->text, pos, color);
+    cl_paint_pop_clip(ctx);
 }
 
 static void label_destroy(cl_widget_t *w)
