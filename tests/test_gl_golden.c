@@ -159,8 +159,95 @@ static void p_image(cl_renderer_t *r, void *u)
 }
 static void p_text(cl_renderer_t *r, void *u)
 {
-    r->ops->draw_text(r, (cl_font_t *)u, "8", (cl_point_t){ 8, 6 },
+    /* A deliberately fractional pen position (8.5, 6.5): centred labels rarely
+     * land on whole pixels, and a fractional origin is exactly what tripped the
+     * software glyph blit. Both renderers snap the origin, so they must still
+     * agree; an un-snapped blit would shift by a pixel and diverge. */
+    r->ops->draw_text(r, (cl_font_t *)u, "8", (cl_point_t){ 8.5f, 6.5f },
                       (cl_color_t){ 255, 255, 255, 255 });
+}
+/* A 1px rounded border - the primitive every widget frame is drawn with, and
+ * the one the GL renderer used to drop the outer sides of. */
+static void p_stroke(cl_renderer_t *r, void *u)
+{
+    (void)u;
+    r->ops->stroke_round_rect(r, (cl_rect_t){ 6, 6, 44, 32 }, 6.0f, 1.0f, FILL);
+}
+
+/* Whole-frame comparison: count pixels whose GL and software values differ by
+ * more than `tol` on any channel. A missing stroke side or smeared glyph shows
+ * up as a big contiguous block of such pixels; genuine AA differences at the
+ * rasterizers' edges stay well under the caller's budget. */
+static int frame_diff(int tol)
+{
+    int x, y, n = 0;
+
+    for (y = 0; y < H; y++)
+        for (x = 0; x < W; x++) {
+            int gr, gg, gb, sr, sg, sb;
+
+            gl_rgb(x, y, &gr, &gg, &gb);
+            sw_rgb(x, y, &sr, &sg, &sb);
+            if (diff(gr, sr) > tol || diff(gg, sg) > tol || diff(gb, sb) > tol)
+                n++;
+        }
+    return n;
+}
+
+static void cmp_frame(int tol, int budget, const char *what)
+{
+    int n = frame_diff(tol);
+
+    if (getenv("COPAL_GOLDEN_VERBOSE"))
+        fprintf(stderr, "  frame %-14s diff>%d = %3d px (budget %d)\n", what,
+                tol, n, budget);
+    if (n > budget) {
+        fprintf(stderr, "FAIL %s: %d px differ by >%d per channel (budget %d)\n",
+                what, n, tol, budget);
+        failures++;
+    }
+}
+
+/* Largest rise of the red channel above the background along a short scan (the
+ * stroke colour is far redder than the bg, so a present border lifts it; a
+ * missing side leaves it at the background). */
+static int scan_max(int use_gl, int x0, int y0, int dx, int dy, int steps)
+{
+    int i, best = 0;
+
+    for (i = 0; i < steps; i++) {
+        int r, g, b, x = x0 + dx * i, y = y0 + dy * i;
+
+        if (x < 0 || y < 0 || x >= W || y >= H)
+            continue;
+        if (use_gl)
+            gl_rgb(x, y, &r, &g, &b);
+        else
+            sw_rgb(x, y, &r, &g, &b);
+        if (r - (int)BG.r > best)
+            best = r - (int)BG.r;
+    }
+    return best;
+}
+
+/* Both renderers must draw the OUTER band of a border side - the pixels just
+ * beyond the rect edge, scanned AWAY from the shape so the inner half of the
+ * stroke (which rasterizes even with the bug) can't mask a missing outer edge.
+ * That outer band is exactly what the un-inflated GL geometry used to drop. */
+static void check_outer(const char *side, int x0, int y0, int dx, int dy,
+                        int steps)
+{
+    int gl = scan_max(1, x0, y0, dx, dy, steps);
+    int sw = scan_max(0, x0, y0, dx, dy, steps);
+
+    if (getenv("COPAL_GOLDEN_VERBOSE"))
+        fprintf(stderr, "  outer %-6s GL=%3d SW=%3d\n", side, gl, sw);
+    if (gl < 40 || sw < 40) {
+        fprintf(stderr,
+                "FAIL stroke %s outer edge missing: GL=%d SW=%d (need >=40)\n",
+                side, gl, sw);
+        failures++;
+    }
 }
 
 static int gl_sanity(void)
@@ -247,52 +334,83 @@ int main(void)
     img = cl_image_create(res_app, 8, 8, rgba);
     font = cl_font_load_system(res_app, 16.0f);
 
-    /* fill_rect: solid interior matches; a bg point stays bg. */
+    /* fill_rect: solid interior matches; a bg point stays bg; and the whole
+     * frame agrees (a plain fill is hard-edged in both). */
     render_both(p_fill, NULL);
     cmp(20, 15, 3, "fill interior");
     cmp(2, 2, 3, "fill bg");
+    cmp_frame(24, 24, "fill");
 
-    /* round rect: centre filled. */
+    /* round rect: centre filled, and the frames now agree closely (both keep
+     * fills pixel-tight; only a little corner AA can differ). */
     render_both(p_round, NULL);
     cmp(24, 20, 3, "round centre");
+    cmp_frame(24, 40, "round");
+
+    /*
+     * Stroke: a 1px rounded border, the primitive every widget frame uses. The
+     * GL renderer used to drop the outer sides of thin strokes (the geometry
+     * ended exactly at the shape, so the outer edge never rasterized). Assert
+     * each of the four sides is clearly present in BOTH renderers, then that
+     * the whole frames agree. This is the check that was missing entirely -
+     * the old suite never drew a stroke at all.
+     */
+    render_both(p_stroke, NULL);
+    /* Rect is {6,6,44,32}: edges at x=6/50, y=6/38. Scan the outer band of each
+     * side, moving away from the shape, so only the outer edge is sampled. */
+    check_outer("top", 28, 5, 0, -1, 2);    /* rows 5,4 above the top edge */
+    check_outer("bottom", 28, 38, 0, 1, 2); /* rows 38,39 below the bottom */
+    check_outer("left", 5, 22, -1, 0, 2);   /* cols 5,4 left of the left edge */
+    check_outer("right", 50, 22, 1, 0, 2);  /* cols 50,51 right of the right */
+    cmp_frame(40, 64, "stroke");
 
     /* transform (translate+scale): rect maps to 12,8..28,24. */
     render_both(p_xform, NULL);
     cmp(18, 14, 3, "xform interior");
     cmp(2, 2, 3, "xform bg");
+    cmp_frame(24, 40, "xform");
 
     /* group opacity: white at 0.5 over the bg blends to the same value. */
     render_both(p_opacity, NULL);
     cmp(32, 24, 8, "opacity blend");
+    cmp_frame(10, 24, "opacity");
 
     /* image: solid-red interior matches. */
     if (img) {
         render_both(p_image, img);
         cmp(24, 22, 3, "image interior");
         cmp(2, 2, 3, "image bg");
+        cmp_frame(24, 40, "image");
     }
 
-    /* text: no exact match (AA differs), but both must mark some coverage in
-     * the glyph box while leaving a far corner at bg. */
+    /*
+     * Text: at scale 1 both renderers rasterize the same stb bitmap and now
+     * snap the glyph origin to the pixel grid, so the frames should agree
+     * closely. A fractional-origin blit (the old software path) smeared and
+     * doubled glyph edges, pulling the two apart. Require real coverage in
+     * both and a tight whole-frame agreement.
+     */
     if (font) {
-        int gr, gg, gb, sr, sg, sb, gl_changed = 0, sw_changed = 0, x, y;
+        int gr, gg, gb, sr, sg, sb, gl_ink = 0, sw_ink = 0, x, y;
 
         render_both(p_text, font);
-        for (y = 0; y < 20; y++) {
-            for (x = 0; x < 20; x++) {
+        for (y = 0; y < 24; y++) {
+            for (x = 0; x < 24; x++) {
                 gl_rgb(x, y, &gr, &gg, &gb);
                 sw_rgb(x, y, &sr, &sg, &sb);
-                if (diff(gr, BG.r) > 20 || diff(gg, BG.g) > 20)
-                    gl_changed++;
-                if (diff(sr, BG.r) > 20 || diff(sg, BG.g) > 20)
-                    sw_changed++;
+                if (gr - (int)BG.r > 60)
+                    gl_ink++;
+                if (sr - (int)BG.r > 60)
+                    sw_ink++;
             }
         }
-        if (gl_changed == 0 || sw_changed == 0) {
-            fprintf(stderr, "FAIL text: GL changed=%d SW changed=%d\n",
-                    gl_changed, sw_changed);
+        if (getenv("COPAL_GOLDEN_VERBOSE"))
+            fprintf(stderr, "  text ink GL=%d SW=%d\n", gl_ink, sw_ink);
+        if (gl_ink == 0 || sw_ink == 0) {
+            fprintf(stderr, "FAIL text: GL ink=%d SW ink=%d\n", gl_ink, sw_ink);
             failures++;
         }
+        cmp_frame(40, 40, "text");
     }
 
     /* Context-loss recovery: force a reset, render again, and confirm the
