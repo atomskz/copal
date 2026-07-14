@@ -376,6 +376,7 @@ void         cl_window_show(cl_window_t *win);
 void         cl_window_set_content(cl_window_t *win, cl_widget_t *root); /* окно владеет root;
                                        замена уничтожает прежнее поддерево (NULL = очистить) */
 cl_widget_t *cl_window_content(cl_window_t *win);
+cl_application_t *cl_window_application(cl_window_t *win);
 void         cl_window_set_title(cl_window_t *win, const char *utf8);
 cl_size_t    cl_window_size(cl_window_t *win);
 void         cl_window_set_on_close(cl_window_t *win, cl_window_close_fn fn, void *user);
@@ -494,9 +495,15 @@ void cl_widget_set_preferred_size(cl_widget_t *w, cl_size_t s);
 void cl_widget_set_margin(cl_widget_t *w, cl_insets_t m);
 void cl_widget_set_align(cl_widget_t *w, cl_align_t h, cl_align_t v);
 void cl_widget_set_flex(cl_widget_t *w, float weight);
+cl_size_t   cl_widget_preferred_size(cl_widget_t *w);     /* геттеры атрибутов выше */
+cl_insets_t cl_widget_margin(cl_widget_t *w);
+cl_align_t  cl_widget_align_h(cl_widget_t *w);
+cl_align_t  cl_widget_align_v(cl_widget_t *w);
+float       cl_widget_flex(cl_widget_t *w);
 
 /* Фокус. */
 void cl_widget_set_focusable(cl_widget_t *w, bool focusable);
+bool cl_widget_is_focusable(cl_widget_t *w);
 bool cl_widget_focus(cl_widget_t *w);                      /* запросить фокус; false если нельзя */
 bool cl_widget_has_focus(cl_widget_t *w);
 
@@ -709,8 +716,11 @@ float        cl_progressbar_value(cl_widget_t *pb);
 /* widgets/imageview.h + image.h (ресурс: сырой RGBA8, файлы не декодируются) */
 cl_image_t  *cl_image_create(cl_application_t *app, int w, int h, const void *rgba);
 void         cl_image_release(cl_image_t *img);           /* инвалидирует кэши рендера */
+cl_size_t    cl_image_size(const cl_image_t *img);
+const void  *cl_image_pixels(const cl_image_t *img);      /* RGBA8, для своих бэкендов */
 cl_widget_t *cl_imageview_create(cl_application_t *app, const cl_imageview_desc_t *desc);
 void         cl_imageview_set_image(cl_widget_t *iv, cl_image_t *img); /* borrowed */
+cl_image_t  *cl_imageview_image(cl_widget_t *iv);
 
 /* widgets/panel.h, widgets/spacer.h */
 cl_widget_t *cl_panel_create(cl_application_t *app, const cl_panel_desc_t *desc);
@@ -719,6 +729,7 @@ cl_widget_t *cl_spacer_create(cl_application_t *app, const cl_spacer_desc_t *des
 /* widgets/radiogroup.h — колонка взаимоисключающих радио */
 cl_widget_t *cl_radiogroup_create(cl_application_t *app, const cl_radiogroup_desc_t *desc);
 cl_widget_t *cl_radiogroup_add(cl_widget_t *g, const char *text);
+size_t       cl_radiogroup_count(cl_widget_t *g);
 int          cl_radiogroup_selected(cl_widget_t *g);
 void         cl_radiogroup_set_selected(cl_widget_t *g, int index); /* без колбэка */
 void         cl_radiogroup_set_on_change(cl_widget_t *g, cl_radiogroup_fn fn, void *user);
@@ -726,6 +737,7 @@ void         cl_radiogroup_set_on_change(cl_widget_t *g, cl_radiogroup_fn fn, vo
 /* widgets/menubar.h — панель заголовков меню (владеет меню, переиспользует) */
 cl_widget_t *cl_menubar_create(cl_application_t *app, const cl_menubar_desc_t *desc);
 cl_result_t  cl_menubar_add_menu(cl_widget_t *bar, const char *title, cl_widget_t *menu);
+size_t       cl_menubar_count(cl_widget_t *bar);
 
 /* widgets/messagebox.h — модальный диалог поверх контента */
 cl_widget_t *cl_messagebox_show(cl_window_t *win, const char *title, const char *text,
@@ -743,6 +755,9 @@ typedef struct cl_combobox_desc { uint32_t abi_version; size_t struct_size;
 #define CL_COMBOBOX_DESC_INIT_FIELDS .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_combobox_desc_t)
 cl_widget_t *cl_combobox_create(cl_application_t *app, const cl_combobox_desc_t *desc);
 cl_result_t  cl_combobox_add_item(cl_widget_t *combo, const char *text);
+const char  *cl_combobox_item_text(cl_widget_t *combo, size_t index);
+cl_result_t  cl_combobox_remove(cl_widget_t *combo, size_t index);
+void         cl_combobox_clear(cl_widget_t *combo);
 size_t       cl_combobox_count(cl_widget_t *combo);
 void         cl_combobox_set_selected(cl_widget_t *combo, int index);  /* -1 = ничего; НЕ вызывает on_change */
 int          cl_combobox_selected(cl_widget_t *combo);                 /* индекс или -1 */
@@ -752,6 +767,10 @@ void         cl_combobox_set_on_change(cl_widget_t *combo, cl_selection_fn fn, v
 /* Menu (popup-меню; собрать, затем cl_window_open_popup, который берёт владение) */
 cl_widget_t *cl_menu_create(cl_application_t *app, const cl_menu_desc_t *desc);
 cl_result_t  cl_menu_add_item(cl_widget_t *menu, const char *text, cl_action_fn fn, void *user);
+cl_result_t  cl_menu_add_submenu(cl_widget_t *menu, const char *text, cl_widget_t *submenu);
+const char  *cl_menu_item_text(cl_widget_t *menu, size_t index);
+cl_result_t  cl_menu_remove(cl_widget_t *menu, size_t index);
+void         cl_menu_clear(cl_widget_t *menu);
 size_t       cl_menu_count(cl_widget_t *menu);
 ```
 
