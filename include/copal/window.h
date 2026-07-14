@@ -66,6 +66,11 @@ CL_API void cl_window_set_on_close(cl_window_t *win, cl_window_close_fn fn,
  * or an explicit cl_window_close_popup(), dismisses the whole chain; a press
  * into a lower entry collapses the ones above it. Closing is deferred to a
  * safe point, so a popup's own handler may request the close.
+ *
+ * The overlay stack is bounded (8 deep, deeper than any real menu/dialog
+ * chain). A request past the cap is ignored: a WARN is logged, cl_last_error()
+ * is set to CL_ERROR_UNSUPPORTED, and because the window would have owned the
+ * popup it is destroyed rather than leaked.
  */
 CL_API void cl_window_open_popup(cl_window_t *win, cl_widget_t *popup,
                                  cl_point_t at);

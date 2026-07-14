@@ -384,8 +384,17 @@ static bool overlay_push(cl_window_t *win, cl_widget_t *owner,
 {
     struct cl_overlay *ov;
 
-    if (win->overlay_count == CL_WINDOW_MAX_OVERLAYS)
-        return false; /* deeper than any sane menu chain */
+    if (win->overlay_count == CL_WINDOW_MAX_OVERLAYS) {
+        /* Deeper than any sane menu/dialog chain. Surface it (rather than a
+         * silent no-op) and destroy a popup the window was told to own, so an
+         * over-cap request cannot leak the caller's widget. */
+        cl_log(CL_LOG_WARN, "window: overlay stack full (max %d); popup ignored",
+               CL_WINDOW_MAX_OVERLAYS);
+        cl_set_last_error(CL_ERROR_UNSUPPORTED);
+        if (owned)
+            cl_widget_destroy(popup);
+        return false;
+    }
     tooltip_dismiss(win); /* a popup supersedes any hover tooltip */
     window_update_hover(win, NULL); /* pointer input diverts to the overlay */
     ov = &win->overlays[win->overlay_count++];
