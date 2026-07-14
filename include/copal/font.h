@@ -55,9 +55,13 @@ CL_API cl_font_t *cl_font_load_system(cl_application_t *app, float size_px);
 /**
  * cl_font_release() - release a font.
  *
- * Evicts the renderer's cached glyphs for this font, so releasing and
- * loading fonts at run time is safe. Release fonts BEFORE destroying the
- * application that loaded them (the font borrows its allocator).
+ * Renderer backends cache rasterized glyphs keyed by font identity (the handle
+ * itself), and this eviction is what keeps that cache correct once the handle's
+ * memory is later reused for a different font. Releasing and loading fonts at
+ * run time is therefore safe, provided the contract is honoured: a released
+ * handle MUST NOT be used again, and every font MUST be released BEFORE the
+ * application that loaded it is destroyed (the font borrows that application's
+ * allocator).
  */
 CL_API void cl_font_release(cl_font_t *font);
 

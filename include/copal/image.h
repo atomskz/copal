@@ -35,9 +35,13 @@ CL_API cl_image_t *cl_image_create(cl_application_t *app, int w, int h,
 /**
  * cl_image_release() - release an image.
  *
- * Evicts the renderer's cached texture for this image, so releasing and
- * creating images at run time is safe. Release images BEFORE destroying the
- * application that created them.
+ * Renderer backends cache their GPU texture keyed by image identity (the
+ * handle itself), and this eviction is what keeps that cache correct once the
+ * handle's memory is later reused for a different image. Releasing and
+ * creating images at run time is therefore safe, provided the contract is
+ * honoured: a released handle MUST NOT be used again, and every image MUST be
+ * released BEFORE the application that created it is destroyed (the image
+ * borrows that application's allocator).
  */
 CL_API void cl_image_release(cl_image_t *img);
 
