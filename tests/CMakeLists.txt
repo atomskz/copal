@@ -57,3 +57,22 @@ copal_add_test(layout)
 copal_add_test(lifecycle)
 copal_add_test(abi)
 copal_add_test(recursion)
+
+# GL golden test: renders primitives with the OpenGL renderer and compares
+# against the software reference. Built only with the SDL2 + OpenGL backend, and
+# it skips itself (exit 77) where no GL-capable display is available (headless
+# CI without a GL context).
+if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
+    add_executable(test_gl_golden test_gl_golden.c)
+    target_link_libraries(test_gl_golden PRIVATE copal::mocks SDL2::SDL2 OpenGL::GL)
+    copal_set_warnings(test_gl_golden)
+    if(COPAL_ENABLE_SANITIZERS)
+        copal_enable_sanitizers(test_gl_golden)
+    endif()
+    add_test(NAME gl_golden COMMAND test_gl_golden)
+    # The Mesa GL driver keeps process-lifetime allocations that LSan would flag;
+    # point it at the shared suppressions (harmless in a non-sanitized build).
+    set_tests_properties(gl_golden PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77
+        ENVIRONMENT
+        "LSAN_OPTIONS=suppressions=${PROJECT_SOURCE_DIR}/tools/lsan.supp")
+endif()

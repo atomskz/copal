@@ -100,6 +100,33 @@ jobs:
           COPAL_FONT: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
         run: ./build/benchmarks/copal_bench
 
+  gl-golden:
+    name: linux gl golden (swrast)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev libgl1-mesa-dri xvfb fonts-dejavu-core
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          -DCOPAL_ENABLE_SDL=ON -DCOPAL_ENABLE_OPENGL=ON
+
+      - name: Build
+        run: cmake --build build -j
+
+      # Under Xvfb with Mesa's software GL: the GL renderer is pixel-verified
+      # against the software reference. Skips itself if no GL context comes up.
+      - name: Test (GL golden)
+        env:
+          COPAL_FONT: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: xvfb-run -a ctest --test-dir build -R gl_golden --output-on-failure
+
   windows:
     name: windows msvc sdl-gl
     runs-on: windows-2022
