@@ -25,6 +25,7 @@ typedef struct cl_vbox_desc {
 
 #define CL_VBOX_DESC_INIT_FIELDS \
     .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_vbox_desc_t)
+#define CL_VBOX_DESC_INIT { CL_VBOX_DESC_INIT_FIELDS }
 
 CL_API cl_widget_t *cl_vbox_create(cl_application_t *app,
                                    const cl_vbox_desc_t *desc);
@@ -40,6 +41,7 @@ typedef struct cl_hbox_desc {
 
 #define CL_HBOX_DESC_INIT_FIELDS \
     .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_hbox_desc_t)
+#define CL_HBOX_DESC_INIT { CL_HBOX_DESC_INIT_FIELDS }
 
 CL_API cl_widget_t *cl_hbox_create(cl_application_t *app,
                                    const cl_hbox_desc_t *desc);

@@ -24,6 +24,7 @@ typedef struct cl_button_desc {
 
 #define CL_BUTTON_DESC_INIT_FIELDS \
     .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_button_desc_t)
+#define CL_BUTTON_DESC_INIT { CL_BUTTON_DESC_INIT_FIELDS }
 
 CL_API cl_widget_t *cl_button_create(cl_application_t *app,
                                      const cl_button_desc_t *desc);

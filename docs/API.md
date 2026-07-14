@@ -89,8 +89,11 @@ cl_button_create(app, &(cl_button_desc_t){ CL_BUTTON_DESC_INIT_FIELDS,
                                            .text = "Close" });
 ```
 
-У application/window дополнительно есть полный инициализатор по умолчанию
-`CL_<OBJ>_DESC_INIT` (определён через `..._FIELDS`).
+У каждого desc есть оба инициализатора: `CL_<OBJ>_DESC_INIT_FIELDS` штампует
+только служебные поля (`abi_version`/`struct_size`) для использования внутри
+составного литерала с designated-инициализаторами, а полный
+`CL_<OBJ>_DESC_INIT` (= `{ CL_<OBJ>_DESC_INIT_FIELDS }`) даёт весь desc по
+умолчанию — прочие поля нулевые.
 
 `cl_*_create()` сверяет `abi_version`/`struct_size`; при расхождении —
 `NULL` + `CL_ERROR_ABI_MISMATCH`. Незаполненные (нулевые) поля трактуются как

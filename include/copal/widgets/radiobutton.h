@@ -39,6 +39,7 @@ typedef struct cl_radiobutton_desc {
 
 #define CL_RADIOBUTTON_DESC_INIT_FIELDS \
     .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_radiobutton_desc_t)
+#define CL_RADIOBUTTON_DESC_INIT { CL_RADIOBUTTON_DESC_INIT_FIELDS }
 
 CL_API cl_widget_t *cl_radiobutton_create(cl_application_t *app,
                                           const cl_radiobutton_desc_t *desc);
