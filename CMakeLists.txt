@@ -28,6 +28,7 @@ option(COPAL_FETCH_SDL2        "Download and build SDL2 via FetchContent" OFF)
 option(COPAL_ENABLE_SANITIZERS "Enable ASan/UBSan"                  OFF)
 option(COPAL_ENABLE_COVERAGE   "Instrument for gcov/llvm-cov coverage" OFF)
 option(COPAL_ENABLE_INSTALL    "Enable install rules"               ${COPAL_IS_TOP_LEVEL})
+option(COPAL_BUILD_BENCHMARKS  "Build the headless benchmark harness" OFF)
 
 # Single-config generators build with no optimisation at all when
 # CMAKE_BUILD_TYPE is empty; default to Release for a top-level build.
@@ -232,12 +233,20 @@ if(COPAL_BUILD_SHARED AND COPAL_BUILD_TESTS)
     set(COPAL_WHITEBOX_TESTS OFF)
 endif()
 
+# Benchmarks are white-box too (internal render/layout entry points), so they
+# also need the static library.
+if(COPAL_BUILD_SHARED AND COPAL_BUILD_BENCHMARKS)
+    message(STATUS "copal: COPAL_BUILD_SHARED=ON - benchmarks need the static "
+                   "library and are disabled.")
+    set(COPAL_BUILD_BENCHMARKS OFF)
+endif()
+
 # ---------------------------------------------------------------------------
 # Mock backends (test support)
 # ---------------------------------------------------------------------------
-# A headless platform/renderer pair for white-box tests. A separate static
-# library so the mocks never end up in the installed artifact.
-if(COPAL_WHITEBOX_TESTS)
+# A headless platform/renderer pair for white-box tests and benchmarks. A
+# separate static library so the mocks never end up in the installed artifact.
+if(COPAL_WHITEBOX_TESTS OR COPAL_BUILD_BENCHMARKS)
     add_library(copal_mocks STATIC
         src/render/mock/renderer_mock.c
         src/platform/mock/platform_mock.c)
@@ -269,6 +278,10 @@ endif()
 
 if(COPAL_WHITEBOX_TESTS AND COPAL_IS_TOP_LEVEL)
     add_subdirectory(tests)
+endif()
+
+if(COPAL_BUILD_BENCHMARKS AND COPAL_IS_TOP_LEVEL)
+    add_subdirectory(benchmarks)
 endif()
 
 # ---------------------------------------------------------------------------

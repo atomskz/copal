@@ -74,6 +74,32 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  benchmarks:
+    name: linux gcc benchmarks
+    runs-on: ubuntu-24.04
+    continue-on-error: true # informational only; never blocks a merge
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DCOPAL_BUILD_BENCHMARKS=ON
+          -DCOPAL_BUILD_TESTS=OFF -DCOPAL_BUILD_EXAMPLES=OFF
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Run
+        env:
+          COPAL_FONT: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+        run: ./build/benchmarks/copal_bench
+
   windows:
     name: windows msvc sdl-gl
     runs-on: windows-2022
