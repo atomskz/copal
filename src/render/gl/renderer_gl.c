@@ -776,8 +776,12 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
             float inv = 1.0f / (r->scale > 0.0f ? r->scale : 1.0f);
             float lx0 = penx + (float)g->xoff * inv;
             float ly0 = baseline + (float)g->yoff * inv;
-            float x0 = lx0 * tf.s + tf.tx;
-            float y0 = ly0 * tf.s + tf.ty;
+            /* Snap the origin to the device pixel grid. The atlas holds a
+             * device-resolution bitmap; a fractional origin sampled through
+             * GL_LINEAR would blur it. Snapping keeps text crisp and lands it
+             * on the same pixels as the software renderer. */
+            float x0 = floorf((lx0 * tf.s + tf.tx) * r->scale + 0.5f) * inv;
+            float y0 = floorf((ly0 * tf.s + tf.ty) * r->scale + 0.5f) * inv;
             float x1 = x0 + (float)g->w * inv * tf.s;
             float y1 = y0 + (float)g->h * inv * tf.s;
             const float quad[24] = {

@@ -539,13 +539,21 @@ static void soft_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
         if (!g)
             continue; /* unrasterizable: skip it, keep drawing the string */
         if (g->cov) {
-            /* window-logical top-left of the (transformed) bitmap box */
+            /* Device-space top-left of the (transformed) glyph box, snapped to
+             * the pixel grid. The coverage bitmap is point-sampled, so a
+             * fractional origin makes nearest sampling drop or double edge
+             * rows/columns and smear the anti-aliasing (the reported font
+             * artifacts). Snapping blits it whole - crisp, and on the same
+             * pixels the GL renderer snaps to. */
             float gx = (penx + (float)g->xoff) * tf.s + tf.tx;
             float gy = (baseline + (float)g->yoff) * tf.s + tf.ty;
-            int px0 = (int)floorf(gx * r->scale);
-            int py0 = (int)floorf(gy * r->scale);
-            int px1 = (int)ceilf((gx + (float)g->w * tf.s) * r->scale);
-            int py1 = (int)ceilf((gy + (float)g->h * tf.s) * r->scale);
+            float ox = floorf(gx * r->scale + 0.5f);
+            float oy = floorf(gy * r->scale + 0.5f);
+            float step = tf.s * r->scale; /* device px per bitmap px (> 0) */
+            int px0 = (int)ox;
+            int py0 = (int)oy;
+            int px1 = (int)ceilf(ox + (float)g->w * step);
+            int py1 = (int)ceilf(oy + (float)g->h * step);
             int ix, iy;
 
             if (px0 < cx0)
@@ -556,16 +564,17 @@ static void soft_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
                 px1 = cx1;
             if (py1 > cy1)
                 py1 = cy1;
-            /* Walk the glyph's physical footprint, sampling the (logical) glyph
-             * bitmap per pixel, so text honours the device scale like the SDF
-             * primitives do. At scale == 1 this is a straight 1:1 blit. */
+            /* Walk the glyph's physical footprint, sampling the glyph bitmap
+             * per pixel with floor (not a truncating cast, which rounds toward
+             * zero and duplicates the edge row/column). At scale == 1 and no
+             * transform scale this is a straight 1:1 blit. */
             for (iy = py0; iy < py1; iy++) {
-                int ty = (int)((((float)iy + 0.5f) / r->scale - gy) / tf.s);
+                int ty = (int)floorf(((float)iy + 0.5f - oy) / step);
 
                 if (ty < 0 || ty >= g->h)
                     continue;
                 for (ix = px0; ix < px1; ix++) {
-                    int tx = (int)((((float)ix + 0.5f) / r->scale - gx) / tf.s);
+                    int tx = (int)floorf(((float)ix + 0.5f - ox) / step);
                     float cov;
 
                     if (tx < 0 || tx >= g->w)
