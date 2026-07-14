@@ -1,6 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "foundation_internal.h"
 
+/*
+ * A multibyte lead byte reads u[1..3] with no length guard: this is safe ONLY
+ * because s is NUL-terminated (a NUL is not a 0x80-continuation byte, so a
+ * truncated sequence falls through to the U+FFFD path below and stops). Any
+ * caller working with a buffer that is not NUL-terminated must use the bounded
+ * cl_utf8_next_n instead.
+ */
 size_t cl_utf8_next(const char *s, uint32_t *cp)
 {
     const unsigned char *u = (const unsigned char *)s;
