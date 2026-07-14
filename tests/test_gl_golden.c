@@ -10,6 +10,7 @@
  */
 #include <copal/copal.h>
 
+#define SDL_MAIN_HANDLED /* this test owns main(); avoids linking SDL2main */
 #include <SDL.h>
 #include <SDL_opengl.h> /* pulls in the platform GL header in the right order
                          * (on Windows <GL/gl.h> needs <windows.h> first) */
@@ -186,6 +187,7 @@ int main(void)
     unsigned char rgba[8 * 8 * 4];
     int i;
 
+    SDL_SetMainReady(); /* we defined SDL_MAIN_HANDLED */
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         printf("skip: SDL_Init: %s\n", SDL_GetError());
         return 77;
