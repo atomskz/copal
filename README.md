@@ -149,6 +149,7 @@ target_link_libraries(app PRIVATE copal::copal)
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — архитектура, слои, ADR.
 - [docs/API.md](docs/API.md) — обзор публичного API и сигнатуры по модулям.
 - [docs/STRUCTURE.md](docs/STRUCTURE.md) — дерево репозитория и сборка.
+- [docs/PERFORMANCE.md](docs/PERFORMANCE.md) — бенчмарки и измеренные числа.
 - [docs/CODESTYLE.md](docs/CODESTYLE.md) — стиль кода.
 
 ## Лицензия
