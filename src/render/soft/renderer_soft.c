@@ -377,7 +377,7 @@ static void soft_round(soft_renderer_t *r, cl_rect_t rect, float radius,
     float ts = tf_cur(r).s;
     float op = op_cur(r);
     int cx0, cy0, cx1, cy1;
-    int x0, y0, x1, y1, ix, iy;
+    int x0, y0, x1, y1, ix, iy, pad;
     float ccx, ccy, hbx, hby;
     const float aa = 1.0f;
 
@@ -391,10 +391,18 @@ static void soft_round(soft_renderer_t *r, cl_rect_t rect, float radius,
     hbx = rect.w * 0.5f;
     hby = rect.h * 0.5f;
     clip_ibounds(r, &cx0, &cy0, &cx1, &cy1);
-    x0 = (int)floorf(rect.x * r->scale);
-    y0 = (int)floorf(rect.y * r->scale);
-    x1 = (int)ceilf((rect.x + rect.w) * r->scale);
-    y1 = (int)ceilf((rect.y + rect.h) * r->scale);
+    /* Strokes only: their outer edge and AA sit just outside the rect (SDF
+     * d > 0), so the plain floor/ceil bounds would clip that band on the top
+     * and left. Grow the walked box by 1px for strokes, mirroring the GL
+     * renderer's u_pad. Fills stay pixel-tight (pad = 0): a fill's coverage is
+     * 0.5 half a pixel outside its edge, not zero, so widening it would paint a
+     * 1px fringe the GL fill path never draws. The clip clamp keeps us in the
+     * framebuffer. */
+    pad = border > 0.0f ? 1 : 0;
+    x0 = (int)floorf(rect.x * r->scale) - pad;
+    y0 = (int)floorf(rect.y * r->scale) - pad;
+    x1 = (int)ceilf((rect.x + rect.w) * r->scale) + pad;
+    y1 = (int)ceilf((rect.y + rect.h) * r->scale) + pad;
     if (x0 < cx0)
         x0 = cx0;
     if (y0 < cy0)

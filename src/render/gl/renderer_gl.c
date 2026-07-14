@@ -41,7 +41,7 @@ typedef struct gl_renderer {
     GLuint img_prog;
     GLuint rect_vao, rect_vbo;
     GLuint text_vao, text_vbo;
-    GLint r_proj, r_rect, r_radius, r_color, r_border;
+    GLint r_proj, r_rect, r_radius, r_color, r_border, r_pad;
     GLint t_proj, t_color, t_atlas;
     GLint i_proj, i_tex, i_alpha;
     GLuint cur_prog; /* program bound this frame; avoids redundant UseProgram */
@@ -82,9 +82,17 @@ static const char *RECT_VS =
     "layout(location=0) in vec2 a_unit;\n"
     "uniform mat4 u_proj;\n"
     "uniform vec4 u_rect;\n"
+    "uniform float u_pad;\n"
     "out vec2 v_pos;\n"
     "void main(){\n"
-    "  vec2 p = u_rect.xy + a_unit * u_rect.zw;\n"
+    /* Grow the drawn quad by u_pad on every side. The SDF still measures
+     * against u_rect, so this exposes fragments just OUTSIDE the shape - the
+     * band a thin stroke's outer edge and anti-aliasing live in. Without it,
+     * that band falls beyond the geometry and never rasterizes, so borders
+     * lose their outer sides. u_pad is 0 for fills, which stay pixel-tight. */
+    "  vec2 lo = u_rect.xy - vec2(u_pad);\n"
+    "  vec2 hi = u_rect.xy + u_rect.zw + vec2(u_pad);\n"
+    "  vec2 p = mix(lo, hi, a_unit);\n"
     "  v_pos = p;\n"
     "  gl_Position = u_proj * vec4(p, 0.0, 1.0);\n"
     "}\n";
@@ -255,6 +263,7 @@ static void gl_init(gl_renderer_t *r)
     r->r_radius = gl->GetUniformLocation(r->rect_prog, "u_radius");
     r->r_color = gl->GetUniformLocation(r->rect_prog, "u_color");
     r->r_border = gl->GetUniformLocation(r->rect_prog, "u_border");
+    r->r_pad = gl->GetUniformLocation(r->rect_prog, "u_pad");
     r->t_proj = gl->GetUniformLocation(r->text_prog, "u_proj");
     r->t_color = gl->GetUniformLocation(r->text_prog, "u_color");
     r->t_atlas = gl->GetUniformLocation(r->text_prog, "u_atlas");
@@ -682,6 +691,10 @@ static void draw_rect(gl_renderer_t *r, cl_rect_t rc, float radius,
     r->gl.Uniform4f(r->r_color, (float)c.r / 255.0f, (float)c.g / 255.0f,
                     (float)c.b / 255.0f, (float)c.a / 255.0f * op);
     r->gl.Uniform1f(r->r_border, border);
+    /* Strokes need a 1px margin of geometry outside the shape for their outer
+     * edge and AA (the SDF band lives at d > 0); fills stay pixel-tight. The
+     * pad is in the same logical space as the SDF's aa = 1.0. */
+    r->gl.Uniform1f(r->r_pad, border > 0.0f ? 1.0f : 0.0f);
     r->gl.BindVertexArray(r->rect_vao);
     r->gl.DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
