@@ -68,7 +68,8 @@ cl_widget_t *cl_progressbar_create(cl_application_t *app,
     cl_widget_t *w;
     cl_progressbar_t *pb;
 
-    if (!CL_DESC_ABI_OK(desc, cl_progressbar_desc_t))
+    cl_progressbar_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     w = cl_widget_alloc(app, &cl_progressbar_class);
     if (!w)

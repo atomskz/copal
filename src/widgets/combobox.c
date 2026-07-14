@@ -233,7 +233,8 @@ cl_widget_t *cl_combobox_create(cl_application_t *app,
     cl_widget_t *w;
     cl_combobox_t *cb;
 
-    if (!CL_DESC_ABI_OK(desc, cl_combobox_desc_t))
+    cl_combobox_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     w = cl_widget_alloc(app, &cl_combobox_class);
     if (!w)

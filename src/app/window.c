@@ -138,11 +138,16 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
 
     if (!app)
         return NULL;
-    if (!desc || desc->struct_size != sizeof(cl_window_desc_t) ||
-        desc->abi_version != COPAL_VERSION) {
+    cl_window_desc_t norm;
+
+    if (!desc) {
         cl_set_last_error(CL_ERROR_ABI_MISMATCH);
         return NULL;
     }
+    if (!cl_abi_ok(desc->abi_version, desc->struct_size, CL_DESC_MIN_SIZE))
+        return NULL;
+    cl_desc_fill(&norm, sizeof norm, desc, desc->struct_size);
+    desc = &norm;
     if (app->window) {
         cl_set_last_error(CL_ERROR_UNSUPPORTED); /* single window in MVP */
         return NULL;

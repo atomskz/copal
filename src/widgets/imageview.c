@@ -50,7 +50,8 @@ cl_widget_t *cl_imageview_create(cl_application_t *app,
     cl_widget_t *w;
     cl_imageview_t *self;
 
-    if (!CL_DESC_ABI_OK(desc, cl_imageview_desc_t))
+    cl_imageview_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     w = cl_widget_alloc(app, &cl_imageview_class);
     if (!w)

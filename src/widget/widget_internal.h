@@ -6,6 +6,8 @@
 
 #include <copal/widget_impl.h>
 
+#include "core/foundation/foundation_internal.h"
+
 static inline bool cl_rect_contains(cl_rect_t r, cl_point_t p)
 {
     return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
@@ -17,14 +19,25 @@ static inline bool cl_rect_contains(cl_rect_t r, cl_point_t p)
  * of levels; this leaves generous headroom while staying stack-safe. */
 #define CL_WIDGET_MAX_DEPTH 256
 
-/* Desc ABI handshake shared by the widget constructors (ADR-005). Sets
- * CL_ERROR_ABI_MISMATCH on failure. A NULL desc means defaults: nothing to
- * verify. */
-bool cl_desc_abi_check(uint32_t abi_version, size_t struct_size,
-                       size_t expected);
-#define CL_DESC_ABI_OK(desc, type)                                          \
-    (!(desc) || cl_desc_abi_check((desc)->abi_version, (desc)->struct_size, \
-                                  sizeof(type)))
+/*
+ * Desc ABI handshake for the widget constructors (ADR-005). Validate a desc
+ * header and normalise a non-NULL desc into `norm` (a zeroed, full-size local
+ * of the desc type), repointing `desc` at it so the rest of the constructor
+ * reads a full-size, tail-defaulted copy - an older caller's missing fields
+ * default to zero, a newer caller's extra tail is ignored. A NULL desc means
+ * "all defaults" and stays NULL for the constructor's own `if (desc)` guards.
+ * Evaluates to false (CL_ERROR_ABI_MISMATCH) on an incompatible header.
+ * Use as: `TYPE norm; if (!CL_DESC_NORM(desc, norm)) return NULL;`.
+ */
+#define CL_DESC_NORM(desc, norm)                                            \
+    ((desc) == NULL                                                         \
+         ? true                                                             \
+         : (cl_abi_ok((desc)->abi_version, (desc)->struct_size,             \
+                      CL_DESC_MIN_SIZE)                                      \
+                ? (cl_desc_fill(&(norm), sizeof(norm), (desc),              \
+                                (desc)->struct_size),                       \
+                   (desc) = &(norm), true)                                  \
+                : false))
 
 /* Layout / paint / input plumbing, driven by the window (window.c).
  * do_measure/do_arrange/reveal are public (widget_impl.h): custom containers

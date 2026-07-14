@@ -36,7 +36,8 @@ cl_widget_t *cl_spacer_create(cl_application_t *app,
     cl_widget_t *w;
     cl_spacer_t *s;
 
-    if (!CL_DESC_ABI_OK(desc, cl_spacer_desc_t))
+    cl_spacer_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     w = cl_widget_alloc(app, &cl_spacer_class);
     if (!w)

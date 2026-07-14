@@ -81,6 +81,7 @@ endif()
 set(COPAL_SOURCES
     src/core/foundation/version.c
     src/core/foundation/error.c
+    src/core/foundation/abi.c
     src/core/foundation/allocator.c
     src/core/foundation/utf8.c
     src/core/foundation/mutex.c

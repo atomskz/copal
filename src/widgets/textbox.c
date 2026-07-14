@@ -1595,7 +1595,8 @@ cl_widget_t *cl_textbox_create(cl_application_t *app,
     cl_widget_t *w;
     cl_textbox_t *tb;
 
-    if (!CL_DESC_ABI_OK(desc, cl_textbox_desc_t))
+    cl_textbox_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     /* Multiline painting has no masking path: it would show the secret in
      * plain text, so the combination is rejected outright. */

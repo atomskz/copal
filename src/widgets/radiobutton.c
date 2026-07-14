@@ -165,7 +165,8 @@ cl_widget_t *cl_radiobutton_create(cl_application_t *app,
     cl_widget_t *w;
     cl_radiobutton_t *self;
 
-    if (!CL_DESC_ABI_OK(desc, cl_radiobutton_desc_t))
+    cl_radiobutton_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     w = cl_widget_alloc(app, &cl_radiobutton_class);
     if (!w)

@@ -151,7 +151,8 @@ cl_widget_t *cl_checkbox_create(cl_application_t *app,
     cl_widget_t *w;
     cl_checkbox_t *self;
 
-    if (!CL_DESC_ABI_OK(desc, cl_checkbox_desc_t))
+    cl_checkbox_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     w = cl_widget_alloc(app, &cl_checkbox_class);
     if (!w)

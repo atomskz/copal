@@ -226,7 +226,8 @@ cl_widget_t *cl_slider_create(cl_application_t *app, const cl_slider_desc_t *des
     cl_widget_t *w;
     cl_slider_t *s;
 
-    if (!CL_DESC_ABI_OK(desc, cl_slider_desc_t))
+    cl_slider_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     w = cl_widget_alloc(app, &cl_slider_class);
     if (!w)

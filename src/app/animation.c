@@ -172,7 +172,8 @@ cl_animation_t *cl_animation_start(cl_application_t *app,
         cl_set_last_error(CL_ERROR_UNSUPPORTED);
         return NULL;
     }
-    if (!CL_DESC_ABI_OK(desc, cl_animation_desc_t))
+    cl_animation_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     if (!desc || !desc->on_progress) {
         cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);

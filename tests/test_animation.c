@@ -170,8 +170,8 @@ int main(void)
         d.on_progress = NULL;
         CHECK(cl_animation_start(app, &d) == NULL);
         CHECK(cl_last_error() == CL_ERROR_INVALID_ARGUMENT);
-        bad.abi_version = 0;
-        CHECK(cl_animation_start(app, &bad) == NULL);
+        bad.abi_version = COPAL_VERSION_ENCODE(COPAL_VERSION_MAJOR + 1, 0, 0);
+        CHECK(cl_animation_start(app, &bad) == NULL); /* incompatible major */
         CHECK(cl_last_error() == CL_ERROR_ABI_MISMATCH);
         cl_animation_cancel(NULL); /* must not crash */
     }

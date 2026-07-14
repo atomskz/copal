@@ -204,7 +204,8 @@ cl_widget_t *cl_menubar_create(cl_application_t *app,
     cl_widget_t *w;
     cl_menubar_t *b;
 
-    if (!CL_DESC_ABI_OK(desc, cl_menubar_desc_t))
+    cl_menubar_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     w = cl_widget_alloc(app, &cl_menubar_class);
     if (!w)

@@ -28,20 +28,29 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
     const cl_allocator_t *a;
     cl_application_t *app;
 
-    if (!desc || desc->struct_size != sizeof(cl_application_desc_t) ||
-        desc->abi_version != COPAL_VERSION) {
+    cl_application_desc_t norm;
+
+    if (!desc) {
         cl_set_last_error(CL_ERROR_ABI_MISMATCH);
         return NULL;
     }
+    if (!cl_abi_ok(desc->abi_version, desc->struct_size, CL_DESC_MIN_SIZE))
+        return NULL;
+    cl_desc_fill(&norm, sizeof norm, desc, desc->struct_size);
+    desc = &norm;
 
-    /* Injected backends carry an ops-level handshake (copal/backend/):
-     * refuse a table shaped by different headers before calling through it. */
+    /* Injected backends carry an ops-level handshake (copal/backend/): refuse a
+     * table shaped by different headers before calling through it. An ops table
+     * must carry the whole baseline (a missing op cannot be called), so a
+     * shorter table is rejected; a longer one from a newer backend is fine. */
     if ((desc->platform &&
-         (desc->platform->ops->struct_size != sizeof(cl_platform_ops_t) ||
-          desc->platform->ops->abi_version != COPAL_VERSION)) ||
+         !cl_abi_ok(desc->platform->ops->abi_version,
+                    desc->platform->ops->struct_size,
+                    sizeof(cl_platform_ops_t))) ||
         (desc->renderer &&
-         (desc->renderer->ops->struct_size != sizeof(cl_renderer_ops_t) ||
-          desc->renderer->ops->abi_version != COPAL_VERSION))) {
+         !cl_abi_ok(desc->renderer->ops->abi_version,
+                    desc->renderer->ops->struct_size,
+                    sizeof(cl_renderer_ops_t)))) {
         cl_set_last_error(CL_ERROR_ABI_MISMATCH);
         return NULL;
     }

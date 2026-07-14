@@ -150,7 +150,8 @@ cl_widget_t *cl_vbox_create(cl_application_t *app, const cl_vbox_desc_t *desc)
     cl_widget_t *w;
     cl_vbox_t *self;
 
-    if (!CL_DESC_ABI_OK(desc, cl_vbox_desc_t))
+    cl_vbox_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     w = cl_widget_alloc(app, &cl_vbox_class);
     if (!w)

@@ -2,6 +2,7 @@
 #ifndef CL_FOUNDATION_INTERNAL_H
 #define CL_FOUNDATION_INTERNAL_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -10,6 +11,33 @@
 
 /* Internal (not exported): record the calling thread's last error code. */
 void cl_set_last_error(cl_result_t result);
+
+/* Smallest valid desc/ops: just the {abi_version, struct_size} handshake. */
+typedef struct {
+    uint32_t abi_version;
+    size_t struct_size;
+} cl_desc_header_t;
+#define CL_DESC_MIN_SIZE (sizeof(cl_desc_header_t))
+
+/*
+ * ABI handshake for versioned desc/ops structs (ADR-005). A caller is
+ * compatible when it stamps the same MAJOR version and declares a struct of at
+ * least @min_size bytes. Within a major the library only appends fields at the
+ * tail, so a shorter (older) or longer (newer) struct still interoperates:
+ * data descs default the missing tail (see cl_desc_fill, @min_size ==
+ * CL_DESC_MIN_SIZE), ops tables must carry the whole baseline (@min_size ==
+ * sizeof the ops table) since a missing op cannot be called. Records
+ * CL_ERROR_ABI_MISMATCH and returns false on a mismatch.
+ */
+bool cl_abi_ok(uint32_t abi_version, size_t struct_size, size_t min_size);
+
+/*
+ * Normalise a caller desc into a zeroed, full-size local: copy the first
+ * min(@src_size, @dst_size) bytes, leaving a tail the library knows but the
+ * caller omitted at zero (its default) and ignoring a tail the caller added
+ * but this library does not know.
+ */
+void cl_desc_fill(void *dst, size_t dst_size, const void *src, size_t src_size);
 
 /*
  * Duplicate a NUL-terminated string with @a (NULL selects the default

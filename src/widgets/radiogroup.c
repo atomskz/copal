@@ -101,7 +101,8 @@ cl_widget_t *cl_radiogroup_create(cl_application_t *app,
     cl_widget_t *w;
     cl_radiogroup_t *g;
 
-    if (!CL_DESC_ABI_OK(desc, cl_radiogroup_desc_t))
+    cl_radiogroup_desc_t norm;
+    if (!CL_DESC_NORM(desc, norm))
         return NULL;
     w = cl_widget_alloc(app, &cl_radiogroup_class);
     if (!w)

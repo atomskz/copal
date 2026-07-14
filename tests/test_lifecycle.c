@@ -420,14 +420,15 @@ static void test_log_callback(void)
 
 static void test_backend_abi(void)
 {
-    /* An ops table from "different headers": wrong size / wrong version. */
+    /* An ops table from "different headers": undersized (missing ops the
+     * library would call) or an incompatible major version. */
     static const cl_platform_ops_t bad_size_ops = {
         .struct_size = sizeof(cl_platform_ops_t) - 8,
         .abi_version = COPAL_VERSION,
     };
     static const cl_platform_ops_t bad_ver_ops = {
         .struct_size = sizeof(cl_platform_ops_t),
-        .abi_version = COPAL_VERSION + 1,
+        .abi_version = COPAL_VERSION_ENCODE(COPAL_VERSION_MAJOR + 1, 0, 0),
     };
     cl_platform_t bad = { &bad_size_ops };
     cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
