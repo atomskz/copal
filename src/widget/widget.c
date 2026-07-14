@@ -9,6 +9,7 @@
 #include "core/foundation/foundation_internal.h"
 #include "widget/widget_internal.h"
 #include "widget/widget_host.h"
+#include "render/paint_context.h" /* cl_paint_context cull fields (do_paint) */
 
 /* ---- construction / RTTI ------------------------------------------------ */
 
@@ -469,14 +470,32 @@ static cl_rect_t widget_clip_rect(cl_widget_t *w)
     return w->rect;
 }
 
+/* True if r (inflated 1px for the AA bleed that cl_widget_invalidate accounts
+ * for) overlaps `region`. */
+static bool rect_hits(cl_rect_t r, cl_rect_t region)
+{
+    return r.x - 1.0f < region.x + region.w && r.x + r.w + 1.0f > region.x &&
+           r.y - 1.0f < region.y + region.h && r.y + r.h + 1.0f > region.y;
+}
+
 void cl_widget_do_paint(cl_widget_t *w, cl_paint_context_t *ctx)
 {
     cl_widget_t *c;
     bool clip = (w->flags & CL_WF_CLIP) != 0 && w->first_child;
+    bool in_region = !ctx->cull_on || rect_hits(w->rect, ctx->cull);
 
     if (!(w->flags & CL_WF_VISIBLE))
         return;
-    if (w->cls->vtable && w->cls->vtable->paint)
+    /*
+     * Damage cull. A clipping container bounds its subtree, so if its rect is
+     * off the repainted region the whole subtree can be skipped. Otherwise a
+     * child may overflow a non-clipping parent, so only the widget's own paint
+     * (its pixels live within its rect) is skipped while children are still
+     * walked - each one culls itself.
+     */
+    if (clip && !in_region)
+        return;
+    if (in_region && w->cls->vtable && w->cls->vtable->paint)
         w->cls->vtable->paint(w, ctx);
     if (clip)
         cl_paint_push_clip(ctx, widget_clip_rect(w));

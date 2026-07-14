@@ -697,8 +697,9 @@ void cl_window_render(cl_window_t *win)
     /*
      * Partial redraw: when every invalidation this frame carried a rect and
      * the renderer supports damage clipping, only that region is cleared and
-     * repainted (the whole tree is still walked - the renderer clips). GL
-     * has no set_damage: its double-buffered target does not persist.
+     * repainted. The paint walk culls to the region (cl_widget_do_paint skips
+     * off-region widgets), and the renderer clips what remains. GL has no
+     * set_damage: its double-buffered target does not persist.
      */
     partial = !win->damage_all && app->renderer->ops->set_damage;
     dmg = win->damage;
@@ -728,6 +729,8 @@ void cl_window_render(cl_window_t *win)
                                                    CL_COLOR_BACKGROUND));
     ctx.renderer = app->renderer;
     ctx.theme = app->theme;
+    ctx.cull_on = partial;
+    ctx.cull = dmg;
     if (win->content)
         cl_widget_do_paint(win->content, &ctx);
     {
