@@ -3,6 +3,7 @@
 #include <copal/application.h>
 #include <copal/allocator.h>
 
+#include <stdint.h>
 #include <string.h>
 
 #include "app/app_internal.h"
@@ -17,6 +18,13 @@ cl_image_t *cl_image_create(cl_application_t *app, int w, int h,
     size_t bytes;
 
     if (!app || !rgba || w <= 0 || h <= 0) {
+        cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
+        return NULL;
+    }
+    /* w*h*4 must fit size_t: on a 32-bit size_t a hostile w*h would otherwise
+     * wrap to a small allocation that the memcpy below then overruns. h > 0
+     * here, so the division is safe. */
+    if ((size_t)w > (SIZE_MAX / 4u) / (size_t)h) {
         cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
         return NULL;
     }

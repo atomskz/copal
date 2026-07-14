@@ -24,6 +24,9 @@ typedef struct cl_image cl_image_t;
  * The library does not decode image files; decode with your codec of choice
  * (or embed pixel arrays for icons) and hand the raw pixels here.
  *
+ * Dimensions whose byte size (w*h*4) would overflow size_t are rejected with
+ * CL_ERROR_INVALID_ARGUMENT (this can only bite on a 32-bit size_t).
+ *
  * Return: an image handle, or NULL on error (see cl_last_error()).
  */
 CL_API cl_image_t *cl_image_create(cl_application_t *app, int w, int h,
