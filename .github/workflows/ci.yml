@@ -46,11 +46,11 @@ jobs:
       - name: Build
         run: cmake --build build -j
 
-      # Force Mesa's software GL so the sdl-gl config's gl_golden runs against
-      # llvmpipe: its driver-side allocations then come from libgallium, which
-      # tools/lsan.supp suppresses (the LSAN_OPTIONS env is set on the test).
-      # Without this the runner's default GL driver leaks under a name
-      # LeakSanitizer can't match and the sanitized run fails. No-op for the
+      # Run the sdl-gl config's gl_golden against Mesa's software rasterizer
+      # (llvmpipe) rather than the runner's arbitrary GL driver, so the pixel
+      # comparison is deterministic and matches the budgets the test was tuned
+      # against (and the dedicated gl-golden job). Driver-side leak noise is
+      # handled in the test's own properties (detect_leaks=0). No-op for the
       # mock and sdl-software configs, which never touch GL.
       - name: Test
         env:

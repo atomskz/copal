@@ -70,9 +70,15 @@ if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
         copal_enable_sanitizers(test_gl_golden)
     endif()
     add_test(NAME gl_golden COMMAND test_gl_golden)
-    # The Mesa GL driver keeps process-lifetime allocations that LSan would flag;
-    # point it at the shared suppressions (harmless in a non-sanitized build).
+    # The Mesa GL driver makes process-lifetime allocations inside its own .so,
+    # which is unmapped by exit - so LeakSanitizer reports them in an "unknown
+    # module" that a name-based suppression cannot match (they symbolize as
+    # libgallium only where the driver stays mapped). Every one is reached
+    # through a GL call; copal's draw path allocates nothing itself. So turn
+    # leak detection off for this one test while keeping the ASan/UBSan error
+    # checks that matter. The suppressions file stays referenced for the rare
+    # environment where LSan does run and can name the module.
     set_tests_properties(gl_golden PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77
         ENVIRONMENT
-        "LSAN_OPTIONS=suppressions=${PROJECT_SOURCE_DIR}/tools/lsan.supp")
+        "ASAN_OPTIONS=detect_leaks=0;LSAN_OPTIONS=suppressions=${PROJECT_SOURCE_DIR}/tools/lsan.supp")
 endif()
