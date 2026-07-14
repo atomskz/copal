@@ -5,6 +5,7 @@
 #include <limits.h>
 
 #include "app/app_internal.h"
+#include "core/foundation/foundation_internal.h"
 
 struct cl_timer {
     cl_application_t *app;
@@ -47,8 +48,14 @@ cl_timer_t *cl_timer_create(cl_application_t *app, uint32_t interval_ms,
 {
     cl_timer_t *t;
 
-    if (!app || !fn || !app->platform->ops->now_ms)
+    if (!app || !fn) {
+        cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
         return NULL;
+    }
+    if (!app->platform->ops->now_ms) {
+        cl_set_last_error(CL_ERROR_PLATFORM);
+        return NULL;
+    }
     /* A repeating timer must advance each tick; a zero interval would re-arm to
      * the current time forever and busy-spin the loop, so floor it at 1 ms. */
     if (repeat && interval_ms == 0)

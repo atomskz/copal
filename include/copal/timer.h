@@ -38,9 +38,11 @@ typedef void (*cl_timer_fn)(cl_timer_t *timer, void *user);
  * @repeat: if true the timer re-arms for another interval_ms after each firing;
  *          if false it fires once and then lies dormant until restarted.
  *
- * Returns NULL on allocation failure or when the platform has no clock. A
- * one-shot with interval_ms == 0 fires as soon as the loop next polls timers; a
- * repeating one floors the interval at 1 ms so it cannot busy-spin the loop.
+ * Returns NULL on error, with cl_last_error() set to the cause:
+ * CL_ERROR_INVALID_ARGUMENT (NULL app or callback), CL_ERROR_PLATFORM (the
+ * platform provides no clock), or CL_ERROR_OUT_OF_MEMORY (allocation failed).
+ * A one-shot with interval_ms == 0 fires as soon as the loop next polls timers;
+ * a repeating one floors the interval at 1 ms so it cannot busy-spin the loop.
  */
 CL_API cl_timer_t *cl_timer_create(cl_application_t *app, uint32_t interval_ms,
                                    bool repeat, cl_timer_fn fn, void *user);
