@@ -11,7 +11,8 @@
 #include <copal/copal.h>
 
 #include <SDL.h>
-#include <GL/gl.h>
+#include <SDL_opengl.h> /* pulls in the platform GL header in the right order
+                         * (on Windows <GL/gl.h> needs <windows.h> first) */
 
 #include <stdio.h>
 #include <stdlib.h>
