@@ -73,6 +73,12 @@ build\examples\helloworld\Release\helloworld.exe
 
 ## Минимальный пример
 
+> **Важно:** дефолтная (headless) сборка не линкует платформенный бэкенд, поэтому
+> пример ниже соберётся и слинкуется, но `cl_application_create` вернёт `NULL`
+> (`CL_ERROR_UNSUPPORTED`). Чтобы открыть настоящее окно, соберите библиотеку с
+> `-DCOPAL_ENABLE_SDL=ON` (добавьте `-DCOPAL_ENABLE_OPENGL=ON` для GL) или
+> инжектируйте собственный бэкенд через `cl_application_desc_t`.
+
 ```c
 #include <copal/copal.h>
 
@@ -131,6 +137,12 @@ target_link_libraries(app PRIVATE copal::copal)
 
 либо `add_subdirectory(copal)` (examples/тесты/install при этом автоматически
 отключаются), либо pkg-config: `pkg-config --cflags --libs copal`.
+
+> Дефолтный пакет собран без платформенного бэкенда (mock-бэкенд — только для
+> тестов и не устанавливается), поэтому `cl_application_create` в нём вернёт
+> `NULL`. Чтобы открывать окна, соберите/подключите copal с
+> `-DCOPAL_ENABLE_SDL=ON` (при необходимости `-DCOPAL_ENABLE_OPENGL=ON`) либо
+> предоставьте собственный бэкенд через `cl_application_desc_t`.
 
 ## Документация
 

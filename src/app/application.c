@@ -104,7 +104,10 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
 #endif
 
     if (!app->platform || !app->renderer) {
-        cl_log(CL_LOG_ERROR, "application: no usable %s backend",
+        cl_log(CL_LOG_ERROR,
+               "application: no usable %s backend; build with COPAL_ENABLE_SDL "
+               "(+COPAL_ENABLE_OPENGL for GL) or inject one via "
+               "cl_application_desc_t",
                !app->platform ? "platform" : "renderer");
         cl_set_last_error(CL_ERROR_UNSUPPORTED);
         goto fail;
