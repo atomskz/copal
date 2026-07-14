@@ -13,6 +13,7 @@
 #include "text/font_internal.h"
 
 #define ADV_CACHE_SIZE 512
+#define ADV_GEN_SIZE 256 /* generic cache for codepoints outside the fixed ranges */
 
 struct cl_font {
     const cl_allocator_t *a;
@@ -26,6 +27,11 @@ struct cl_font {
     float line_gap;
     /* Pixel advance per cached codepoint; -1 = uncached (see adv_slot). */
     float adv_cache[ADV_CACHE_SIZE];
+    /* Generic direct-mapped advance cache for codepoints outside the fixed
+     * ranges above (CJK, symbols, emoji): keyed by codepoint, 0 = empty slot
+     * (U+0000 is never measured). Zeroed by the memset in font_from_data. */
+    uint32_t adv_gen_cp[ADV_GEN_SIZE];
+    float adv_gen_adv[ADV_GEN_SIZE];
 };
 
 /* Cache slot for a codepoint: Latin-1 (0..255) and Cyrillic U+0400..U+04FF
@@ -94,21 +100,36 @@ static cl_font_t *font_from_data(cl_application_t *app,
 /*
  * Pixel advance of a codepoint. stbtt_GetCodepointHMetrics does a cmap lookup +
  * hmtx read on every call, and text is measured repeatedly (measure() and
- * paint(), plus multiline wrap probes), so memoize the Latin-1 and Cyrillic
- * ranges (adv_slot).
+ * paint(), plus multiline wrap probes), so memoize it: Latin-1 and Cyrillic in
+ * a direct-indexed table (adv_slot), everything else (CJK, symbols, emoji) in a
+ * generic direct-mapped cache keyed by codepoint. Both make a repeated glyph a
+ * single array read after the first lookup.
  */
 static float advance_px(cl_font_t *f, uint32_t cp)
 {
     int slot = adv_slot(cp);
     int advance;
     int lsb;
+    float px;
+    unsigned h;
 
-    if (slot >= 0 && f->adv_cache[slot] >= 0.0f)
-        return f->adv_cache[slot];
+    if (slot >= 0) {
+        if (f->adv_cache[slot] >= 0.0f)
+            return f->adv_cache[slot];
+        stbtt_GetCodepointHMetrics(&f->info, (int)cp, &advance, &lsb);
+        px = (float)advance * f->scale;
+        f->adv_cache[slot] = px;
+        return px;
+    }
+    /* Direct-mapped by a multiplicative hash; a collision just re-measures. */
+    h = (unsigned)(cp * 2654435761u) & (ADV_GEN_SIZE - 1);
+    if (f->adv_gen_cp[h] == cp)
+        return f->adv_gen_adv[h];
     stbtt_GetCodepointHMetrics(&f->info, (int)cp, &advance, &lsb);
-    if (slot >= 0)
-        f->adv_cache[slot] = (float)advance * f->scale;
-    return (float)advance * f->scale;
+    px = (float)advance * f->scale;
+    f->adv_gen_cp[h] = cp;
+    f->adv_gen_adv[h] = px;
+    return px;
 }
 
 cl_font_t *cl_font_load_memory(cl_application_t *app, const void *data,
