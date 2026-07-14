@@ -292,6 +292,13 @@ int main(void)
         }
     }
 
+    /* Context-loss recovery: force a reset, render again, and confirm the
+     * renderer tore down and rebuilt its GL objects and still draws correctly. */
+    cl_renderer_gl_test_force_reset(g_gl);
+    render_both(p_fill, NULL);
+    cmp(20, 15, 3, "recovery interior");
+    cmp(2, 2, 3, "recovery bg");
+
     if (img)
         cl_image_release(img);
     if (font)

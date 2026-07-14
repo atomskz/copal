@@ -71,6 +71,10 @@ typedef struct gl_renderer {
         GLuint tex;
     } images[CL_GL_MAX_IMAGES];
     int image_count;
+    /* Robustness: optional context-reset query (NULL if the driver lacks it)
+     * and a test hook to force one recovery. */
+    PFNGLGETGRAPHICSRESETSTATUSPROC get_reset;
+    bool force_reset;
 } gl_renderer_t;
 
 static const char *RECT_VS =
@@ -217,6 +221,18 @@ static void gl_init(gl_renderer_t *r)
         return;
     }
     r->loaded = true;
+
+    /* Optional context-reset query for robustness recovery (core 4.5, or the
+     * KHR/ARB robustness extensions); NULL when unsupported. Assigned through a
+     * void ** (the dlsym idiom) to sidestep ISO C's object/function pointer
+     * conversion rule, like cl_gl_load. */
+    *(void **)&r->get_reset = gl_get(r->platform, "glGetGraphicsResetStatus");
+    if (!r->get_reset)
+        *(void **)&r->get_reset =
+            gl_get(r->platform, "glGetGraphicsResetStatusKHR");
+    if (!r->get_reset)
+        *(void **)&r->get_reset =
+            gl_get(r->platform, "glGetGraphicsResetStatusARB");
 
     if (getenv("COPAL_GL_DEBUG")) {
         const GLubyte *ver = gl->GetString(GL_VERSION);
@@ -405,11 +421,35 @@ static void set_proj(gl_renderer_t *r, float w, float h)
     r->proj[15] = 1.0f;
 }
 
+static void gl_teardown(gl_renderer_t *r); /* defined near gl_destroy */
+
+/* True once per detected context reset (or when the test hook forced one). */
+static bool gl_context_reset(gl_renderer_t *r)
+{
+    if (r->force_reset) {
+        r->force_reset = false;
+        return true;
+    }
+    return r->get_reset && r->get_reset() != GL_NO_ERROR;
+}
+
 static void gl_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
                            cl_color_t clear)
 {
     gl_renderer_t *r = (gl_renderer_t *)rr;
 
+    /*
+     * Context-reset recovery: with a robust context a reset (Windows TDR, a
+     * hybrid-GPU switch, resume-from-sleep) invalidates every GL object. Poll
+     * only while we hold a working context; on reset, tear the objects down
+     * and rebuild them this frame. If the rebuild fails (the context is truly
+     * gone) ok stays false and we stop polling - blank, but no crash or loop.
+     */
+    if (r->init && r->ok && gl_context_reset(r)) {
+        gl_teardown(r);
+        r->init = false;
+        r->ok = false;
+    }
     if (!r->init)
         gl_init(r);
     if (!r->ok)
@@ -839,29 +879,49 @@ static void gl_evict_image(cl_renderer_t *rr, cl_image_t *img)
     }
 }
 
+/*
+ * Delete the GL objects init created and reset the glyph cache. Safe after a
+ * partial init (deleting the name 0 is a no-op) or a context reset (deleting an
+ * invalid post-reset name is also a no-op). Only the entry points must have
+ * loaded.
+ */
+static void gl_teardown(gl_renderer_t *r)
+{
+    int i;
+
+    if (!r->loaded)
+        return;
+    for (i = 0; i < r->image_count; i++)
+        r->gl.DeleteTextures(1, &r->images[i].tex);
+    r->image_count = 0;
+    r->gl.DeleteProgram(r->rect_prog);
+    r->gl.DeleteProgram(r->text_prog);
+    r->gl.DeleteProgram(r->img_prog);
+    r->gl.DeleteBuffers(1, &r->rect_vbo);
+    r->gl.DeleteBuffers(1, &r->text_vbo);
+    r->gl.DeleteVertexArrays(1, &r->rect_vao);
+    r->gl.DeleteVertexArrays(1, &r->text_vao);
+    r->gl.DeleteTextures(1, &r->atlas);
+    r->rect_prog = r->text_prog = r->img_prog = 0;
+    r->rect_vbo = r->text_vbo = 0;
+    r->rect_vao = r->text_vao = 0;
+    r->atlas = 0;
+    gl_cache_reset(r);
+}
+
 static void gl_destroy(cl_renderer_t *rr)
 {
     gl_renderer_t *r = (gl_renderer_t *)rr;
 
-    /* Free whatever init managed to create, even after a partial failure
-     * (e.g. programs linked before the one that did not): deleting the name
-     * 0 is a silent no-op in GL, so still-unset handles are safe. Only the
-     * entry points themselves must have loaded. */
-    if (r->loaded) {
-        int i;
-
-        for (i = 0; i < r->image_count; i++)
-            r->gl.DeleteTextures(1, &r->images[i].tex);
-        r->gl.DeleteProgram(r->rect_prog);
-        r->gl.DeleteProgram(r->text_prog);
-        r->gl.DeleteProgram(r->img_prog);
-        r->gl.DeleteBuffers(1, &r->rect_vbo);
-        r->gl.DeleteBuffers(1, &r->text_vbo);
-        r->gl.DeleteVertexArrays(1, &r->rect_vao);
-        r->gl.DeleteVertexArrays(1, &r->text_vao);
-        r->gl.DeleteTextures(1, &r->atlas);
-    }
+    gl_teardown(r);
     cl_free(r->a, r);
+}
+
+/* Test hook: force a one-shot context-reset recovery on the next frame, to
+ * exercise the rebuild path without a real GPU reset. */
+void cl_renderer_gl_test_force_reset(cl_renderer_t *rr)
+{
+    ((gl_renderer_t *)rr)->force_reset = true;
 }
 
 static const cl_renderer_ops_t gl_ops = {

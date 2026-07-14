@@ -102,6 +102,12 @@ static cl_result_t sdl_create_window(cl_platform_t *p,
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
                         SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    /* Ask for a robust context so a GPU reset (Windows TDR, a hybrid-GPU
+     * switch, resume-from-sleep) is reported via glGetGraphicsResetStatus and
+     * the renderer can rebuild its objects instead of drawing blank forever. */
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_ROBUST_ACCESS_FLAG);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_RESET_NOTIFICATION,
+                        SDL_GL_CONTEXT_RESET_LOSE_CONTEXT);
 
     if (desc->resizable)
         flags |= SDL_WINDOW_RESIZABLE;
@@ -113,6 +119,13 @@ static cl_result_t sdl_create_window(cl_platform_t *p,
         return CL_ERROR_PLATFORM;
 
     s->glctx = SDL_GL_CreateContext(s->window);
+    if (!s->glctx) {
+        /* Some drivers reject a robust context; retry without robustness. */
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_RESET_NOTIFICATION,
+                            SDL_GL_CONTEXT_RESET_NO_NOTIFICATION);
+        s->glctx = SDL_GL_CreateContext(s->window);
+    }
     if (!s->glctx) {
         SDL_DestroyWindow(s->window);
         s->window = NULL;

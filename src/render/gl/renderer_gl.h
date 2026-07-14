@@ -13,4 +13,11 @@
  */
 cl_renderer_t *cl_renderer_gl_create(const cl_allocator_t *a, cl_platform_t *p);
 
+/*
+ * Test hook: mark the renderer so the next begin_frame treats the GL context as
+ * reset and rebuilds its objects, exercising context-loss recovery without a
+ * real GPU reset. Not part of the public API.
+ */
+void cl_renderer_gl_test_force_reset(cl_renderer_t *r);
+
 #endif /* CL_RENDERER_GL_H */
