@@ -1,35 +1,38 @@
+<p align="right"><b>English</b> | <a href="./docs/ru/README.md">Русский</a></p>
+
 # copal
 
 [![CI](https://github.com/atomskz/copal/actions/workflows/ci.yml/badge.svg)](https://github.com/atomskz/copal/actions/workflows/ci.yml)
 
-Лёгкая кроссплатформенная GUI-библиотека на C11 для Windows и Linux.
-Окна и ввод — через SDL2; отрисовка — OpenGL 3.3 core **или** встроенный
-CPU-растеризатор (software), выбирается на этапе сборки и в рантайме.
+A lightweight cross-platform C11 GUI library for Windows and Linux.
+Windows and input go through SDL2; rendering runs on OpenGL 3.3 core **or** a
+built-in CPU rasterizer (software), chosen at build time and at runtime.
 
-- **Маленький публичный C-API** с ABI-рукопожатием (desc-структуры с
-  `struct_size`/`abi_version`), без глобального состояния.
-- **Два рендер-бэкенда**: OpenGL (глиф-атлас, HiDPI) и software (SDF-растеризация
-  на CPU — работает по RDP, в CI и без GPU); `CL_RENDER_AUTO` сам падает на
-  software, если GL-окно не поднялось.
-- **Инъекция зависимостей**: платформа, рендерер и аллокатор подменяются через
-  `cl_application_desc_t` — библиотека полностью тестируется headless на
-  mock-бэкендах.
-- **Виджеты**: label, button, checkbox, radiobutton, slider, textbox
-  (однострочный/многострочный, пароль, undo/redo, выделение мышью, IME),
-  combobox, list, progressbar, imageview, menu с подменю, menubar,
-  message box/модальные диалоги, tooltip, scrollview; контейнеры vbox/hbox
-  с flex-весами, выравниванием и отступами.
-- **Текст**: UTF-8, TrueType через вендоренный stb_truetype, поиск системного
-  шрифта (`cl_font_load_system`, переменная `COPAL_FONT`).
-- **Темы**: светлая/тёмная палитра, переключение в рантайме.
-- Кастомные виджеты и контейнеры — через устанавливаемый `widget_impl.h`.
+- **Small public C API** with an ABI handshake (desc structs carrying
+  `struct_size`/`abi_version`), no global state.
+- **Two render backends**: OpenGL (glyph atlas, HiDPI) and software (SDF
+  rasterization on the CPU — works over RDP, in CI, and without a GPU);
+  `CL_RENDER_AUTO` falls back to software on its own when a GL window fails to
+  come up.
+- **Dependency injection**: the platform, renderer, and allocator are swapped in
+  through `cl_application_desc_t` — the library is fully testable headless on
+  mock backends.
+- **Widgets**: label, button, checkbox, radiobutton, slider, textbox
+  (single-line/multi-line, password, undo/redo, mouse selection, IME),
+  combobox, list, progressbar, imageview, menu with submenus, menubar,
+  message box/modal dialogs, tooltip, scrollview; vbox/hbox containers with
+  flex weights, alignment, and padding.
+- **Text**: UTF-8, TrueType via vendored stb_truetype, system-font lookup
+  (`cl_font_load_system`, the `COPAL_FONT` variable).
+- **Themes**: light/dark palette, switchable at runtime.
+- Custom widgets and containers — through the installed `widget_impl.h`.
 
-Ограничения: одно окно, нет shaping/bidi (1 кодовая точка = 1 глиф).
-Планы: см. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Limitations: a single window, no shaping/bidi (1 code point = 1 glyph).
+Roadmap: see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Сборка
+## Build
 
-Headless-сборка (mock-бэкенды, без SDL/GL) — по умолчанию:
+The headless build (mock backends, no SDL/GL) is the default:
 
 ```sh
 cmake -S . -B build
@@ -37,7 +40,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Нативная сборка с окном (SDL2 + OpenGL):
+Native build with a window (SDL2 + OpenGL):
 
 ```sh
 cmake -S . -B build-native -DCOPAL_ENABLE_SDL=ON -DCOPAL_ENABLE_OPENGL=ON
@@ -45,7 +48,7 @@ cmake --build build-native
 ./build-native/examples/helloworld/helloworld
 ```
 
-Software-сборка без OpenGL (только SDL2, libGL не линкуется):
+Software build without OpenGL (SDL2 only, libGL is not linked):
 
 ```sh
 cmake -S . -B build-sw -DCOPAL_ENABLE_SDL=ON
@@ -53,8 +56,8 @@ cmake --build build-sw
 ./build-sw/examples/calc/calc
 ```
 
-Windows (MSVC): `COPAL_FETCH_SDL2=ON` скачает и соберёт SDL2 сам, DLL кладётся
-рядом с примерами:
+Windows (MSVC): `COPAL_FETCH_SDL2=ON` downloads and builds SDL2 for you, and the
+DLL is placed next to the examples:
 
 ```bat
 cmake -S . -B build -DCOPAL_ENABLE_SDL=ON -DCOPAL_ENABLE_OPENGL=ON -DCOPAL_FETCH_SDL2=ON
@@ -62,22 +65,22 @@ cmake --build build --config Release
 build\examples\helloworld\Release\helloworld.exe
 ```
 
-Полезные опции: `-DCOPAL_ENABLE_SANITIZERS=ON` (ASan/UBSan),
-`-DCOPAL_ENABLE_COVERAGE=ON` (gcov/llvm-cov; не MSVC),
+Useful options: `-DCOPAL_ENABLE_SANITIZERS=ON` (ASan/UBSan),
+`-DCOPAL_ENABLE_COVERAGE=ON` (gcov/llvm-cov; not MSVC),
 `-DCOPAL_BUILD_SHARED=ON`, `-DCOPAL_BUILD_EXAMPLES=OFF`,
 `-DCOPAL_BUILD_TESTS=OFF`, `-DCOPAL_ENABLE_INSTALL=OFF`.
 
-Рантайм-переменные: `COPAL_RENDER=software` (CPU-рендер вместо GL),
-`COPAL_FONT=/path/to/font.ttf` (явный шрифт), `COPAL_GL_DEBUG=1`
-(версия GL при старте).
+Runtime variables: `COPAL_RENDER=software` (CPU rendering instead of GL),
+`COPAL_FONT=/path/to/font.ttf` (explicit font), `COPAL_GL_DEBUG=1`
+(GL version at startup).
 
-## Минимальный пример
+## Minimal example
 
-> **Важно:** дефолтная (headless) сборка не линкует платформенный бэкенд, поэтому
-> пример ниже соберётся и слинкуется, но `cl_application_create` вернёт `NULL`
-> (`CL_ERROR_UNSUPPORTED`). Чтобы открыть настоящее окно, соберите библиотеку с
-> `-DCOPAL_ENABLE_SDL=ON` (добавьте `-DCOPAL_ENABLE_OPENGL=ON` для GL) или
-> инжектируйте собственный бэкенд через `cl_application_desc_t`.
+> **Important:** the default (headless) build links no platform backend, so the
+> example below compiles and links, but `cl_application_create` returns `NULL`
+> (`CL_ERROR_UNSUPPORTED`). To open a real window, build the library with
+> `-DCOPAL_ENABLE_SDL=ON` (add `-DCOPAL_ENABLE_OPENGL=ON` for GL) or inject your
+> own backend through `cl_application_desc_t`.
 
 ```c
 #include <copal/copal.h>
@@ -117,43 +120,43 @@ int main(void)
 
     int rc = cl_application_run(app);
     cl_font_release(font);
-    cl_application_destroy(app); /* уничтожает окно и дерево виджетов */
+    cl_application_destroy(app); /* destroys the window and the widget tree */
     return rc;
 }
 ```
 
-Больше примеров — в [examples/](examples/): `helloworld` — галерея-демонстрация
-всего API (все виджеты, menubar с подменю, модальные диалоги и формы,
-анимации с easing и плавной сменой темы, изображения, курсоры, списки,
-таймеры, кастомный виджет) и `calc` (калькулятор). Оба принимают
+More examples are in [examples/](examples/): `helloworld` — a gallery demo of
+the whole API (every widget, a menubar with submenus, modal dialogs and forms,
+animations with easing and a smooth theme switch, images, cursors, lists,
+timers, a custom widget) and `calc` (a calculator). Both accept
 `--software`/`--gl`.
 
-## Использование как зависимости
+## Using as a dependency
 
 ```cmake
 find_package(copal CONFIG REQUIRED)
 target_link_libraries(app PRIVATE copal::copal)
 ```
 
-либо `add_subdirectory(copal)` (examples/тесты/install при этом автоматически
-отключаются), либо pkg-config: `pkg-config --cflags --libs copal`.
+or `add_subdirectory(copal)` (examples/tests/install are then disabled
+automatically), or pkg-config: `pkg-config --cflags --libs copal`.
 
-> Дефолтный пакет собран без платформенного бэкенда (mock-бэкенд — только для
-> тестов и не устанавливается), поэтому `cl_application_create` в нём вернёт
-> `NULL`. Чтобы открывать окна, соберите/подключите copal с
-> `-DCOPAL_ENABLE_SDL=ON` (при необходимости `-DCOPAL_ENABLE_OPENGL=ON`) либо
-> предоставьте собственный бэкенд через `cl_application_desc_t`.
+> The default package is built with no platform backend (the mock backend is
+> for tests only and is not installed), so `cl_application_create` returns
+> `NULL` in it. To open windows, build/link copal with `-DCOPAL_ENABLE_SDL=ON`
+> (and `-DCOPAL_ENABLE_OPENGL=ON` if needed), or supply your own backend
+> through `cl_application_desc_t`.
 
-## Документация
+## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — архитектура, слои, ADR.
-- [docs/API.md](docs/API.md) — обзор публичного API и сигнатуры по модулям.
-- [docs/STRUCTURE.md](docs/STRUCTURE.md) — дерево репозитория и сборка.
-- [docs/PERFORMANCE.md](docs/PERFORMANCE.md) — бенчмарки и измеренные числа.
-- [docs/CODESTYLE.md](docs/CODESTYLE.md) — стиль кода.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — architecture, layers, ADRs.
+- [docs/API.md](docs/API.md) — public API overview and signatures by module.
+- [docs/STRUCTURE.md](docs/STRUCTURE.md) — repository tree and build.
+- [docs/PERFORMANCE.md](docs/PERFORMANCE.md) — benchmarks and measured numbers.
+- [docs/CODESTYLE.md](docs/CODESTYLE.md) — code style.
 
-## Лицензия
+## License
 
-GPL-3.0-or-later, см. [COPYING](COPYING). Вендоренные сторонние файлы
-(stb_truetype, заголовки Khronos) — под своими лицензиями, см.
+GPL-3.0-or-later, see [COPYING](COPYING). Vendored third-party files
+(stb_truetype, Khronos headers) are under their own licenses, see
 [third_party/README.md](third_party/README.md).

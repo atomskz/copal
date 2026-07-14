@@ -1,672 +1,682 @@
-# copal — Архитектура
+<p align="right"><b>English</b> | <a href="./ru/ARCHITECTURE.md">Русский</a></p>
 
-Статус: **актуально** (соответствует коду по состоянию на Этап 7). Версия: 1.0.
-Проект: **copal** · CMake-таргет `copal` (alias `copal::copal`) · публичный префикс
-функций `cl_`, типы `snake_case`+`_t` (`cl_widget_t`), макросы/enum `CL_*` (CODESTYLE
-§2, ADR-012) · лицензия **GPL-3.0-or-later**.
+# copal — Architecture
 
-Документ описывает архитектуру **как она реализована**. Ранние версии (0.1–0.2)
-были проектным черновиком в нотации `Gui*`/`GUI_*` и содержали задел, часть
-которого реализована иначе или отложена; такие места отмечены явно
-(«**не реализовано в MVP**», «**проще проектного эскиза**»). Фактическое дерево
-файлов — в [STRUCTURE.md](STRUCTURE.md); публичные сигнатуры — в [API.md](API.md).
+Status: **current** (matches the code as of Stage 7). Version: 1.0.
+Project: **copal** · CMake target `copal` (alias `copal::copal`) · public function
+prefix `cl_`, types `snake_case`+`_t` (`cl_widget_t`), macros/enums `CL_*` (CODESTYLE
+§2, ADR-012) · license **GPL-3.0-or-later**.
 
-## 0. Зафиксированные решения (ADR-сводка)
+This document describes the architecture **as implemented**. The early versions
+(0.1–0.2) were a design draft in the `Gui*`/`GUI_*` notation and carried
+groundwork, part of which was implemented differently or deferred; such places are
+called out explicitly (“**not implemented in the MVP**”, “**simpler than the design
+sketch**”). The actual file tree is in [STRUCTURE.md](STRUCTURE.md); the public
+signatures are in [API.md](API.md).
 
-| Ось | Решение | ADR | Статус |
+## 0. Settled decisions (ADR summary)
+
+| Axis | Decision | ADR | Status |
 |-----|---------|-----|--------|
-| Платформа | SDL2 за интерфейсом `platform` | ADR-001 | реализовано (+ mock) |
-| Renderer | OpenGL 3.3 core за интерфейсом, SDF-примитивы + glyph-атлас | ADR-002 | реализовано (+ mock) |
-| Renderer (lightweight) | Выбираемый software/CPU бэкенд без GL-контекста | ADR-015 | реализовано (`render/soft`) |
-| Внешний вид | Собственная отрисовка + темы, без нативных контролей | ADR-003 | реализовано (light/dark) |
-| Текст | stb_truetype, латиница/кириллица, UTF-8, без shaping/bidi | ADR-004 | реализовано |
-| Объектная модель | Публичная база первым полем + резерв + рантайм-проверка `size/version` | ADR-005 | реализовано |
-| События | Гибрид: `on_event` по умолчанию раскладывает в удобные методы | ADR-006 | реализовано |
-| Владение | Иерархия + weak focus/hover/popup; без refcount | ADR-007 | реализовано (упрощено, §5) |
-| Ошибки | `cl_result_t` + thread-local last-error + `void`-сеттеры | ADR-008 | реализовано |
-| Потоки | Один GUI-поток + потокобезопасный `post`/`wakeup` | ADR-009 | реализовано |
-| Тестируемость | Mock-renderer + mock-platform (headless) | ADR-010 | реализовано (без mock-font, §3.4) |
-| Окно | Одно окно ОС + стек оверлеев (menu/submenu/menubar/combobox/dialog/tooltip) | ADR-011 | реализовано |
-| DPI | Логические px в API/layout; округление на генерации команд рендера | ADR-013 | реализовано |
-| Текст-данные | Ключ глиф-кэша по (font, codepoint) | ADR-014 | атлас в GL-рендерере; ключ по glyph_id — задел под shaping |
+| Platform | SDL2 behind a `platform` interface | ADR-001 | implemented (+ mock) |
+| Renderer | OpenGL 3.3 core behind an interface, SDF primitives + glyph atlas | ADR-002 | implemented (+ mock) |
+| Renderer (lightweight) | Selectable software/CPU backend with no GL context | ADR-015 | implemented (`render/soft`) |
+| Look & feel | Own rendering + themes, no native controls | ADR-003 | implemented (light/dark) |
+| Text | stb_truetype, Latin/Cyrillic, UTF-8, no shaping/bidi | ADR-004 | implemented |
+| Object model | Public base as the first field + reserve + runtime `size/version` check | ADR-005 | implemented |
+| Events | Hybrid: `on_event` fans out into convenience methods by default | ADR-006 | implemented |
+| Ownership | Hierarchy + weak focus/hover/popup; no refcount | ADR-007 | implemented (simplified, §5) |
+| Errors | `cl_result_t` + thread-local last-error + `void` setters | ADR-008 | implemented |
+| Threads | Single GUI thread + thread-safe `post`/`wakeup` | ADR-009 | implemented |
+| Testability | Mock renderer + mock platform (headless) | ADR-010 | implemented (no mock font, §3.4) |
+| Window | One OS window + overlay stack (menu/submenu/menubar/combobox/dialog/tooltip) | ADR-011 | implemented |
+| DPI | Logical px in the API/layout; rounding when render commands are generated | ADR-013 | implemented |
+| Text data | Glyph-cache key by (font, codepoint) | ADR-014 | atlas in the GL renderer; key by glyph_id — groundwork for shaping |
 
-## 1. Слои и направление зависимостей
+## 1. Layers and dependency direction
 
-Правило: верхний слой зависит от нижнего; ничего снизу не зависит от верхнего.
-Core (widget/layout/theme) на этапе компиляции зависит только от Foundation и от
-**интерфейсов** renderer/platform — никогда от конкретных SDL/GL/stb-типов.
-Конкретные бэкенды выбираются CMake-опциями и линкуются в `src/app`.
+Rule: an upper layer depends on a lower one; nothing below depends on anything
+above. Core (widget/layout/theme) depends at compile time only on Foundation and
+on the renderer/platform **interfaces** — never on concrete SDL/GL/stb types. The
+concrete backends are selected by CMake options and linked into `src/app`.
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│  App / Window            (публичный фасад, event loop,   │
-│                           таймеры, task-очередь)         │
+│  App / Window            (public facade, event loop,     │
+│                           timers, task queue)            │
 ├─────────────────────────────────────────────────────────┤
 │  Widgets library    (Label Button CheckBox RadioButton   │
 │                      Slider ComboBox Menu TextBox …)      │
 ├─────────────────────────────────────────────────────────┤
-│  Widget system │ Layout (vbox/hbox/scrollview) │ Theme   │  ← CORE (без платформы/GL)
+│  Widget system │ Layout (vbox/hbox/scrollview) │ Theme   │  ← CORE (no platform/GL)
 ├───────────────┴──────────────────────────┬──────────────┤
-│  Renderer (iface)     Platform (iface)    │  Text/Font   │  ← абстракции
-│   ├ GL 3.3 (+атлас)    ├ SDL2/GL          │  (stb_truetype)
+│  Renderer (iface)     Platform (iface)    │  Text/Font   │  ← abstractions
+│   ├ GL 3.3 (+atlas)    ├ SDL2/GL          │  (stb_truetype)
 │   ├ Software/CPU       ├ SDL2/software    │              │
-│   └ Mock/record        └ Mock/headless    │              │  ← реализации (выбор из CMake/DI)
+│   └ Mock/record        └ Mock/headless    │              │  ← implementations (chosen via CMake/DI)
 ├─────────────────────────────────────────────────────────┤
-│  Foundation: allocator · error · utf8 · mutex · version  │  ← ни от чего не зависит
+│  Foundation: allocator · error · utf8 · mutex · version  │  ← depends on nothing
 └─────────────────────────────────────────────────────────┘
-      external: SDL2, OpenGL (собственный загрузчик), stb_truetype (vendored)
+      external: SDL2, OpenGL (own loader), stb_truetype (vendored)
 ```
 
-## 2. Граф зависимостей (модули) — ацикличен
+## 2. Dependency graph (modules) — acyclic
 
-Стрелка `A ──► B` = «A зависит от B». Compile-time рёбра — к интерфейсам;
-конкретные бэкенды подключает только точка композиции (`src/app`) на этапе
-линковки.
+An arrow `A ──► B` means “A depends on B”. Compile-time edges point at interfaces;
+the concrete backends are wired in only by the composition point (`src/app`) at
+link time.
 
 ```text
-                         foundation            ◄── (нет исходящих)
+                         foundation            ◄── (no outgoing edges)
                           ▲   ▲   ▲
         platform-if ──────┘   │   └────── theme
         renderer-if ──────────┘
              ▲   ▲            ▲   ▲
-   sdl ──────┘   │     gl ────┘   │      (backend ──► своя iface + foundation)
+   sdl ──────┘   │     gl ────┘   │      (backend ──► its own iface + foundation)
    mock-plat ────┘     mock-rend ─┘
 
-        widget-system ──► platform-if, renderer-if, theme, text   [интерфейсы, compile-time]
-        widget-system ──► widget_host-if  [узкий host-интерфейс (widget_host.h,
-                             владеет widget-слой): dirty/focus/popup/clipboard/
-                             IME; окно РЕАЛИЗУЕТ его, встраивая host первым
-                             полем cl_window — цикла больше нет, см. §18]
+        widget-system ──► platform-if, renderer-if, theme, text   [interfaces, compile-time]
+        widget-system ──► widget_host-if  [narrow host interface (widget_host.h,
+                             owned by the widget layer): dirty/focus/popup/clipboard/
+                             IME; the window IMPLEMENTS it by embedding host as the
+                             first field of cl_window — the cycle is gone, see §18]
              ▲
         { layout, scrollview }
              ▲
         widgets-lib
              ▲
         app/{application,window,timer} ──► widget-system, {interfaces}   [compile-time]
-                                       --► sdl|mock-plat, gl|mock-rend    [LINK-TIME, точка композиции]
+                                       --► sdl|mock-plat, gl|mock-rend    [LINK-TIME, composition point]
 ```
 
-Core не линкует SDL/GL: символы SDL/GL присутствуют только в TU `src/app`
-(bootstrap-фабрики под `COPAL_ENABLE_SDL/OPENGL`) или инъектируются вызывающим
-через `cl_application_desc_t` (§3.9). Циклов нет: widget-слой видит окно только
-через `cl_widget_host_t` — интерфейс, объявленный в самом widget-слое.
+Core does not link SDL/GL: the SDL/GL symbols are present only in the `src/app` TUs
+(bootstrap factories under `COPAL_ENABLE_SDL/OPENGL`) or are injected by the caller
+through `cl_application_desc_t` (§3.9). There are no cycles: the widget layer sees
+the window only through `cl_widget_host_t` — an interface declared in the widget
+layer itself.
 
-## 3. Модули и ответственность
+## 3. Modules and responsibilities
 
-### 3.1 Foundation (`src/core/foundation`, публичные части в `include/copal/`)
-- `cl_allocator_t` (userdata + alloc/realloc/free); дефолт — обёртка malloc
-  (`allocator.c`), обёртки `cl_alloc/realloc/free` учитывают OOM в last-error.
-- Ошибки (`error.c`): `cl_result_t`, `CL_ERROR_ABI_MISMATCH` и др.,
-  **thread-local** last-error, лог-callback, в debug — `CL_ASSERT`.
-- Геометрия/типы (`types.h`): `cl_point/size/rect/insets/color` (RGBA8, не
-  premultiplied), `cl_constraints_t`. Координаты — `float`.
-- UTF-8 (`utf8.c`): декодирование/итерация по кодовым точкам; отвергает
-  overlong, суррогаты, `>U+10FFFF`, усечённые хвосты (подстановка `U+FFFD`).
-- Мьютекс (`mutex.c`, **новое**): непрозрачный кросс-платформенный мьютекс
-  (pthread / CRITICAL_SECTION) — под потокобезопасную task-очередь приложения.
-- Версия (`version.c`): `CL_VERSION_*`, `cl_version_runtime/string`.
-- Зависимостей нет; тестируется в изоляции.
+### 3.1 Foundation (`src/core/foundation`, public parts in `include/copal/`)
+- `cl_allocator_t` (userdata + alloc/realloc/free); the default is a malloc wrapper
+  (`allocator.c`); the `cl_alloc/realloc/free` wrappers record OOM in last-error.
+- Errors (`error.c`): `cl_result_t`, `CL_ERROR_ABI_MISMATCH` and others, a
+  **thread-local** last-error, a log callback, and `CL_ASSERT` in debug.
+- Geometry/types (`types.h`): `cl_point/size/rect/insets/color` (RGBA8, not
+  premultiplied), `cl_constraints_t`. Coordinates are `float`.
+- UTF-8 (`utf8.c`): decoding/iteration over code points; rejects overlong forms,
+  surrogates, `>U+10FFFF`, and truncated tails (substituting `U+FFFD`).
+- Mutex (`mutex.c`, **new**): an opaque cross-platform mutex
+  (pthread / CRITICAL_SECTION) — backing the application's thread-safe task queue.
+- Version (`version.c`): `CL_VERSION_*`, `cl_version_runtime/string`.
+- No dependencies; tested in isolation.
 
 ### 3.2 Platform interface (`copal/backend/platform.h`, `src/platform/`)
-Таблица операций `cl_platform_ops_t` (ops-указатели, backend наследует
-`cl_platform_t` первым полем; SPI публичный — устанавливаемый заголовок с
-ABI-рукопожатием `struct_size`/`abi_version`, §13):
-- окно: `create_window` (возвращает непрозрачный `cl_platform_window_t*`),
-  `destroy_window` (откат нативного окна при провале `cl_window_create`;
-  опционален), `set_title`, `drawable_size`, `scale` — оконные операции
-  принимают хэндл окна, а события несут `window_id` (задел под мульти-окно:
-  SPI не придётся ломать второй раз; single-window бэкенды вправе
-  игнорировать параметр и обязаны принимать NULL как «единственное окно»);
-- события: `poll`/`wait` → `cl_platform_event_t` (нейтральный тип, в т. ч.
-  `CL_PEV_TEXT_EDIT` для IME и `CL_PEV_EXPOSE` при повреждении поверхности;
-  мышиные события несут модификаторы и счётчик кликов); `present`;
-- **`wakeup()`** — потокобезопасный, коалесцируемый выход из ближайшего `wait`;
-- ввод текста/IME: `start_text_input`, `set_ime_rect` (позиция окна композиции);
-- курсор мыши: `set_cursor` (системные формы `cl_cursor_t`; окно применяет
-  форму наведённого виджета, `cl_widget_set_cursor`);
-- буфер обмена: `clipboard_get`/`clipboard_set`;
-- GL: `gl_get_proc` (адрес процедуры для загрузчика; NULL у не-GL бэкендов);
-- **`now_ms()`** — монотонные миллисекунды (под таймеры, §7);
-- software: `lock_framebuffer`/`unlock_framebuffer` — отдают CPU-буфер окна
-  (`cl_pixmap`: pixels/размер/pitch + маски каналов) под software-рендер; NULL у GPU;
+The `cl_platform_ops_t` operations table (ops pointers; a backend inherits
+`cl_platform_t` as its first field; the SPI is public — an installed header with an
+ABI handshake `struct_size`/`abi_version`, §13):
+- window: `create_window` (returns an opaque `cl_platform_window_t*`),
+  `destroy_window` (rolls back the native window when `cl_window_create` fails;
+  optional), `set_title`, `drawable_size`, `scale` — window operations take a window
+  handle, and events carry a `window_id` (groundwork for multi-window: the SPI won't
+  have to be broken a second time; single-window backends may ignore the parameter
+  and must accept NULL as “the sole window”);
+- events: `poll`/`wait` → `cl_platform_event_t` (a neutral type, including
+  `CL_PEV_TEXT_EDIT` for IME and `CL_PEV_EXPOSE` on surface damage; mouse events
+  carry modifiers and a click counter); `present`;
+- **`wakeup()`** — a thread-safe, coalescible way out of the nearest `wait`;
+- text input/IME: `start_text_input`, `set_ime_rect` (position of the composition
+  window);
+- mouse cursor: `set_cursor` (system shapes `cl_cursor_t`; the window applies the
+  hovered widget's shape, `cl_widget_set_cursor`);
+- clipboard: `clipboard_get`/`clipboard_set`;
+- GL: `gl_get_proc` (procedure address for the loader; NULL on non-GL backends);
+- **`now_ms()`** — monotonic milliseconds (backing timers, §7);
+- software: `lock_framebuffer`/`unlock_framebuffer` — hand out the window's CPU
+  buffer (`cl_pixmap`: pixels/size/pitch + channel masks) for software rendering;
+  NULL on the GPU path;
 - `destroy`.
-Реализации: **SDL2/GL** (`platform/sdl`, `cl_platform_sdl_create` — окно с
-GL-контекстом), **SDL2/software** (`cl_platform_sdl_soft_create` — окно **без**
-GL: `lock_framebuffer` = `SDL_GetWindowSurface`, `present` = `SDL_UpdateWindowSurface`;
-**не требует OpenGL**) и **Mock/headless** (`platform/mock`, скриптованная очередь
-`cl_platform_mock_push`, управляемые часы `cl_platform_mock_advance`, без окна).
-`wait` блокируется через `SDL_WaitEvent(NULL)` (ждёт, но не извлекает событие —
-его вычерпывает `process_events`), иначе при устойчивом потоке событий цикл спинил
-бы на 100% одного ядра вместо сна.
+Implementations: **SDL2/GL** (`platform/sdl`, `cl_platform_sdl_create` — a window
+with a GL context), **SDL2/software** (`cl_platform_sdl_soft_create` — a window
+**without** GL: `lock_framebuffer` = `SDL_GetWindowSurface`, `present` =
+`SDL_UpdateWindowSurface`; **needs no OpenGL**), and **Mock/headless**
+(`platform/mock`, a scripted queue `cl_platform_mock_push`, a controllable clock
+`cl_platform_mock_advance`, no window).
+`wait` blocks via `SDL_WaitEvent(NULL)` (waits but does not dequeue the event —
+`process_events` drains it); otherwise, under a steady event stream, the loop would
+spin at 100% of one core instead of sleeping.
 
 ### 3.3 Renderer interface (`src/render/`)
-Разделён на две части, чтобы GPU-детали не протекали к авторам виджетов:
-1. **Публичный `cl_paint_context_t`** (`render.h`, `paint_context.c`) —
-   передаётся в `paint`. Только рисование: `fill_rect`, `fill_round_rect(r,
-   radius)`, `stroke_round_rect(r, radius, width)`, `draw_text(font, utf8, pos,
-   color)`, `draw_image(img, dst)` (RGBA8-ресурс `cl_image_t`, image.h),
+Split into two parts so that GPU details do not leak to widget authors:
+1. **The public `cl_paint_context_t`** (`render.h`, `paint_context.c`) — passed
+   into `paint`. Drawing only: `fill_rect`, `fill_round_rect(r, radius)`,
+   `stroke_round_rect(r, radius, width)`, `draw_text(font, utf8, pos, color)`,
+   `draw_image(img, dst)` (an RGBA8 resource `cl_image_t`, image.h),
    `push_clip`/`pop_clip`, `push_transform(offset, scale)`/`pop_transform`
-   (translate + равномерный scale, действует и на клип-ректы) и
-   `push_opacity(alpha)`/`pop_opacity` (групповое умножение альфы, без
-   промежуточного буфера — перекрытия внутри группы просвечивают); плюс
-   read-доступ к теме (`theme`, `theme_color`). Устройство/кадр/GPU-ресурсы
-   недоступны.
-2. **Device/frame-интерфейс** (`copal/backend/renderer.h`; SPI публичный, с
-   ABI-рукопожатием `struct_size`/`abi_version`, §13) — принадлежит App/Window:
-   `begin_frame(size, scale)`/`end_frame`, управление GPU-ресурсами, загрузка
-   глифов в атлас. Авторам виджетов по-прежнему недоступен.
-Реализации: **GL** (`render/gl`: GL 3.3 core, собственный загрузчик `gl_loader.c`
-поверх `third_party/GL`+`KHR`, SDF-шейдер для скруглений/AA, glyph-атлас);
-**Software/CPU** (`render/soft/renderer_soft.c`: те же 9 операций на CPU — тот же
-SDF+AA скруглений, портированный per-pixel; текст — блиттинг coverage-битмапов
-stb_truetype из CPU glyph-кэша; клип-стек; пиксельный буфер получает от платформы
-через `lock/unlock_framebuffer`. Платформо-нейтрален, собирается **всегда**, **не
-создаёт GL-контекст** → быстрый плоский старт и на порядок меньше памяти, работает
-по RDP и в CI); **Mock/record** (`render/mock`: список draw-команд
-`cl_mock_command_t` для детерминированных headless-тестов, без GL).
+   (translate + uniform scale, also applied to the clip rects), and
+   `push_opacity(alpha)`/`pop_opacity` (group alpha multiplication, with no
+   intermediate buffer — overlaps within the group show through); plus read access
+   to the theme (`theme`, `theme_color`). The device/frame/GPU resources are not
+   reachable.
+2. **The device/frame interface** (`copal/backend/renderer.h`; the SPI is public,
+   with an ABI handshake `struct_size`/`abi_version`, §13) — owned by App/Window:
+   `begin_frame(size, scale)`/`end_frame`, GPU-resource management, uploading glyphs
+   into the atlas. Still not reachable by widget authors.
+Implementations: **GL** (`render/gl`: GL 3.3 core, a custom loader `gl_loader.c` on
+top of `third_party/GL`+`KHR`, an SDF shader for rounding/AA, a glyph atlas);
+**Software/CPU** (`render/soft/renderer_soft.c`: the same 9 operations on the CPU —
+the same rounding SDF+AA, ported per-pixel; text is done by blitting stb_truetype
+coverage bitmaps out of a CPU glyph cache; a clip stack; the pixel buffer is
+obtained from the platform via `lock/unlock_framebuffer`. It is platform-neutral,
+built **always**, and **creates no GL context** → a fast flat startup and an order
+of magnitude less memory, and it works over RDP and in CI); **Mock/record**
+(`render/mock`: a list of draw commands `cl_mock_command_t` for deterministic
+headless tests, no GL).
 
 ### 3.4 Text/Font (`src/text/`, `font.h`)
-**Проще проектного эскиза.** Реализовано:
-- `font.c` поверх **stb_truetype** (`stb_impl.c` — единственная TU с
-  `STB_TRUETYPE_IMPLEMENTATION`): загрузка `.ttf/.otf` из файла/памяти, метрики
-  (`cl_font_metrics_t`), измерение `cl_text_measure` и `cl_text_measure_bytes`
-  (по байтовой длине — для позиционирования каретки) **без растеризации**;
-- растеризация глифов и глиф-кэши живут в рендерерах (GL: атлас, soft:
-  coverage-битмапы); ключ кэша — пара (font, **codepoint**), т.к. без
-  shaping'а действует «1 кодовая точка = 1 глиф» (§12); ключ по glyph_id —
-  задел на будущее (ADR-014). Поиск — открытая хэш-таблица; при переполнении
-  таблицы (512 слотов) или GL-атласа кэш **сбрасывается** и строка
-  дорисовывается (GL перед сбросом флашит накопленный батч — его квады ещё
-  ссылаются на старые текселы); нерастеризуемый глиф пропускается, не
-  обрывая строку. `cl_font_release` инвалидирует кэши через операцию
-  `evict_font` (переиспользование адреса шрифта аллокатором больше не даёт
-  ложных попаданий).
-Проектные `GuiFontProvider`/`GuiShaper`/`GuiTextEngine`/`GuiGlyphCache` как
-отдельные публичные сущности **не выделены**; их роль сведена к `font.c` +
-атласу рендерера. Точки расширения под FreeType/HarfBuzz сохранены концептуально
-(ADR-004/014). Ограничения — §12.
+**Simpler than the design sketch.** Implemented:
+- `font.c` on top of **stb_truetype** (`stb_impl.c` — the single TU with
+  `STB_TRUETYPE_IMPLEMENTATION`): loading `.ttf/.otf` from file/memory, metrics
+  (`cl_font_metrics_t`), and measuring via `cl_text_measure` and
+  `cl_text_measure_bytes` (by byte length — for caret positioning) **without
+  rasterization**;
+- glyph rasterization and glyph caches live in the renderers (GL: the atlas; soft:
+  coverage bitmaps); the cache key is a (font, **codepoint**) pair, because without
+  shaping “1 code point = 1 glyph” holds (§12); a key by glyph_id is groundwork for
+  the future (ADR-014). Lookup uses an open hash table; on overflow of the table
+  (512 slots) or of the GL atlas the cache is **reset** and the string is
+  re-rendered (before the reset GL flushes the accumulated batch — its quads still
+  reference the old texels); an unrasterizable glyph is skipped without breaking the
+  string. `cl_font_release` invalidates the caches through the `evict_font`
+  operation (reuse of a font's address by the allocator no longer produces false
+  hits).
+The design's `GuiFontProvider`/`GuiShaper`/`GuiTextEngine`/`GuiGlyphCache` as
+separate public entities **are not carved out**; their role is folded into `font.c`
++ the renderer's atlas. The extension points for FreeType/HarfBuzz are kept
+conceptually (ADR-004/014). Limitations — §12.
 
 ### 3.5 Widget system (`src/widget/`, `widget.h`, `widget_impl.h`)
-- `cl_widget_t` — публичная база первым полем + резерв (`CL_WIDGET_RESERVED = 24`);
-  `cl_widget_vtable_t`; `cl_widget_class_t` (имя, класс-предок, `type_id`
-  информационный, размер экземпляра, vtable) для RTTI и проверяемых кастов.
-- Дерево: `first_child`/`last_child`/`next_sibling`, `parent` (weak), `window`
-  (weak back-ref), `app` (weak); add/remove/destroy.
-- Состояние: `rect` (абсолютный), `measured`/`pref_size`, `margin`/`align`/`flex`,
-  флаги (`VISIBLE`/`ENABLED`/`FOCUSABLE`/`DEAD`/`CLIP`; бит 3 — резерв, бывший
+- `cl_widget_t` — the public base as the first field + a reserve
+  (`CL_WIDGET_RESERVED = 20`); `cl_widget_vtable_t`; `cl_widget_class_t` (name,
+  parent class, informational `type_id`, instance size, vtable) for RTTI and checked
+  casts.
+- Tree: `first_child`/`last_child`/`next_sibling`, `parent` (weak), `window` (weak
+  back-ref), `app` (weak); add/remove/destroy.
+- State: `rect` (absolute), `measured`/`pref_size`, `margin`/`align`/`flex`, flags
+  (`VISIBLE`/`ENABLED`/`FOCUSABLE`/`DEAD`/`CLIP`; bit 3 is a reserve, the former
   `DIRTY`), `cursor`, `userdata`, `tooltip` (owned UTF-8).
-- Диспетчер событий (`widget.c`): `on_event` по умолчанию раскладывает в удобные
-  методы (§6); clip-aware `paint`/hit-test (при `CL_WF_CLIP` дети клипуются
-  `clip_rect`); `cl_widget_reveal` — walk вверх по предкам с хуком `reveal`.
-- Инвалидция: `cl_widget_invalidate` (paint → `window.dirty`),
+- The event dispatcher (`widget.c`): `on_event` fans out into convenience methods by
+  default (§6); clip-aware `paint`/hit-test (under `CL_WF_CLIP` children are clipped
+  to `clip_rect`); `cl_widget_reveal` — a walk up the ancestors with a `reveal` hook.
+- Invalidation: `cl_widget_invalidate` (paint → `window.dirty`),
   `cl_widget_invalidate_layout` (measure/arrange).
 
 ### 3.6 Layout (`src/layout/`, `layout.h`)
-- Два прохода measure/arrange в логических float-px; модель ограничений
-  (min/max, `CL_UNBOUNDED`).
-- Контейнеры: `vbox`/`hbox` (spacing, padding, cross-align, flex-веса);
-  **ScrollView** (`scrollview.c`, `widgets/scrollview.h`) — две оси (opt-in
-  `horizontal`), реализует vtable-хуки `clip_rect` (обрезка содержимого) и
-  `reveal`/scroll-to-view, opt-in `smooth`-анимация колеса (через таймер).
-- Per-child атрибуты задаются на ребёнке (`cl_widget_set_flex/margin/align/…`).
+- Two measure/arrange passes in logical float px; a constraints model (min/max,
+  `CL_UNBOUNDED`).
+- Containers: `vbox`/`hbox` (spacing, padding, cross-align, flex weights);
+  **ScrollView** (`scrollview.c`, `widgets/scrollview.h`) — two axes (opt-in
+  `horizontal`), implementing the vtable hooks `clip_rect` (clipping the content) and
+  `reveal`/scroll-to-view, with an opt-in `smooth` wheel animation (via a timer).
+- Per-child attributes are set on the child (`cl_widget_set_flex/margin/align/…`).
 
 ### 3.7 Theme/Style (`src/theme/`, `theme.h`)
-- `cl_theme_t`: роли цветов (`cl_color_role_t`: BACKGROUND, SURFACE(+HOVER/
+- `cl_theme_t`: color roles (`cl_color_role_t`: BACKGROUND, SURFACE(+HOVER/
   ACTIVE/RAISED), TEXT(+MUTED), ACCENT, BORDER, FOCUS_RING, SELECTION, SHADOW),
-  встроенные **light/dark** схемы (`cl_theme_set_variant`), радиус углов, шрифт
-  по умолчанию. `cl_text_style_t` (font/color/align) для text-виджетов.
-- Виджеты запрашивают цвет по роли в `paint` через `cl_paint_context_t`.
+  built-in **light/dark** schemes (`cl_theme_set_variant`), corner radius, and a
+  default font. `cl_text_style_t` (font/color/align) for text widgets.
+- Widgets request a color by role in `paint` through `cl_paint_context_t`.
 
 ### 3.8 Widgets library (`include/copal/widgets/`, `src/widgets/`)
-Реализованы: **Label, Button, CheckBox, RadioButton** (взаимоисключение по
-числовому `group` id, а не отдельным контейнером), **Slider, ComboBox, Menu**
-(popup через overlay), **TextBox** (одно-/многострочный, password, readonly,
-`max_length`, выделение/буфер обмена, IME-композиция), **ScrollView**. Внутренний
-**tooltip**-пузырь (`src/widgets/tooltip.c`) — не публичный виджет, а элемент
-hover-слоя окна. Каждый публичный виджет — `*_desc_t` + `*_create` (§API).
-Реализованы также Panel (группирующая поверхность), Spacer, RadioGroup (автоматическая взаимоисключаемость), ImageView, List, ProgressBar, Menubar и модальный MessageBox.
+Implemented: **Label, Button, CheckBox, RadioButton** (mutual exclusion by a numeric
+`group` id rather than a separate container), **Slider, ComboBox, Menu** (a popup via
+an overlay), **TextBox** (single-/multi-line, password, readonly, `max_length`,
+selection/clipboard, IME composition), **ScrollView**. The internal **tooltip**
+bubble (`src/widgets/tooltip.c`) is not a public widget but an element of the
+window's hover layer. Each public widget is a `*_desc_t` + `*_create` (§API).
+Also implemented are Panel (a grouping surface), Spacer, RadioGroup (automatic mutual
+exclusion), ImageView, List, ProgressBar, Menubar, and the modal MessageBox.
 
 ### 3.9 App & Window (`src/app/`, `application.h`, `window.h`, `timer.h`,
 `animation.h`)
-- `cl_application_t`: владеет platform, renderer, theme, allocator; event loop
-  (`run`/`step`/`quit`); **таймеры** (`timer.c`, §7); **анимации**
-  (`animation.c`, §7) — общий ~60 Гц тикер поверх таймеров, прогресс от
-  `now_ms() - start` (не от числа тиков), easing-кривые, отмена с `on_done`,
-  композиция/цепочки; **потокобезопасная task-очередь** `cl_application_post`
-  (mutex + FIFO, §7); IME-rect. Бэкенды —
-  DI из `cl_application_desc_t` **или** встроенные фабрики bootstrap-TU.
-  **Выбор бэкенда:** `cl_application_desc.render_backend`
-  (`CL_RENDER_AUTO`/`GL`/`SOFTWARE`) + рантайм-override `COPAL_RENDER=software`
-  для AUTO; при сборке `COPAL_ENABLE_SDL` **без** `COPAL_ENABLE_OPENGL` доступен
-  только software (GL-рендерер не компилируется, libGL не линкуется — ADR-015).
-  Встроенный рендер не привязывается к инжектированной платформе, которая не
-  может его обслужить (software требует `lock_framebuffer`, GL — `gl_get_proc`;
-  иначе `cl_application_create` → `CL_ERROR_UNSUPPORTED`). При AUTO со
-  встроенными бэкендами отказ создания GL-окна один раз откатывается на
-  software-пару (`cl_app_software_fallback`); явный GL и DI не откатываются.
-  Отказ ленивой gl_init (шейдеры/загрузка функций) фиксируется в
-  `cl_last_error` (CL_ERROR_RENDERER) и в логе.
-- `cl_window_t`: нативное окно + GL-контекст, корневой виджет (content) **и
-  стек оверлеев** (меню/подменю/дропдауны/модальные диалоги; модальные записи —
-  барьеры для light-dismiss) плюс отдельный **hover-tooltip**-слой;
-  focus/mouse-target/reveal; ввод в модальных диалогах — с content-семантикой
-  (фокус по клику, захват указателя, hover/курсор, Tab-цикл, всплытие клавиш до
-  корня диалога); dirty-флаг + **damage-регион** (union bounding-rect
-  инвалидаций, §8.3). Владеет content, оверлеями (кроме отсоединяемых
-  меню-записей) и tooltip; хранит weak back-ref у виджетов. В MVP — одно окно
-  (ADR-011; второе → `CL_ERROR_UNSUPPORTED`).
+- `cl_application_t`: owns the platform, renderer, theme, allocator; the event loop
+  (`run`/`step`/`quit`); **timers** (`timer.c`, §7); **animations**
+  (`animation.c`, §7) — a shared ~60 Hz ticker on top of the timers, progress from
+  `now_ms() - start` (not from a tick count), easing curves, cancellation with
+  `on_done`, composition/chaining; a **thread-safe task queue** `cl_application_post`
+  (mutex + FIFO, §7); the IME rect. The backends are DI from `cl_application_desc_t`
+  **or** the bootstrap-TU built-in factories.
+  **Backend selection:** `cl_application_desc.render_backend`
+  (`CL_RENDER_AUTO`/`GL`/`SOFTWARE`) + a runtime override `COPAL_RENDER=software`
+  for AUTO; in a `COPAL_ENABLE_SDL` build **without** `COPAL_ENABLE_OPENGL` only
+  software is available (the GL renderer is not compiled, libGL is not linked —
+  ADR-015). A built-in renderer is not bound to an injected platform that cannot
+  serve it (software requires `lock_framebuffer`, GL requires `gl_get_proc`;
+  otherwise `cl_application_create` → `CL_ERROR_UNSUPPORTED`). Under AUTO with the
+  built-in backends, a failure to create a GL window falls back once to the software
+  pair (`cl_app_software_fallback`); explicit GL and DI do not fall back. A failure
+  of the lazy gl_init (shaders/function loading) is recorded in `cl_last_error`
+  (CL_ERROR_RENDERER) and in the log.
+- `cl_window_t`: the native window + GL context, the root widget (content) **and an
+  overlay stack** (menus/submenus/dropdowns/modal dialogs; modal entries are
+  barriers for light-dismiss) plus a separate **hover-tooltip** layer;
+  focus/mouse-target/reveal; input in modal dialogs has content semantics (focus on
+  click, pointer capture, hover/cursor, a Tab cycle, key bubbling up to the dialog
+  root); a dirty flag + a **damage region** (the union bounding rect of the
+  invalidations, §8.3). It owns the content, the overlays (except detachable menu
+  entries), and the tooltip; it keeps a weak back-ref in the widgets. In the MVP —
+  one window (ADR-011; a second one → `CL_ERROR_UNSUPPORTED`).
 
-## 4. Модель владения
+## 4. Ownership model
 
 ```text
 cl_application_t
  ├─ owns platform, renderer, theme, allocator
- ├─ owns cl_window_t (одно в MVP)
+ ├─ owns cl_window_t (one in MVP)
  │    ├─ owns native surface + GL context
- │    ├─ owns content: cl_widget_t → owns children (рекурсивно)
- │    ├─ owns overlay popup (menu/combobox), если открыт
- │    └─ owns hover tooltip, если показан
- ├─ owns cl_timer_t[]        (FIFO-список)
- ├─ owns cl_animation_t[]    (общий тикер — один из таймеров)
- └─ owns posted-task queue   (из других потоков)
+ │    ├─ owns content: cl_widget_t → owns children (recursively)
+ │    ├─ owns overlay popup (menu/combobox), if open
+ │    └─ owns hover tooltip, if shown
+ ├─ owns cl_timer_t[]        (FIFO list)
+ ├─ owns cl_animation_t[]    (shared ticker — one of the timers)
+ └─ owns posted-task queue   (from other threads)
 
-Weak (сырые указатели, зануляются при уничтожении цели):
+Weak (raw pointers, nulled when the target is destroyed):
   widget.parent / widget.window / widget.app
   window.focus / mouse_target → widget
 ```
 
-Правила:
-- **Родитель владеет детьми.** `cl_widget_add_child` передаёт владение;
-  `cl_widget_remove_child` возвращает владение вызвавшему; `cl_widget_destroy`
-  уничтожает поддерево.
-- **Weak-ссылки** не владеют; при уничтожении виджета его window-weak-ссылки
-  (focus/mouse_target/popup-owner/tooltip-target) зануляются (§5).
-- **Без refcounting** (ADR-007).
-- Все аллокации — через `cl_allocator_t` приложения; виджеты выделяются нулём
-  (`cl_widget_alloc`, контракт §9).
-- **Живые виджеты — только в куче** (создаются `cl_*_create`).
+Rules:
+- **A parent owns its children.** `cl_widget_add_child` transfers ownership;
+  `cl_widget_remove_child` returns ownership to the caller; `cl_widget_destroy`
+  destroys the subtree.
+- **Weak references** do not own; when a widget is destroyed, its window-weak
+  references (focus/mouse_target/popup-owner/tooltip-target) are nulled (§5).
+- **No refcounting** (ADR-007).
+- All allocations go through the application's `cl_allocator_t`; widgets are
+  allocated zeroed (`cl_widget_alloc`, contract §9).
+- **Live widgets are heap-only** (created by `cl_*_create`).
 
-## 5. Уничтожение и безопасность из callback (как реализовано)
+## 5. Destruction and callback safety (as implemented)
 
-`cl_widget_destroy(w)` **отсоединяет сразу, освобождает отложенно** через
-DEAD-очередь приложения. Порядок (`widget.c`, `application.c`):
+`cl_widget_destroy(w)` **detaches immediately, frees deferred** through the
+application's DEAD queue. The order (`widget.c`, `application.c`):
 
-- **No-op при повторе.** Если `w` — `NULL` или уже помечен `CL_WF_DEAD`, вызов
-  ничего не делает: повторный `destroy` безопасен.
-- **Detach + пометка мёртвым.** Сохранить `host` (до detach, пока жива
-  window-back-ссылка) → при наличии родителя `cl_widget_remove_child` (отвязывает
-  сразу, гонит `focus_lost` через detach) → `widget_mark_dead(w)` рекурсивно по
-  поддереву: занулить window-weak-ссылки через `host->ops->widget_gone`
-  (`focus`/`mouse_target`/hover/popup-owner/tooltip-target), обнулить `window` и
-  выставить `CL_WF_DEAD`. Мёртвый узел невидим для hit-testing, событий и
-  повторного `add_child`.
-- **Отложенное освобождение присоединённого поддерева.** Если узел был в окне,
-  `host->ops->defer_destroy` кладёт поддерево в DEAD-очередь (`app->dead`); память
-  освобождается **в конце текущей итерации цикла** — `cl_app_reap_dead` вызывается
-  после `reap_overlay` и до рендера (порядок в `cl_application_run`/`_step`, §7) и
-  при уничтожении приложения. Reap дренирует очередь **до пустоты**, поэтому destroy
-  другого отсоединённого дерева **из** destroy-callback безопасен. Уже отсоединённое
-  поддерево (без окна) ссылок из цикла не имеет и освобождается сразу
-  (`cl_widget_free_subtree`).
-- **Гарантия callback-безопасности.** Хэндлы остаются валидными до конца итерации,
-  поэтому уничтожение **любого** виджета из любого callback (событие, таймер,
-  анимация) безопасно; сам обход освобождения — bottom-up (`cl_widget_free_subtree`:
-  дети → `vtable->destroy` → `tooltip` → узел).
-- **Weak-зануление при detach.** `remove_child` вызывает `cl_widget_set_window(child,
-  NULL)`, поэтому очистка window-weak-ссылок продублирована и в detach-ветке
-  `cl_widget_set_window` — иначе focus/mouse_target/popup/tooltip могли бы
-  указывать на отвязанный узел.
-- **Отложенность overlay/таймеров/анимаций:**
-  - **Overlay/popup** (menu/combobox): закрытие откладывается флагом
-    `overlay_closing` и выполняется в `cl_window_reap_overlay` **после** dispatch,
-    до рендера. Поэтому обработчик пункта меню/выбора может безопасно запросить
-    закрытие своего же popup.
-  - **Таймеры/анимации**: освобождение во время fire-pass откладывается и
-    выполняется `reap` после прохода; реентерабельность (вложенный
-    `step`/`run`) защищена — reap делает только внешний проход (§7).
-- **Callback — последнее действие.** Встроенные виджеты (button, checkbox,
-  slider, radio, combobox, textbox, menu) не трогают собственное состояние
-  после вызова пользовательского callback — уничтожение виджета из его
-  callback безопасно при условии, что обработчик затем вернёт `true`
-  (см. контракт `cl_widget_destroy` в widget.h и API §6).
-- **Флаги.** `CL_WF_DEAD` (бит 4) реализован и используется как выше; бит 3
-  (бывший `DIRTY`) зарезервирован и не реализован; поле `generation` из эскиза 0.2
-  удалено — валидации weak-хэндлов нет (ADR-007, без refcount).
+- **No-op on repeat.** If `w` is `NULL` or already marked `CL_WF_DEAD`, the call
+  does nothing: a repeated `destroy` is safe.
+- **Detach + mark dead.** Save the `host` (before detach, while the window back-ref
+  is still alive) → if there is a parent, `cl_widget_remove_child` (unlinks
+  immediately, driving `focus_lost` through the detach) → `widget_mark_dead(w)`
+  recursively over the subtree: null the window-weak references via
+  `host->ops->widget_gone` (`focus`/`mouse_target`/hover/popup-owner/tooltip-target),
+  clear `window`, and set `CL_WF_DEAD`. A dead node is invisible to hit-testing,
+  events, and a repeated `add_child`.
+- **Deferred free of an attached subtree.** If the node was in a window,
+  `host->ops->defer_destroy` puts the subtree into the DEAD queue (`app->dead`); the
+  memory is freed **at the end of the current loop iteration** — `cl_app_reap_dead`
+  is called after `reap_overlay` and before rendering (the order in
+  `cl_application_run`/`_step`, §7) and on application teardown. The reap drains the
+  queue **to empty**, so destroying another detached tree **from** a destroy callback
+  is safe. An already-detached subtree (no window) has no references from the loop
+  and is freed immediately (`cl_widget_free_subtree`).
+- **Callback-safety guarantee.** Handles stay valid until the end of the iteration,
+  so destroying **any** widget from any callback (event, timer, animation) is safe;
+  the free walk itself is bottom-up (`cl_widget_free_subtree`: children →
+  `vtable->destroy` → `tooltip` → the node).
+- **Weak nulling on detach.** `remove_child` calls `cl_widget_set_window(child,
+  NULL)`, so the clearing of window-weak references is also duplicated in the detach
+  branch of `cl_widget_set_window` — otherwise focus/mouse_target/popup/tooltip could
+  point at an unlinked node.
+- **Deferral of overlays/timers/animations:**
+  - **Overlay/popup** (menu/combobox): closing is deferred by the `overlay_closing`
+    flag and performed in `cl_window_reap_overlay` **after** dispatch, before
+    rendering. So a menu-item/selection handler can safely request the closing of its
+    own popup.
+  - **Timers/animations**: freeing during the fire pass is deferred and performed by
+    a `reap` after the pass; reentrancy (a nested `step`/`run`) is protected — the
+    reap only runs on the outermost pass (§7).
+- **The callback is the last action.** The built-in widgets (button, checkbox,
+  slider, radio, combobox, textbox, menu) do not touch their own state after invoking
+  the user callback — destroying the widget from its callback is safe provided the
+  handler then returns `true` (see the `cl_widget_destroy` contract in widget.h and
+  API §6).
+- **Flags.** `CL_WF_DEAD` (bit 4) is implemented and used as above; bit 3 (the former
+  `DIRTY`) is reserved and not implemented; the `generation` field from the 0.2 sketch
+  was removed — there is no weak-handle validation (ADR-007, no refcount).
 
-## 6. Модель ошибок и события
+## 6. Error model and events
 
-- `cl_result_t` для fallible-операций (create app/window/timer, load font,
-  add-item, ABI-mismatch). Конструкторы при неудаче → `NULL` + thread-local
+- `cl_result_t` for fallible operations (create app/window/timer, load font,
+  add-item, ABI mismatch). Constructors on failure → `NULL` + thread-local
   last-error.
-- Сеттеры — `void`: валидируют/клампят; в debug — `CL_ASSERT` на грубые ошибки.
-- `cl_last_error()`, `cl_result_string()`, `cl_set_log_callback()`. Лог-колбэк
-  process-wide и единственный (per-app `log_fn` удалён); внутренние точки
-  диагностики идут через `cl_log()` (foundation), фолбэк WARN/ERROR — stderr.
+- Setters are `void`: they validate/clamp; in debug — `CL_ASSERT` on gross errors.
+- `cl_last_error()`, `cl_result_string()`, `cl_set_log_callback()`. The log callback
+  is process-wide and unique (the per-app `log_fn` was removed); internal diagnostic
+  points go through `cl_log()` (foundation), with a WARN/ERROR fallback to stderr.
 
-**Гибрид событий (ADR-006):** vtable содержит `on_event` + конкретные слоты.
-Диспетчер по умолчанию раскладывает `cl_event_t` в `mouse_down/up/move/wheel`,
-`key_down/up`, `text_input`, **`text_edit`** (IME pre-edit), `focus_gained/lost`.
-Автор виджета переопределяет **либо** `on_event`, **либо** отдельные методы.
-`on_event`, вернувший `true`, гасит дальнейшую передачу.
+**Event hybrid (ADR-006):** the vtable holds `on_event` + the concrete slots. The
+dispatcher by default fans a `cl_event_t` out into `mouse_down/up/move/wheel`,
+`key_down/up`, `text_input`, **`text_edit`** (IME pre-edit), `focus_gained/lost`. A
+widget author overrides **either** `on_event` **or** the individual methods. An
+`on_event` that returned `true` stops further propagation.
 
-## 7. Модель потоков, таймеры, задачи
+## 7. Threading model, timers, tasks
 
-- Один GUI-поток владеет app/window/widgets/renderer.
-- **`cl_application_post(app, fn, user)`** потокобезопасен: кладёт задачу в
-  очередь под мьютексом (`mutex.c`) и будит цикл через `platform.wakeup()`;
-  очередь **целиком отцепляется под локом и выполняется без лока** (задача может
-  поставить новую — дренируется на следующем проходе, без дедлока); FIFO;
-  недренированные при destroy — отбрасываются.
-- **Анимации** (`animation.c`, `animation.h`): все живые анимации приложения
-  разделяют один repeat-таймер ~60 Гц (создаётся при первой, снимается когда
-  список пустеет — idle-цикл продолжает спать). Прогресс — от прошедшего
-  времени, не от числа тиков: коалесцирование тикера «перепрыгивает» анимацию
-  вперёд, финальный вызов всегда с t = 1.0. Реентерабельность — по образцу
-  таймеров (`anim_firing` + отложенный reap); анимация освобождает себя по
-  завершении/отмене (после `on_done` хэндл недействителен), остатки — при
-  destroy приложения без коллбеков.
-- **Таймеры** (`timer.c`): app-owned FIFO-список; срабатывают в GUI-потоке между
-  dispatch и рендером; `wait` бланкуется до ближайшего дедлайна
-  (`cl_app_timers_timeout`), опрос — `cl_app_timers_poll`. Время — монотонное
-  `platform.now_ms`. one-shot с `interval_ms==0` срабатывает на следующем опросе;
-  repeat флорится до 1 мс и коалесцирует пропуски. Освобождение во время
-  fire-pass отложено (§5); окно уничтожается **до** `cl_app_timers_free_all`,
-  чтобы виджеты успели отменить свои таймеры по живому списку.
-- Ресурсы GPU/шрифта — только в GUI-потоке; из другого потока допустим лишь `post`.
+- A single GUI thread owns app/window/widgets/renderer.
+- **`cl_application_post(app, fn, user)`** is thread-safe: it puts the task into the
+  queue under the mutex (`mutex.c`) and wakes the loop via `platform.wakeup()`; the
+  queue is **detached wholesale under the lock and executed without the lock** (a task
+  may post a new one — it is drained on the next pass, with no deadlock); FIFO; tasks
+  not drained by destroy are discarded.
+- **Animations** (`animation.c`, `animation.h`): all of the application's live
+  animations share one ~60 Hz repeat timer (created with the first one, dropped when
+  the list empties — the idle loop keeps sleeping). Progress is from elapsed time, not
+  from a tick count: coalescing of the ticker “jumps” an animation forward, and the
+  final call is always at t = 1.0. Reentrancy follows the timers' pattern
+  (`anim_firing` + a deferred reap); an animation frees itself on completion/cancel
+  (after `on_done` the handle is invalid), with the remainder freed on application
+  teardown without callbacks.
+- **Timers** (`timer.c`): an app-owned FIFO list; they fire on the GUI thread between
+  dispatch and rendering; `wait` blocks until the nearest deadline
+  (`cl_app_timers_timeout`), polled by `cl_app_timers_poll`. Time is monotonic
+  `platform.now_ms`. A one-shot with `interval_ms==0` fires on the next poll; a repeat
+  is floored to 1 ms and coalesces missed ticks. Freeing during the fire pass is
+  deferred (§5); the window is destroyed **before** `cl_app_timers_free_all` so that
+  widgets can cancel their timers against a live list.
+- GPU/font resources — GUI thread only; from another thread only `post` is allowed.
 
-## 8. Потоки данных
+## 8. Data flows
 
 ### 8.1 Event flow
 ```text
 OS event → SDL2 → platform backend → cl_platform_event_t → app loop → window
-  → hit-test (overlay/tooltip сверху → затем content; focus; mouse-target;
-     light-dismiss popup по клику вне / Esc)
+  → hit-test (overlay/tooltip on top → then content; focus; mouse-target;
+     light-dismiss popup on a click outside / Esc)
   → target: on_event(cl_event_t*)  [default → mouse_*/key_*/text_input/text_edit/focus_*]
-  → виджет обновляет состояние → invalidate(paint|layout)
-  → run tasks → poll timers → reap overlay → (layout если нужно) → paint → present
+  → the widget updates its state → invalidate(paint|layout)
+  → run tasks → poll timers → reap overlay → (layout if needed) → paint → present
 ```
 
 ### 8.2 Layout flow
 ```text
-invalidate_layout(w) → measure-dirty у w и предков до корня
-  следующий кадр: measure(constraints) [2 прохода] → arrange(final rect) → paint
+invalidate_layout(w) → measure-dirty on w and its ancestors up to the root
+  next frame: measure(constraints) [2 passes] → arrange(final rect) → paint
 ```
 
-### 8.3 Rendering flow + округление DPI (ADR-013)
+### 8.3 Rendering flow + DPI rounding (ADR-013)
 ```text
-window.dirty → [damage-регион?] → begin_frame(size, scale)
+window.dirty → [damage region?] → begin_frame(size, scale)
   → content.paint(cl_paint_context_t): fill/stroke_round_rect (SDF), draw_text
-    (квады из glyph-атласа), push/pop_clip; затем overlay popup и tooltip поверх
-  → end_frame → present / present_region     (idle без dirty → кадр не рисуется)
+    (quads from the glyph atlas), push/pop_clip; then overlay popup and tooltip on top
+  → end_frame → present / present_region     (idle with no dirty → no frame is drawn)
 ```
-**Контракт округления:** layout — целиком в логических float-px без округления;
-округление — только на генерации команд рендера при переводе логических краёв в
-физические (привязка к пикселю по абсолютным краям, чтобы общие границы соседних
-виджетов совмещались); hairline ≥ 1 физического пикселя.
+**Rounding contract:** layout stays entirely in logical float px without rounding;
+rounding happens only when render commands are generated, translating logical edges
+to physical ones (pixel snapping by absolute edges, so that shared boundaries of
+adjacent widgets line up); a hairline is ≥ 1 physical pixel.
 
-**Damage-регионы (software-путь).** `cl_widget_invalidate` сообщает окну прямо-
-угольник виджета (+1 px на AA) через host-операцию `damage`; окно копит union
-bounding-rect. Если все инвалидации кадра пришли с ректами и рендер поддерживает
-`set_damage` (software: его поверхность живёт между кадрами), очищается и
-рисуется только регион, а SDL блитит его `SDL_UpdateWindowSurfaceRects`
-(платформенная операция `present_region`). **Обход paint отсекает регион:**
-`cl_widget_do_paint` пропускает собственную отрисовку виджета, чей rect не задел
-damage, а клипящий контейнер (`CL_WF_CLIP` — его поддерево ограничено клипом) —
-всё поддерево целиком; неклипящий контейнер всё равно обходит детей (ребёнок
-может выйти за родителя и отсечётся сам). Полная перерисовка остаётся для
-первого кадра, layout-изменений, оверлеев и `cl_window_mark_dirty`; GL всегда
-рисует кадр целиком (двойная буферизация не сохраняет back buffer).
+**Damage regions (software path).** `cl_widget_invalidate` reports the widget's
+rectangle (+1 px for AA) to the window via the `damage` host operation; the window
+accumulates the union bounding rect. If all of the frame's invalidations came with
+rects and the renderer supports `set_damage` (software: its surface persists between
+frames), only the region is cleared and drawn, and SDL blits it with
+`SDL_UpdateWindowSurfaceRects` (the `present_region` platform operation). **The paint
+walk culls to the region:** `cl_widget_do_paint` skips a widget's own drawing when
+its rect does not touch the damage, and skips a clipping container
+(`CL_WF_CLIP` — its subtree is bounded by the clip) as a whole subtree; a
+non-clipping container still walks its children (a child may extend beyond its parent
+and gets culled itself). A full redraw remains for the first frame, layout changes,
+overlays, and `cl_window_mark_dirty`; GL always draws the whole frame (double
+buffering does not preserve the back buffer).
 
-**Пейсинг software-пути.** `SDL_UpdateWindowSurface` — блит без vsync, поэтому
-презенты (полные и частичные) троттлятся frame-limiter'ом по `now_ms` под
-частоту дисплея (запрашивается при создании окна, фолбэк 60 Гц). Осознанный
-выбор вместо SDL_Renderer+PRESENTVSYNC: damage-регионы опираются на
-персистентность window surface (SDL_LockTexture пиксели не сохраняет), а
-настоящий vsync стоил бы второго present-конвейера. Лёгкий tearing —
-известный принятый артефакт software-пути; GL-путь синхронизируется через
+**Software-path pacing.** `SDL_UpdateWindowSurface` is a blit with no vsync, so the
+presents (full and partial) are throttled by a frame limiter on `now_ms` at the
+display's refresh rate (queried at window creation, with a 60 Hz fallback). This is a
+deliberate choice over SDL_Renderer+PRESENTVSYNC: the damage regions rely on the
+persistence of the window surface (SDL_LockTexture does not preserve the pixels), and
+a real vsync would cost a second present pipeline. Slight tearing is a known, accepted
+artifact of the software path; the GL path synchronizes via
 SDL_GL_SetSwapInterval(1).
 
 ### 8.4 Text rendering flow
 ```text
-draw_text — одна строка (перенос по ширине/`\n` реализован только внутри
-TextBox, который сам режет текст на строки и зовёт draw_text per-line) →
-  для каждой кодовой точки: lookup в кэше рендерера по (font, codepoint);
-  miss → растеризация stb → GL: upload в атлас / soft: coverage-битмапа →
-  quad/блит.
-Измерение — по метрикам/advance, без растеризации; max_width в
-cl_text_measure* зарезервирован и пока игнорируется.
+draw_text — a single line (wrapping by width / `\n` is implemented only inside
+TextBox, which splits the text into lines itself and calls draw_text per-line) →
+  for each code point: lookup in the renderer cache by (font, codepoint);
+  miss → stb rasterization → GL: upload to atlas / soft: coverage bitmap →
+  quad/blit.
+Measurement — by metrics/advance, without rasterization; max_width in
+cl_text_measure* is reserved and still ignored.
 ```
 
-## 9. Объектная модель на C (детали)
+## 9. The C object model (details)
 
-Приложение видит `cl_widget_t` непрозрачно (`copal/copal.h` не включает
-`widget_impl.h`); авторы виджетов включают `copal/widget_impl.h` и наследуются
-вложением базы **первым полем**.
+The application sees `cl_widget_t` opaquely (`copal/copal.h` does not include
+`widget_impl.h`); widget authors include `copal/widget_impl.h` and inherit by
+embedding the base **as the first field**.
 
 ```text
-cl_widget_class_t {              // одна на тип (статическая, const)
+cl_widget_class_t {              // one per type (static, const)
   const char *name;
-  const cl_widget_class_t *base; // цепочка предков; у листовых классов = NULL
-  uint32_t type_id;              // ИНФОРМАЦИОННЫЙ (FourCC) — не нужен для каста
+  const cl_widget_class_t *base; // chain of ancestors; NULL for leaf classes
+  uint32_t type_id;              // INFORMATIONAL (FourCC) — not needed for the cast
   size_t instance_size;
   const cl_widget_vtable_t *vtable;
 }
-struct cl_widget {               // публичная база, первое поле производной структуры
-  const cl_widget_class_t *cls;  // основа каста (идентичность указателя класса)
+struct cl_widget {               // public base, first field of the derived struct
+  const cl_widget_class_t *cls;  // basis of the cast (class pointer identity)
   cl_application_t *app;         // weak
   cl_window_t *window;           // weak back-ref
   cl_widget_t *parent;           // weak
   cl_widget_t *first_child, *last_child, *next_sibling;
   cl_rect_t rect; cl_size_t measured, pref_size;
   cl_insets_t margin; cl_align_t align_h, align_v; float flex;
-  uint32_t flags;                // VISIBLE|ENABLED|FOCUSABLE|DEAD|CLIP (бит 3 — резерв, бывший DIRTY)
-  uint32_t cursor;               // cl_cursor_t — форма курсора при hover
+  uint32_t flags;                // VISIBLE|ENABLED|FOCUSABLE|DEAD|CLIP (bit 3 — reserved, former DIRTY)
+  uint32_t cursor;               // cl_cursor_t — cursor shape on hover
   void *userdata;
-  char *tooltip;                 // owned UTF-8 или NULL
+  char *tooltip;                 // owned UTF-8 or NULL
   unsigned char reserved[CL_WIDGET_RESERVED /* 20 */];
 }
 ```
 
-**vtable-слоты** (все с первым параметром `cl_widget_t*`; NULL = поведение по
-умолчанию):
-`destroy`, `measure`, `arrange`, `paint`, `clip_rect`, `reveal`, `hit_test`
-(NULL = rect), `on_event` (NULL = раскладка), `mouse_down/up/move/wheel`,
-`key_down/up`, `text_input`, `text_edit`, `focus_gained/lost`. `clip_rect`,
-`reveal`, `mouse_wheel`, `text_edit` добавлены на Этапах 6/7 под ScrollView,
-scroll-to-view, колесо и IME; остальные виджеты их не задают (NULL-совместимо).
+**vtable slots** (all with a first parameter `cl_widget_t*`; NULL = default
+behavior):
+`destroy`, `measure`, `arrange`, `paint`, `clip_rect`, `reveal`, `hit_test` (NULL =
+rect), `on_event` (NULL = fan-out), `mouse_down/up/move/wheel`, `key_down/up`,
+`text_input`, `text_edit`, `focus_gained/lost`. `clip_rect`, `reveal`, `mouse_wheel`,
+`text_edit` were added in Stages 6/7 for ScrollView, scroll-to-view, the wheel, and
+IME; the other widgets do not set them (NULL-compatible).
 
-**Проверяемый каст.** `CL_WIDGET_CAST(name, w)` — checked, **всегда NULL при
-несовпадении** (walk по `cls->base`); `CL_WIDGET_CAST_UNCHECKED` — быстрый путь,
-UB при неверном типе. Касты опираются на **идентичность указателя класса**
-(`&name##_class`), поэтому `type_id` не нужен для корректности и не создаёт
-риска коллизий между библиотеками.
+**Checked cast.** `CL_WIDGET_CAST(name, w)` is checked, **always NULL on a mismatch**
+(a walk over `cls->base`); `CL_WIDGET_CAST_UNCHECKED` is the fast path, UB on the
+wrong type. Casts rely on **class-pointer identity** (`&name##_class`), so `type_id`
+is not needed for correctness and creates no risk of collisions between libraries.
 
-**Контракт `cl_widget_init_base(w, app, cls)`.** Ставит `cls`/`app`, флаги
-`VISIBLE|ENABLED`, дефолтные align. `cl_widget_alloc` выделяет `instance_size`
-нулём и вызывает `init_base`; пользовательская инициализация — после.
+**The `cl_widget_init_base(w, app, cls)` contract.** Sets `cls`/`app`, the flags
+`VISIBLE|ENABLED`, and the default aligns. `cl_widget_alloc` allocates `instance_size`
+zeroed and calls `init_base`; user initialization follows.
 
-**ABI-рукопожатие (ADR-005).** Каждый `*_desc_t` несёт `abi_version`+`struct_size`,
-штампуемые макросами: `CL_*_DESC_INIT_FIELDS` — под составной литерал
-(`{ ..._FIELDS, .field = ... }`), и полный `CL_*_DESC_INIT` (= `{ ..._FIELDS }`)
-для desc по умолчанию; оба определены для каждого `*_desc_t`. `cl_*_create`
-проверяет заголовок tail-tolerant: тот же мажор версии и размер не меньше
-служебного заголовка → desc нормализуется в полную структуру (недостающий хвост =
-дефолт, лишний — игнорируется); иначе `NULL` + `CL_ERROR_ABI_MISMATCH`. Ops-таблицы
-должны нести весь базовый набор (более короткая отклоняется). Рост базы/vtable —
-ломающее изменение (повышает мажор/`SOVERSION`), требует перекомпиляции.
+**ABI handshake (ADR-005).** Each `*_desc_t` carries `abi_version`+`struct_size`,
+stamped by macros: `CL_*_DESC_INIT_FIELDS` — for a compound literal
+(`{ ..._FIELDS, .field = ... }`), and the full `CL_*_DESC_INIT` (= `{ ..._FIELDS }`)
+for a default desc; both are defined for every `*_desc_t`. `cl_*_create` checks the
+header tail-tolerantly: the same major version and a size no smaller than the service
+header → the desc is normalized into the full structure (a missing tail = defaults, an
+extra one is ignored); otherwise `NULL` + `CL_ERROR_ABI_MISMATCH`. Ops tables must
+carry the entire base set (a shorter one is rejected). Growing the base/vtable is a
+breaking change (bumps the major/`SOVERSION`) and requires recompilation.
 
-**C++-путь авторства.** Слот-функции на C++ должны иметь C-линковку; объявляются
-**ровно** с `cl_widget_t*` в первом параметре, downcast — внутри тела (иначе UB
-на несовместимом типе указателя функции).
+**The C++ authoring path.** C++ slot functions must have C linkage; they are declared
+**exactly** with `cl_widget_t*` as the first parameter, with the downcast inside the
+body (otherwise UB on an incompatible function-pointer type).
 
-## 10. Виртуальные методы (обоснование)
+## 10. Virtual methods (rationale)
 
-| Метод | Виртуальный? | Почему |
+| Method | Virtual? | Why |
 |-------|-------------|--------|
-| `destroy`, `measure`, `arrange`, `paint` | да | ресурсы/размер/раскладка/отрисовка специфичны типу |
-| `clip_rect`, `reveal` | да (opt-in) | ScrollView: обрезка детей и scroll-to-view |
-| `hit_test` | да (дефолт = rect) | нестандартные формы |
-| `on_event` | да | точка расширения ввода (гибрид) |
-| `mouse_down/up/move/wheel`, `key_down/up` | да (удобные) | выборочное переопределение |
-| `text_input`, `text_edit` | да (удобные) | ввод текста и IME-композиция |
-| `focus_gained/lost` | да | реакция на фокус |
+| `destroy`, `measure`, `arrange`, `paint` | yes | resources/size/layout/drawing are type-specific |
+| `clip_rect`, `reveal` | yes (opt-in) | ScrollView: clipping children and scroll-to-view |
+| `hit_test` | yes (default = rect) | non-standard shapes |
+| `on_event` | yes | input extension point (hybrid) |
+| `mouse_down/up/move/wheel`, `key_down/up` | yes (convenience) | selective overriding |
+| `text_input`, `text_edit` | yes (convenience) | text input and IME composition |
+| `focus_gained/lost` | yes | reacting to focus |
 
-## 11. Инвалидция
+## 11. Invalidation
 
-- Paint-инвалидция → `window.dirty`; коалесцируется на кадр.
-- Layout-инвалидция → measure-dirty у виджета и предков; перед следующим paint —
-  layout-проход. Инвалидции во время прохода откладываются на следующий кадр.
+- Paint invalidation → `window.dirty`; coalesced per frame.
+- Layout invalidation → measure-dirty on the widget and its ancestors; before the
+  next paint — a layout pass. Invalidations during a pass are deferred to the next
+  frame.
 
-## 12. Ограничения текста (честно)
+## 12. Text limitations (honestly)
 
-stb_truetype растеризует глифы, но не делает shaping, bidi, mark-positioning,
-авто-fallback. Корректно для **NFC-прекомпозированных** латиницы/кириллицы при
-«1 кодовая точка → 1 глиф». Некорректно для комбинирующих знаков/NFD (диакритика
-отдельным глифом), арабицы/индийских (reordering/лигатуры), смешанного LTR/RTL
-(bidi), отсутствующих в шрифте глифов («тофу», нет авто-fallback). Каретка/
-выделение индексируются по кодовой точке. Пути расширения (FreeType/HarfBuzz)
-заложены концептуально (ADR-004/014).
+stb_truetype rasterizes glyphs but does no shaping, bidi, mark-positioning, or auto
+fallback. It is correct for **NFC-precomposed** Latin/Cyrillic under “1 code point →
+1 glyph”. It is incorrect for combining marks/NFD (a diacritic as a separate glyph),
+Arabic/Indic scripts (reordering/ligatures), mixed LTR/RTL (bidi), and glyphs missing
+from the font (“tofu”, no auto fallback). The caret/selection are indexed by code
+point. The extension paths (FreeType/HarfBuzz) are laid in conceptually
+(ADR-004/014).
 
-## 13. Точки расширения
+## 13. Extension points
 
-- Пользовательский виджет: включить `widget_impl.h`, встроить базу первым полем,
-  заполнить статические `cl_widget_class_t` + `cl_widget_vtable_t` (C и C++).
-- Пользовательский renderer / platform: SPI опубликован в устанавливаемых
-  заголовках `copal/backend/platform.h` и `copal/backend/renderer.h`
-  (не входят в зонтичный `copal.h`). Бэкенд встраивает `cl_platform_t` /
-  `cl_renderer_t` первым полем своей структуры, заполняет статическую
-  ops-таблицу — её первые поля `struct_size`/`abi_version` образуют
-  ABI-рукопожатие: `cl_application_create()` отклоняет таблицу, собранную
-  против других заголовков, с `CL_ERROR_ABI_MISMATCH` — и инъектирует
-  объект через `cl_application_desc_t`. Владение переходит приложению только
-  при успешном create (см. application.h).
-- Allocator, тема.
+- A custom widget: include `widget_impl.h`, embed the base as the first field, fill in
+  the static `cl_widget_class_t` + `cl_widget_vtable_t` (C and C++).
+- A custom renderer / platform: the SPI is published in the installed headers
+  `copal/backend/platform.h` and `copal/backend/renderer.h` (they are not part of the
+  umbrella `copal.h`). A backend embeds `cl_platform_t` / `cl_renderer_t` as the first
+  field of its structure and fills in a static ops table — its first fields
+  `struct_size`/`abi_version` form the ABI handshake: `cl_application_create()`
+  rejects a table built against different headers with `CL_ERROR_ABI_MISMATCH` — and
+  injects the object through `cl_application_desc_t`. Ownership passes to the
+  application only on a successful create (see application.h).
+- Allocator, theme.
 
-## 14. Жизненные циклы
+## 14. Lifecycles
 
 ```text
-Приложение:
+Application:
   cl_application_create(&desc) → allocator, platform, renderer, theme, task-mutex;
-    бэкенды — DI из desc либо встроенные фабрики
-  → run() | цикл: wait(до ближайшего таймера) → process_events → run_tasks →
+    backends — DI from desc or built-in factories
+  → run() | loop: wait(until the nearest timer) → process_events → run_tasks →
      poll_timers → reap_overlay → (layout) → paint(dirty) → present
-  → quit() ставит флаг выхода
-  → destroy() → сначала окно (виджеты отменяют свои таймеры) → таймеры → задачи →
-     тема/renderer/platform
+  → quit() sets the exit flag
+  → destroy() → the window first (widgets cancel their timers) → timers → tasks →
+     theme/renderer/platform
 
-Окно:
+Window:
   cl_window_create(app, &desc) → platform.create_window + GL context
-  → set_content(root) → окно владеет root; back-ref window у поддерева
-  → события/resize/paint; overlay popup и tooltip поверх content
+  → set_content(root) → the window owns root; back-ref window on the subtree
+  → events/resize/paint; overlay popup and tooltip on top of content
 
-Виджет:
-  alloc(zero) → init_base(app, cls) → пользовательская инициализация
-  → add_child (владение → родителю; back-ref window)
-  → measure/arrange/paint; события через on_event
-  → destroy (bottom-up; зануление weak-ссылок) → vtable->destroy → free
+Widget:
+  alloc(zero) → init_base(app, cls) → user-defined initialization
+  → add_child (ownership → parent; back-ref window)
+  → measure/arrange/paint; events via on_event
+  → destroy (bottom-up; nulling of weak refs) → vtable->destroy → free
 ```
 
-## 15. Структура каталогов и CMake
+## 15. Directory structure and CMake
 
-Фактическое дерево файлов и ответственность — в [STRUCTURE.md](STRUCTURE.md).
-Кратко по сборке:
-- Target-based, таргет `copal` (alias `copal::copal`), static/shared, генерация
-  export-заголовка (`CL_API`).
-- Опции: `COPAL_BUILD_SHARED/EXAMPLES/TESTS`, `COPAL_ENABLE_SDL/OPENGL`,
-  `COPAL_FETCH_SDL2`, `COPAL_ENABLE_SANITIZERS/INSTALL` (см. STRUCTURE §5).
-- `find_package(Threads REQUIRED)` (под mutex/`cl_application_post`);
-  SDL2+OpenGL линкуются только при обеих `COPAL_ENABLE_SDL`+`COPAL_ENABLE_OPENGL`
-  в TU `src/app`.
+The actual file tree and responsibilities are in [STRUCTURE.md](STRUCTURE.md). A
+brief take on the build:
+- Target-based, the `copal` target (alias `copal::copal`), static/shared, generation
+  of an export header (`CL_API`).
+- Options: `COPAL_BUILD_SHARED/EXAMPLES/TESTS`, `COPAL_ENABLE_SDL/OPENGL`,
+  `COPAL_FETCH_SDL2`, `COPAL_ENABLE_SANITIZERS/INSTALL` (see STRUCTURE §5).
+- `find_package(Threads REQUIRED)` (backing the mutex/`cl_application_post`);
+  SDL2+OpenGL are linked only when both `COPAL_ENABLE_SDL`+`COPAL_ENABLE_OPENGL` are
+  set, in the `src/app` TUs.
 - `find_package(copal CONFIG REQUIRED)` + `target_link_libraries(app PRIVATE
-  copal::copal)`; поддержка `add_subdirectory`.
+  copal::copal)`; `add_subdirectory` is supported.
 
-## 16. Реестр ADR
+## 16. ADR registry
 
-- **ADR-001** SDL2 за интерфейсом `platform` (заменяемо; есть mock).
-- **ADR-002** OpenGL 3.3 core за интерфейсом; SDF-примитивы + glyph-атлас.
-- **ADR-003** Собственная отрисовка + темы (light/dark); без нативных контролей.
-- **ADR-004** stb_truetype; без shaping/bidi/mark-positioning; интерфейсы под
-  FreeType/HarfBuzz зарезервированы концептуально.
-- **ADR-005** Публичная база + резерв + ABI-рукопожатие `abi_version`/`struct_size`
-  в `*_desc_t`, проверка в `cl_*_create`. Рост базы/vtable → перекомпиляция.
-- **ADR-006** Гибридная диспетчеризация событий (`on_event` + удобные слоты).
-- **ADR-007** Иерархическое владение + weak focus/mouse-target/popup/tooltip;
-  без refcount. Уничтожение виджетов отложенное: `destroy` отсоединяет и метит
-  `CL_WF_DEAD` сразу, память освобождается из DEAD-очереди в конце итерации цикла;
-  отдельно отложены overlay/таймеры/анимации (§5).
-- **ADR-008** `cl_result_t` + thread-local last-error + `void`-сеттеры;
+- **ADR-001** SDL2 behind a `platform` interface (replaceable; there is a mock).
+- **ADR-002** OpenGL 3.3 core behind an interface; SDF primitives + a glyph atlas.
+- **ADR-003** Own rendering + themes (light/dark); no native controls.
+- **ADR-004** stb_truetype; no shaping/bidi/mark-positioning; interfaces for
+  FreeType/HarfBuzz reserved conceptually.
+- **ADR-005** A public base + a reserve + an ABI handshake `abi_version`/`struct_size`
+  in `*_desc_t`, checked in `cl_*_create`. Growing the base/vtable → recompilation.
+- **ADR-006** Hybrid event dispatch (`on_event` + convenience slots).
+- **ADR-007** Hierarchical ownership + weak focus/mouse-target/popup/tooltip; no
+  refcount. Widget destruction is deferred: `destroy` detaches and marks `CL_WF_DEAD`
+  immediately, the memory is freed from the DEAD queue at the end of the loop
+  iteration; overlays/timers/animations are deferred separately (§5).
+- **ADR-008** `cl_result_t` + thread-local last-error + `void` setters;
   `CL_ERROR_ABI_MISMATCH`.
-- **ADR-009** Один GUI-поток + потокобезопасный `cl_application_post` (mutex+FIFO)
-  и платформо-нейтральный `wakeup()`; таймеры в GUI-потоке.
-- **ADR-010** Mock-renderer + mock-platform для headless-тестов. **Mock-font не
-  реализован**: текст измеряется реальным stb_truetype (тесты грузят системный
-  DejaVu опционально; render-проверки под `if (font)`).
-- **ADR-011** Одно окно ОС в MVP; menu/combobox/tooltip — overlay-слоем внутри
-  окна (клип границами окна, light-dismiss). Швы под мульти-окно сохранены
-  (`cl_window_t` отделено от app; ресурсы — на уровне app). Второе окно →
-  `CL_ERROR_UNSUPPORTED`.
-- **ADR-012** Имена: типы `cl_*_t`, функции `cl_*`, макросы/enum `CL_*`; CMake —
-  `copal::copal`/`COPAL_*`. Лицензия — **GPL-3.0-or-later**.
-- **ADR-013** Логические px в API/layout; округление по абсолютным краям на
-  генерации команд рендера.
-- **ADR-014** Глиф-кэши рендереров ключуются по (font, **codepoint**) —
-  эквивалентно glyph_id, пока действует «1 кодовая точка = 1 глиф» (§12);
-  переход на glyph_id — вместе с будущим shaping'ом (HarfBuzz).
-- **ADR-015** **Software/CPU рендерер как выбираемый бэкенд** (`render/soft`).
-  Не создаёт GL-контекст и **не линкует libGL при сборке `COPAL_ENABLE_SDL` без
-  `OPENGL`** → «lightweight» по-настоящему: быстрый плоский старт, на порядок
-  меньше памяти (замер: calc software 18.5 МБ на Windows / 8 МБ на Linux-dummy
-  против ~70–83 МБ у GL), работает по RDP и в CI без GPU-драйвера. Плата —
-  потолок скорости на тяжёлом/анимированном UI. GL остаётся дефолтом для AUTO
-  при наличии; software выбирается через `render_backend`/`COPAL_RENDER`.
+- **ADR-009** A single GUI thread + a thread-safe `cl_application_post` (mutex+FIFO)
+  and a platform-neutral `wakeup()`; timers on the GUI thread.
+- **ADR-010** A mock renderer + a mock platform for headless tests. **The mock font is
+  not implemented**: text is measured with the real stb_truetype (the tests load the
+  system DejaVu optionally; the render checks are under `if (font)`).
+- **ADR-011** One OS window in the MVP; menu/combobox/tooltip are an overlay layer
+  inside the window (clipped to the window bounds, light-dismiss). The seams for
+  multi-window are preserved (`cl_window_t` is separated from the app; resources are at
+  the app level). A second window → `CL_ERROR_UNSUPPORTED`.
+- **ADR-012** Names: types `cl_*_t`, functions `cl_*`, macros/enums `CL_*`; CMake —
+  `copal::copal`/`COPAL_*`. License — **GPL-3.0-or-later**.
+- **ADR-013** Logical px in the API/layout; rounding by absolute edges when render
+  commands are generated.
+- **ADR-014** The renderers' glyph caches are keyed by (font, **codepoint**) —
+  equivalent to glyph_id while “1 code point = 1 glyph” holds (§12); the switch to
+  glyph_id comes together with future shaping (HarfBuzz).
+- **ADR-015** **The software/CPU renderer as a selectable backend** (`render/soft`).
+  It creates no GL context and **does not link libGL in a `COPAL_ENABLE_SDL` build
+  without `OPENGL`** → truly “lightweight”: a fast flat startup, an order of magnitude
+  less memory (measured: calc software 18.5 MB on Windows / 8 MB on a Linux dummy
+  against ~70–83 MB for GL), works over RDP and in CI with no GPU driver. The cost is a
+  speed ceiling on a heavy/animated UI. GL remains the default for AUTO when present;
+  software is selected via `render_backend`/`COPAL_RENDER`.
 
-## 17. Что добавлено на Этапах 6–7 (дельта к MVP-дизайну)
+## 17. What was added in Stages 6–7 (delta to the MVP design)
 
-- **Foundation**: непрозрачный мьютекс (`mutex.c`).
-- **Platform**: `now_ms` (монотонные часы), `set_ime_rect`, событие
-  `CL_PEV_TEXT_EDIT`; управляемые часы и очередь у mock.
-- **Приложение**: таймеры (`timer.c`), потокобезопасная task-очередь
+- **Foundation**: an opaque mutex (`mutex.c`).
+- **Platform**: `now_ms` (a monotonic clock), `set_ime_rect`, the `CL_PEV_TEXT_EDIT`
+  event; a controllable clock and queue in the mock.
+- **Application**: timers (`timer.c`), a thread-safe task queue
   (`cl_application_post`).
-- **Окно**: стек оверлеев (меню + подменю + модальные диалоги; непрозрачное
-  владение: записи владеют popup-ами, кроме подменю/menubar-меню — те
-  отсоединяются владельцу для переиспользования); hover-tooltip-слой поверх
-  content и popup; scroll-to-focus (reveal
-  при переводе фокуса); hover-отслеживание (`CL_EVENT_MOUSE_ENTER/LEAVE` —
-  доставляются наведённому виджету без всплытия; при drag-capture hover
-  заморожен, popup сбрасывает его).
-- **Widget/vtable**: слоты `clip_rect`, `reveal`, `mouse_wheel`, `text_edit`,
-  `mouse_enter`/`mouse_leave`; флаг `CL_WF_CLIP`; поле `tooltip`; `app`
+- **Window**: an overlay stack (menus + submenus + modal dialogs; opaque ownership:
+  entries own their popups, except submenus/menubar menus — those are detached to the
+  owner for reuse); a hover-tooltip layer above the content and popups; scroll-to-focus
+  (reveal when focus is moved); hover tracking (`CL_EVENT_MOUSE_ENTER/LEAVE` —
+  delivered to the hovered widget without bubbling; under a drag capture hover is
+  frozen, and a popup resets it).
+- **Widget/vtable**: the slots `clip_rect`, `reveal`, `mouse_wheel`, `text_edit`,
+  `mouse_enter`/`mouse_leave`; the `CL_WF_CLIP` flag; the `tooltip` field; the `app`
   back-ref; `last_child`.
-- **Layout**: ScrollView (две оси, clip/reveal, opt-in `smooth`-анимация).
-- **TextBox**: многострочный режим (перенос по ширине, навигация вверх/вниз,
-  вертикальный скролл), IME-композиция (preedit у каретки),
-  `cl_text_measure_bytes` под каретку.
-- **Theme**: тёмная схема (`cl_theme_set_variant`), роли `SURFACE_RAISED`/
-  `SHADOW`, радиус.
-- **Renderer (Этап оптимизации)**: **software/CPU бэкенд** (`render/soft`,
-  ADR-015) с выбором через `render_backend`/`COPAL_RENDER`; SDL-платформа и выбор
-  расцеплены от OpenGL (сборка `COPAL_ENABLE_SDL` без `OPENGL` = software без
-  libGL). В GL-рендерере: hoisting per-frame состояния (проекция/программа/атлас
-  один раз за кадр), переиспользование text-VBO; в шрифте — кэш advance по
-  Latin-1. В SDL-платформе: `wait` через `SDL_WaitEvent(NULL)` — устранён
-  busy-spin цикла при простое.
+- **Layout**: ScrollView (two axes, clip/reveal, an opt-in `smooth` animation).
+- **TextBox**: a multi-line mode (word wrap, up/down navigation, vertical scroll), IME
+  composition (preedit at the caret), `cl_text_measure_bytes` for the caret.
+- **Theme**: the dark scheme (`cl_theme_set_variant`), the `SURFACE_RAISED`/`SHADOW`
+  roles, the radius.
+- **Renderer (optimization stage)**: the **software/CPU backend** (`render/soft`,
+  ADR-015) selectable via `render_backend`/`COPAL_RENDER`; the SDL platform and its
+  selection decoupled from OpenGL (a `COPAL_ENABLE_SDL` build without `OPENGL` =
+  software with no libGL). In the GL renderer: hoisting of per-frame state
+  (projection/program/atlas once per frame), reuse of the text VBO; in the font — an
+  advance cache over Latin-1. In the SDL platform: `wait` via `SDL_WaitEvent(NULL)` —
+  the loop's busy-spin at idle is eliminated.
 
-## 18. Самопроверка
+## 18. Self-check
 
-- Граф ацикличен (§2): widget-слой зависит от собственного
-  `widget_host.h` (dirty/focus/popup/clipboard/IME), а окно реализует этот
-  интерфейс, встраивая `cl_widget_host_t` первым полем `cl_window` — ни один
-  файл под `src/widget`, `src/widgets`, `src/layout` не включает
-  `app_internal.h`. Бэкенды — из `src/app` на линковке.
-- Владение и время жизни определены (§4/§5): weak back-ref, зануление при
-  detach, отложенное освобождение виджетов (DEAD-очередь: destroy отсоединяет
-  сразу, память живёт до конца итерации цикла) и отложенность overlay/таймеров.
-- Core тестируется без окна (§3.2/§3.3): mock platform + renderer; измерение
-  текста renderer-free.
-- Публичный API не зависит от платформенных типов (§1); авторам виджетов —
-  `cl_paint_context_t`, не device (§3.3).
-- Кастомный виджет без приватных структур (§9, `widget_impl.h`).
-- UTF-8 корректен (§3.1); текст — по `glyph_id` (ADR-014); ограничения честны (§12).
-- Renderer/platform заменяемы (DI, §3.9); округление DPI специфицировано (§8.3).
-- Касты без UB на типах указателей функций (§9); ABI-рукопожатие в `*_desc_t`.
-- Собирается как C; заголовки C++-совместимы (`extern "C"`); экспорт через `CL_API`.
+- The graph is acyclic (§2): the widget layer depends on its own `widget_host.h`
+  (dirty/focus/popup/clipboard/IME), and the window implements this interface by
+  embedding `cl_widget_host_t` as the first field of `cl_window` — no file under
+  `src/widget`, `src/widgets`, `src/layout` includes `app_internal.h`. The backends
+  come from `src/app` at link time.
+- Ownership and lifetimes are defined (§4/§5): weak back-refs, nulling on detach,
+  deferred widget freeing (the DEAD queue: destroy detaches immediately, the memory
+  lives until the end of the loop iteration), and the deferral of overlays/timers.
+- Core is testable without a window (§3.2/§3.3): a mock platform + renderer; text
+  measurement is renderer-free.
+- The public API does not depend on platform types (§1); widget authors get
+  `cl_paint_context_t`, not the device (§3.3).
+- A custom widget with no private structures (§9, `widget_impl.h`).
+- UTF-8 is correct (§3.1); text goes by `glyph_id` (ADR-014); the limitations are
+  honest (§12).
+- Renderer/platform are replaceable (DI, §3.9); DPI rounding is specified (§8.3).
+- Casts with no UB on function-pointer types (§9); the ABI handshake in `*_desc_t`.
+- Builds as C; the headers are C++-compatible (`extern "C"`); export via `CL_API`.

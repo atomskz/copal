@@ -1,38 +1,41 @@
+<p align="right"><b>English</b> | <a href="./ru/CODESTYLE.md">Русский</a></p>
+
 # copal — Code Style
 
-Статус: **принят** (ревью завершён). Версия: 1.0.
-История: 0.1 — черновик на базе kernel-style; 0.2 — именование `cl_*`/`snake_case_t`,
-пробелы, отступ `case`, GPL-3.0, pre-commit хук; **1.0 — отступ 4 пробела,
-`GPL-3.0-or-later`, внутренние типы без префикса — принято.**
+Status: **accepted** (review complete). Version: 1.0.
+History: 0.1 — draft based on the kernel style; 0.2 — `cl_*`/`snake_case_t`
+naming, spaces, `case` indentation, GPL-3.0, pre-commit hook; **1.0 — 4-space
+indentation, `GPL-3.0-or-later`, internal types without a prefix — accepted.**
 
-## 0. Основа и область действия
+## 0. Foundation and scope
 
-Стиль кода проекта copal — **Linux kernel coding style**
-(`Documentation/process/coding-style.rst`) со строго перечисленными в §2 и §18
-отклонениями, необходимыми для userspace-библиотеки с публичным C-API,
-совместимым с C++ и FFI.
+The code style of the copal project is the **Linux kernel coding style**
+(`Documentation/process/coding-style.rst`), with the deviations strictly
+enumerated in §2 and §18 that are required for a userspace library with a
+public C API compatible with C++ and FFI.
 
-Область действия:
-- **весь код на C** в `src/`, `include/`, `examples/`, `tests/`;
-- платформенные файлы (SDL/GL/X11 и т. п.) — тот же стиль; изоляция —
-  в отдельных TU/каталогах, а не через `#ifdef` вперемешку с логикой (§12);
-- сторонний код в `third_party/` (например `stb_truetype.h`) **не форматируется**
-  под наш стиль и не правится по стилю — только вендорится как есть.
+Scope:
+- **all C code** in `src/`, `include/`, `examples/`, `tests/`;
+- platform files (SDL/GL/X11 and the like) — the same style; isolation lives
+  in separate TUs/directories, not in `#ifdef` interleaved with logic (§12);
+- third-party code in `third_party/` (for example `stb_truetype.h`) is **not
+  formatted** to our style and is not touched for style — it is only vendored
+  as is.
 
-Приоритет при конфликте: читаемость → соответствие kernel-style → единообразие.
-Инструмент-арбитр форматирования — `.clang-format` (§16); всё, что он ставит
-однозначно, обсуждению в ревью кода не подлежит.
+Priority on conflict: readability → conformance with the kernel style →
+consistency. The arbiter for formatting is `.clang-format` (§16); anything it
+decides unambiguously is not up for debate in code review.
 
 ---
 
-## 1. Отступы и ширина строки
+## 1. Indentation and line width
 
-- Отступ — **только пробелы, 4 колонки на уровень**. Табуляция для отступов
-  **не** используется (арбитр — `.clang-format` с `UseTab: Never`).
-- Глубокая вложенность нежелательна: >3–4 уровней — сигнал вынести часть логики
-  в отдельную функцию.
-- `switch`/`case`: **`case` на один уровень глубже `switch`**, тело — ещё на один;
-  между группами `case` — **пустая строка**:
+- Indentation is **spaces only, 4 columns per level**. Tabs are **not** used for
+  indentation (the arbiter is `.clang-format` with `UseTab: Never`).
+- Deep nesting is undesirable: more than 3–4 levels is a signal to extract part
+  of the logic into a separate function.
+- `switch`/`case`: **`case` is one level deeper than `switch`**, the body one
+  more; between groups of `case` there is a **blank line**:
 
 ```c
 switch (suffix) {
@@ -50,20 +53,20 @@ switch (suffix) {
 }
 ```
 
-- **Предельная длина строки — 80 колонок.** Строки длиннее разбиваются на
-  осмысленные части, если это не *значительно* ухудшает читаемость (строковые
-  литералы сообщений — не рвать ради 80).
-- Не оставлять пробелы в конце строк. Файл заканчивается одним `\n`.
-- Одно определение/оператор — одна строка.
+- **The line-length limit is 80 columns.** Longer lines are broken into
+  meaningful parts, unless doing so *significantly* hurts readability (do not
+  break string literals of messages just to fit 80).
+- Do not leave trailing whitespace. A file ends with a single `\n`.
+- One definition/statement per line.
 
 ---
 
-## 2. Именование (принято)
+## 2. Naming (accepted)
 
-### 2.1 Типы
-- **Все** имена типов — `snake_case`.
-- Для каждого публичного типа создаётся **typedef с суффиксом `_t`**; тег
-  структуры — без суффикса:
+### 2.1 Types
+- **All** type names are `snake_case`.
+- Every public type gets a **typedef with a `_t` suffix**; the struct tag has no
+  suffix:
 
 ```c
 typedef struct cl_widget       cl_widget_t;
@@ -71,50 +74,54 @@ typedef struct cl_window_desc  cl_window_desc_t;
 typedef enum   cl_result       cl_result_t;
 ```
 
-- Публичные типы имеют префикс **`cl_`** (сокращение от `copal_`):
+- Public types carry the **`cl_`** prefix (short for `copal_`):
   `cl_widget_t`, `cl_window_desc_t`, `cl_paint_context_t`, `cl_result_t`,
   `cl_glyph_handle_t`, `cl_allocator_t`.
-- **Внутренние** (не экспортируемые) типы — `snake_case` + `_t`, **без** префикса
-  `cl_`: `glyph_atlas_t`, `input_router_t`.
+- **Internal** (non-exported) types are `snake_case` + `_t`, **without** the
+  `cl_` prefix: `glyph_atlas_t`, `input_router_t`.
 
-### 2.2 Функции
-- Префикс **`cl_`**, `snake_case`, по схеме `cl_<модуль>_<действие>`:
-  `cl_window_create()`, `cl_widget_add_child()`, `cl_button_set_on_click()`.
-- Внутренние функции — `static`, `snake_case`, без обязательного `cl_`.
+### 2.2 Functions
+- The **`cl_`** prefix, `snake_case`, following the `cl_<module>_<action>`
+  scheme: `cl_window_create()`, `cl_widget_add_child()`,
+  `cl_button_set_on_click()`.
+- Internal functions are `static`, `snake_case`, without a mandatory `cl_`.
 
-### 2.3 Макросы, enum-константы, guard'ы
-- Публичные макросы и enum-константы — **`UPPER_SNAKE` с префиксом `CL_`**:
+### 2.3 Macros, enum constants, guards
+- Public macros and enum constants are **`UPPER_SNAKE` with the `CL_` prefix**:
   `CL_OK`, `CL_ERROR_OUT_OF_MEMORY`, `CL_WIDGET_CAST`, `CL_API`, `CL_ASSERT`,
   `CL_WIDGET_RESERVED`, `COPAL_VERSION_MAJOR`.
 - Include guard — `CL_<MODULE>_H` (§9).
 
-### 2.4 Система сборки (вне C-API)
-- Имена в CMake остаются в неймспейсе проекта: таргет `copal::copal`, опции
-  `COPAL_BUILD_SHARED`, `COPAL_ENABLE_SDL`. Compile-time флаги, прокидываемые
-  в C, определяются как `CL_*` (например `CL_ENABLE_LOG`), даже если управляющая
-  CMake-опция называется `COPAL_ENABLE_LOG`.
+### 2.4 Build system (outside the C API)
+- Names in CMake stay in the project namespace: the `copal::copal` target, the
+  `COPAL_BUILD_SHARED`, `COPAL_ENABLE_SDL` options. Compile-time flags passed
+  into C are defined as `CL_*` (for example `CL_ENABLE_LOG`), even when the
+  controlling CMake option is named `COPAL_ENABLE_LOG`.
 
-### 2.5 Замечание о суффиксе `_t`
-POSIX резервирует идентификаторы, оканчивающиеся на `_t`. Риск коллизии с
-системными typedef низкий (так делают `cairo_t` и др.), но новые имена
-проверяем на конфликт с системными заголовками. Отклонение принято сознательно.
-
----
-
-## 3. Именование (детали)
-
-- Имена — по сути, без венгерской нотации; тип в имени не кодируется.
-- **Локальные** переменные — короткие, `snake_case`: `i`, `n`, `tmp`, `len`,
-  `ret`, `p`, `self`, `w`.
-- **Глобальные** (по возможности избегать) и **функции** — описательные.
-- Аббревиатуры — как слова: `utf8_next`, `glyph_id` (не `Utf8`, не `GlId`).
+### 2.5 Note on the `_t` suffix
+POSIX reserves identifiers ending in `_t`. The risk of colliding with system
+typedefs is low (this is what `cairo_t` and others do), but new names are
+checked for conflicts against system headers. The deviation is a deliberate,
+accepted choice.
 
 ---
 
-## 4. Фигурные скобки и пробелы (K&R, kernel-вариант)
+## 3. Naming (details)
 
-- **Открывающая скобка — в конце строки** оператора; закрывающая — на своей
-  строке:
+- Names are essentially free of Hungarian notation; the type is not encoded in
+  the name.
+- **Local** variables are short, `snake_case`: `i`, `n`, `tmp`, `len`, `ret`,
+  `p`, `self`, `w`.
+- **Globals** (avoid where possible) and **functions** are descriptive.
+- Abbreviations are treated as words: `utf8_next`, `glyph_id` (not `Utf8`, not
+  `GlId`).
+
+---
+
+## 4. Braces and spaces (K&R, kernel variant)
+
+- **The opening brace goes at the end** of the statement line; the closing brace
+  on its own line:
 
 ```c
 if (x == y) {
@@ -130,7 +137,7 @@ do {
 } while (condition);
 ```
 
-- **Функции — исключение**: открывающая скобка на **отдельной** строке:
+- **Functions are the exception**: the opening brace goes on a **separate** line:
 
 ```c
 cl_widget_t *cl_button_create(const cl_button_desc_t *desc)
@@ -139,50 +146,51 @@ cl_widget_t *cl_button_create(const cl_button_desc_t *desc)
 }
 ```
 
-- `else`/`while` (в `do-while`) — на строке закрывающей скобки: `} else {`,
+- `else`/`while` (in a `do-while`) go on the closing-brace line: `} else {`,
   `} while (cond);`.
-- **Не** ставить скобки вокруг одиночного оператора:
+- Do **not** put braces around a single statement:
 
 ```c
 if (condition)
     action();
 ```
 
-  но если хотя бы одна ветвь `if/else` многострочная — скобки в **обеих**.
-- Пробелы:
-  - **после** ключевых слов `if switch case for do while` — пробел: `if (x)`;
-  - у `sizeof typeof alignof __attribute__` и имён функций — **без** пробела:
-    `sizeof(*p)`, `foo(x)`; внутри скобок пробелов нет: не `sizeof( x )`;
-  - вокруг бинарных/тернарных операторов — по пробелу: `a + b`, `x ? y : z`;
-  - после унарных (`& * + - ~ !`) и вокруг `.`/`->` — **без** пробела: `*p`,
-    `&x`, `p->field`;
-  - `++`/`--` без пробела к операнду: `i++`, `--n`.
-- `*` при указателях — к **имени**, не к типу: `void *p`, `char **argv`,
+  but if at least one branch of an `if/else` is multi-line, use braces on
+  **both**.
+- Spaces:
+  - **after** the keywords `if switch case for do while` — a space: `if (x)`;
+  - with `sizeof typeof alignof __attribute__` and function names — **no** space:
+    `sizeof(*p)`, `foo(x)`; no spaces inside the parentheses: not `sizeof( x )`;
+  - around binary/ternary operators — one space each: `a + b`, `x ? y : z`;
+  - after unary operators (`& * + - ~ !`) and around `.`/`->` — **no** space:
+    `*p`, `&x`, `p->field`;
+  - `++`/`--` with no space to the operand: `i++`, `--n`.
+- For pointers, `*` binds to the **name**, not the type: `void *p`, `char **argv`,
   `cl_widget_t *cl_widget_parent(cl_widget_t *w)`.
-- Приведение типа — без пробела после скобки: `(cl_widget_t *)p`.
+- A cast has no space after the parenthesis: `(cl_widget_t *)p`.
 
 ---
 
-## 5. Функции
+## 5. Functions
 
-- Короткие и делают **одно** дело; ориентир — 1–2 экрана. >5–10 локальных
-  переменных — сигнал разбить.
-- Между функциями — **одна** пустая строка.
-- В прототипах указывать **имена параметров**:
+- Short, and they do **one** thing; the guideline is 1–2 screens. More than
+  5–10 local variables is a signal to split.
+- Between functions — **one** blank line.
+- Give **parameter names** in prototypes:
   `cl_result_t cl_font_load_file(cl_font_provider_t *fp, const char *path);`.
-- `extern` у прототипов функций **не** писать. Публичные функции помечаются
-  `CL_API` (§15).
-- Порядок параметров: «объект/контекст» → входные → выходные (out-указатели
-  последними, документируются, §10).
+- Do **not** write `extern` on function prototypes. Public functions are marked
+  with `CL_API` (§15).
+- Parameter order: "object/context" → inputs → outputs (out-pointers last,
+  documented, §10).
 
 ---
 
-## 6. Возвраты и обработка ошибок
+## 6. Returns and error handling
 
-- **Централизованный выход через `goto`** для очистки ресурсов. Если чистить
-  нечего — `return` напрямую.
-- Метки называются по действию: `out_free_buffer:`, `err_destroy_window:`;
-  идут в порядке, обратном захвату ресурсов.
+- **Centralized exit via `goto`** for resource cleanup. If there is nothing to
+  clean up, `return` directly.
+- Labels are named after the action: `out_free_buffer:`, `err_destroy_window:`;
+  they come in the reverse order of resource acquisition.
 
 ```c
 cl_result_t cl_thing_create(const cl_thing_desc_t *desc, cl_thing_t **out)
@@ -213,63 +221,62 @@ err_free:
 }
 ```
 
-- Соглашение о кодах:
-  - функции-**действия**, способные упасть, возвращают `cl_result_t`
-    (`CL_OK == 0`);
-  - **конструкторы** возвращают указатель (`NULL` + last-error) либо
-    `cl_result_t` + out-параметр — единообразно в рамках модуля;
-  - **предикаты** возвращают `bool` (`cl_widget_is_visible()`);
-  - простые **сеттеры** — `void`.
-- Проверять `if (!p)` / `if (r != CL_OK)` сразу после операции.
-- `NULL` для указателей (не `0`); `bool`/`true`/`false` из `<stdbool.h>`.
+- Return-code convention:
+  - **action** functions that can fail return `cl_result_t` (`CL_OK == 0`);
+  - **constructors** return either a pointer (`NULL` + last-error) or
+    `cl_result_t` + an out-parameter — consistently within a module;
+  - **predicates** return `bool` (`cl_widget_is_visible()`);
+  - simple **setters** return `void`.
+- Check `if (!p)` / `if (r != CL_OK)` right after the operation.
+- Use `NULL` for pointers (not `0`); `bool`/`true`/`false` from `<stdbool.h>`.
 
 ---
 
-## 7. Комментарии
+## 7. Comments
 
-- Стиль — C, `/* ... */`. `//` допускается только для строки SPDX-заголовка.
-- Многострочные — kernel-формат (звёздочка в колонке):
+- Style is C, `/* ... */`. `//` is allowed only for the SPDX header line.
+- Multi-line comments use the kernel format (an asterisk in the column):
 
 ```c
 /*
- * Короткое пояснение ЧТО и, главное, ПОЧЕМУ.
- * Не описывать построчно КАК — это видно из кода.
+ * A short explanation of WHAT and, most importantly, WHY.
+ * Do not describe line by line HOW — that is visible from the code.
  */
 ```
 
-- Комментарий объясняет замысел/инвариант/подводный камень, а не тривиальности.
-- **Публичные функции** документируются в стиле kernel-doc:
+- A comment explains intent/invariant/pitfall, not trivialities.
+- **Public functions** are documented in the kernel-doc style:
 
 ```c
 /**
- * cl_widget_add_child() - добавить дочерний виджет и передать владение.
- * @parent: контейнер-родитель (не NULL).
- * @child:  добавляемый виджет (не NULL); владение переходит к @parent.
+ * cl_widget_add_child() - add a child widget and transfer ownership.
+ * @parent: the parent container (not NULL).
+ * @child:  the widget to add (not NULL); ownership passes to @parent.
  *
- * Return: CL_OK, либо CL_ERROR_INVALID_ARGUMENT при NULL/циклической связи.
+ * Return: CL_OK, or CL_ERROR_INVALID_ARGUMENT on NULL / a cyclic link.
  */
 ```
 
-- Каждый файл начинается со строки SPDX (§17) и краткого назначения.
+- Each file starts with the SPDX line (§17) and a brief statement of its purpose.
 
 ---
 
-## 8. Макросы, enum, константы
+## 8. Macros, enums, constants
 
-- Константы и метки enum — **`CL_...`** (§2.3); для набора связанных констант
-  предпочтителен `enum`, а не серия `#define`.
-- Макросы с несколькими операторами — в `do { } while (0)`.
-- Аргументы макросов — в скобках; беречься приоритета операторов:
+- Constants and enum labels are **`CL_...`** (§2.3); for a set of related
+  constants prefer an `enum` over a series of `#define`s.
+- Multi-statement macros go in `do { } while (0)`.
+- Macro arguments go in parentheses; watch out for operator precedence:
   `#define CL_MIN(a, b) ((a) < (b) ? (a) : (b))`.
-- Предпочитать `static inline`-функции макросам, где возможно.
-- Не прятать поток управления в макросах (кроме задокументированных контрактов
-  вроде `CL_WIDGET_CAST`).
+- Prefer `static inline` functions to macros where possible.
+- Do not hide control flow in macros (except for documented contracts such as
+  `CL_WIDGET_CAST`).
 
 ---
 
-## 9. Заголовочные файлы
+## 9. Header files
 
-- **Include guard — `#ifndef`/`#define`/`#endif`** (не `#pragma once`):
+- **Include guard — `#ifndef`/`#define`/`#endif`** (not `#pragma once`):
 
 ```c
 #ifndef CL_WIDGET_H
@@ -278,7 +285,7 @@ err_free:
 #endif /* CL_WIDGET_H */
 ```
 
-- Публичные заголовки — **C++-совместимы** через `extern "C"`:
+- Public headers are **C++-compatible** via `extern "C"`:
 
 ```c
 #ifdef __cplusplus
@@ -290,69 +297,71 @@ extern "C" {
 #endif
 ```
 
-- Заголовок самодостаточен: включает всё, что использует.
-- Порядок `#include` в `.c`: заголовок модуля → публичные заголовки проекта →
-  внутренние → системные/сторонние; между группами — пустая строка.
-- В публичных заголовках — только публичные типы; внутренние структуры не
-  раскрываются (кроме `widget_impl.h` для авторов виджетов, архитектура §9).
+- A header is self-contained: it includes everything it uses.
+- `#include` order in a `.c` file: the module header → public project headers →
+  internal headers → system/third-party; a blank line between groups.
+- Public headers expose only public types; internal structs are not revealed
+  (except `widget_impl.h` for widget authors, architecture §9).
 
 ---
 
-## 10. Типы
+## 10. Types
 
-- В **публичном API** — стандартные типы из `<stdint.h>`/`<stddef.h>`:
+- In the **public API**, use the standard types from `<stdint.h>`/`<stddef.h>`:
   `uint32_t`, `int32_t`, `size_t`, `uint8_t`.
-- `size_t` — для размеров памяти и количеств элементов.
-- Типы фиксированной ширины — там, где ширина важна (форматы, цвет `uint8_t`);
-  иначе обычные `int`/`unsigned`.
-- `bool`/`true`/`false` — из `<stdbool.h>`.
-- Учитывать выравнивание и strict aliasing (архитектура §9/§18): доступ к объекту
-  только через его настоящий тип после проверенного каста.
-- `const`-корректность обязательна: `const cl_button_desc_t *desc`.
+- `size_t` is for memory sizes and element counts.
+- Fixed-width types where width matters (formats, color `uint8_t`); otherwise
+  plain `int`/`unsigned`.
+- `bool`/`true`/`false` come from `<stdbool.h>`.
+- Mind alignment and strict aliasing (architecture §9/§18): access an object
+  only through its real type after a checked cast.
+- `const`-correctness is mandatory: `const cl_button_desc_t *desc`.
 
 ---
 
-## 11. Выделение памяти
+## 11. Memory allocation
 
-- Через аллокатор приложения (`cl_allocator_t`), не напрямую `malloc`, в коде
-  библиотеки. Размер — через `sizeof(*p)`, не имя типа:
+- Go through the application's allocator (`cl_allocator_t`), not `malloc`
+  directly, in library code. Take the size from `sizeof(*p)`, not the type name:
 
 ```c
-p = cl_alloc(alloc, sizeof(*p));        /* не sizeof(struct cl_foo) */
+p = cl_alloc(alloc, sizeof(*p));        /* not sizeof(struct cl_foo) */
 ```
 
-- Результат `void *` не кастовать без нужды.
-- Виджеты выделяются нулём (контракт `cl_widget_init_base`, архитектура §9).
-- Каждому `alloc` — парный `free` на всех путях выхода (см. `goto`-очистку §6).
+- Do not cast the `void *` result without need.
+- Widgets are zero-allocated (the `cl_widget_init_base` contract, architecture
+  §9).
+- Every `alloc` has a matching `free` on all exit paths (see the `goto` cleanup
+  in §6).
 
 ---
 
-## 12. Условная компиляция и платформенная изоляция
+## 12. Conditional compilation and platform isolation
 
-- Минимум `#ifdef` в `.c`-файлах логики. Платформенные различия выносятся за
-  интерфейсы (`platform`/`renderer`) и в отдельные TU (`src/platform/sdl`,
-  `src/render/gl`), а не расставляются по коду ядра.
-- `#ifdef` в середине функций — избегать; ветвление на уровне файлов сборки
-  (CMake выбирает нужный TU).
-- Закрывающий `#endif` длинного блока комментировать условием:
+- Minimize `#ifdef` in logic `.c` files. Platform differences are pushed behind
+  interfaces (`platform`/`renderer`) and into separate TUs (`src/platform/sdl`,
+  `src/render/gl`), not scattered through the core code.
+- Avoid `#ifdef` in the middle of functions; branch at the level of build files
+  (CMake picks the right TU).
+- Annotate the closing `#endif` of a long block with its condition:
   `#endif /* CL_ENABLE_OPENGL */`.
 
 ---
 
-## 13. Прочее
+## 13. Miscellaneous
 
-- Не оставлять закомментированный код.
-- `switch` по enum: по умолчанию добавлять `default:` (или `/* fallthrough */`
-  при сознательном проваливании).
-- Тернарник — только простой; сложную логику — через `if`.
-- Использовать **назначенные инициализаторы** C99:
+- Do not leave commented-out code.
+- `switch` over an enum: by default add a `default:` (or `/* fallthrough */`
+  for a deliberate fall-through).
+- Ternaries only for simple cases; do complex logic with `if`.
+- Use C99 **designated initializers**:
   `(cl_window_desc_t){ .title = "X", .width = 800 }`.
 
 ---
 
-## 14. Пример «до/после»
+## 14. Before/after example
 
-Плохо:
+Bad:
 ```c
 cl_widget_t* cl_label_create( const cl_label_desc_t *d ){
     if(d==NULL){return NULL;}
@@ -361,7 +370,7 @@ cl_widget_t* cl_label_create( const cl_label_desc_t *d ){
 }
 ```
 
-Хорошо:
+Good:
 ```c
 cl_widget_t *cl_label_create(const cl_label_desc_t *desc)
 {
@@ -381,28 +390,28 @@ cl_widget_t *cl_label_create(const cl_label_desc_t *desc)
 
 ---
 
-## 15. Экспорт символов
+## 15. Symbol export
 
-- Публичные функции помечаются **`CL_API`** (генерируемый export-макрос):
-  `__declspec(dllexport/dllimport)` на Windows,
-  `__attribute__((visibility("default")))` на GCC/Clang. По умолчанию —
+- Public functions are marked with **`CL_API`** (a generated export macro):
+  `__declspec(dllexport/dllimport)` on Windows,
+  `__attribute__((visibility("default")))` on GCC/Clang. The default is
   `-fvisibility=hidden`.
-- Внутренние функции — `static` или без `CL_API`; за пределы `.so`/`.dll` не
-  видны.
+- Internal functions are `static` or have no `CL_API`; they are not visible
+  outside the `.so`/`.dll`.
 
 ---
 
-## 16. Инструменты
+## 16. Tooling
 
-### 16.1 `.clang-format` (корень репозитория) — арбитр форматирования
+### 16.1 `.clang-format` (repository root) — the formatting arbiter
 
 ```yaml
-# ключевые поля
+# key fields
 BasedOnStyle: LLVM
 IndentWidth: 4
 UseTab: Never
 ColumnLimit: 80
-IndentCaseLabels: true          # case на +1 уровень от switch (§1)
+IndentCaseLabels: true          # case one level deeper than switch (§1)
 BreakBeforeBraces: Linux
 AllowShortIfStatementsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: None
@@ -411,8 +420,8 @@ SpaceAfterCStyleCast: false
 SortIncludes: false
 ```
 
-Пустую строку между группами `case` (§1) `clang-format` не вставляет — это
-соглашение поддерживается вручную и проверяется на ревью.
+`clang-format` does not insert the blank line between groups of `case` (§1) —
+that convention is maintained by hand and checked in review.
 
 ### 16.2 `.editorconfig`
 
@@ -427,10 +436,10 @@ insert_final_newline = true
 max_line_length = 80
 ```
 
-### 16.3 Pre-commit хук (обязателен)
+### 16.3 Pre-commit hook (mandatory)
 
-`.githooks/pre-commit` — проверяет форматирование изменённых `.c/.h`
-(кроме `third_party/`) и блокирует коммит при расхождении:
+`.githooks/pre-commit` checks the formatting of changed `.c/.h` files
+(excluding `third_party/`) and blocks the commit on any discrepancy:
 
 ```sh
 #!/bin/sh
@@ -445,48 +454,50 @@ for f in $files; do
 done
 
 if [ "$status" -ne 0 ]; then
-    echo "pre-commit: обнаружены нарушения форматирования." >&2
-    echo "Исправьте: clang-format -i <файлы>" >&2
+    echo "pre-commit: formatting violations detected." >&2
+    echo "Fix them: clang-format -i <files>" >&2
 fi
 exit $status
 ```
 
-Активация (один раз на клон): `git config core.hooksPath .githooks`.
-Хук устанавливается инструкцией в README/скрипте `tools/setup-hooks.sh`.
+Activation (once per clone): `git config core.hooksPath .githooks`.
+The hook is installed by the instructions in the README/the
+`tools/setup-hooks.sh` script.
 
-### 16.4 Прочее
-- Файлы — UTF-8, переводы строк LF (в т. ч. на Windows), через `.gitattributes`.
-- Аналог `checkpatch.pl` можно добавить позже как опциональную проверку CI.
+### 16.4 Miscellaneous
+- Files are UTF-8, with LF line endings (including on Windows), enforced via
+  `.gitattributes`.
+- A `checkpatch.pl`-style tool can be added later as an optional CI check.
 
 ---
 
-## 17. Лицензия и заголовок файла
+## 17. License and file header
 
-- Лицензия проекта — **GPL-3.0-or-later**. Полный текст — в файле `COPYING`
-  в корне репозитория.
-- Первая строка каждого `.c/.h` (и скриптов) — SPDX-идентификатор:
+- The project license is **GPL-3.0-or-later**. The full text is in the `COPYING`
+  file at the repository root.
+- The first line of every `.c/.h` file (and scripts) is the SPDX identifier:
 
 ```c
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 ```
 
-- Замечание: GPL-3.0 — сильный copyleft; приложения, линкующиеся с copal, должны
-  быть GPL-совместимы. Это архитектурное следствие (см. ADR-012).
+- Note: GPL-3.0 is strong copyleft; applications that link against copal must be
+  GPL-compatible. This is an architectural consequence (see ADR-012).
 
 ---
 
-## 18. Сводка отклонений от чистого kernel-style
+## 18. Summary of deviations from pure kernel style
 
-| # | Правило kernel | Наше решение | Причина |
+| # | Kernel rule | Our decision | Reason |
 |---|----------------|--------------|---------|
-| D1 | `struct foo` без typedef, нижний регистр | typedef разрешён; типы `snake_case` + суффикс `_t`, публичный префикс `cl_` | норма C-библиотек (`cairo_t`); FFI/сокрытие |
-| D2 | типы `u8/u16/u32` | `<stdint.h>`: `uint32_t` и т. д. | публичный userspace/FFI API |
-| D3 | отступ табами ×8 | **только пробелы, 4 колонки** | решение ревью |
-| D4 | `case` на уровне `switch` | `case` на +1 уровень, пустая строка между группами | решение ревью |
-| D5 | нет `extern "C"` | публичные заголовки в `extern "C"` | C++-совместимость (ТЗ) |
-| D6 | checkpatch иногда 100 | жёстко 80 | предсказуемость |
-| D7 | kernel-doc для экспортируемых | применяем к публичному API | ТЗ: доккоменты на публичные функции |
+| D1 | `struct foo` without a typedef, lowercase | typedef allowed; types `snake_case` + `_t` suffix, public `cl_` prefix | the norm for C libraries (`cairo_t`); FFI/hiding |
+| D2 | `u8/u16/u32` types | `<stdint.h>`: `uint32_t` etc. | public userspace/FFI API |
+| D3 | tab indentation ×8 | **spaces only, 4 columns** | review decision |
+| D4 | `case` at the `switch` level | `case` one level deeper, blank line between groups | review decision |
+| D5 | no `extern "C"` | public headers in `extern "C"` | C++ compatibility (spec) |
+| D6 | checkpatch sometimes 100 | strictly 80 | predictability |
+| D7 | kernel-doc for exported symbols | applied to the public API | spec: doc comments on public functions |
 
-Всё остальное (K&R-скобки, `goto`-очистка, пробелы вокруг операторов,
-`sizeof(*p)`, макросы, комментарии, самодостаточные заголовки) — **строго по
-kernel-style**.
+Everything else (K&R braces, `goto` cleanup, spaces around operators,
+`sizeof(*p)`, macros, comments, self-contained headers) follows the **kernel
+style strictly**.

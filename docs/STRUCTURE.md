@@ -1,217 +1,231 @@
-# copal — Структура исходников
+<p align="right"><b>English</b> | <a href="./ru/STRUCTURE.md">Русский</a></p>
 
-Статус: **актуально** (соответствует коду по состоянию на Этап 7). Версия: 1.0.
-Опирается на [ARCHITECTURE.md](ARCHITECTURE.md), [CODESTYLE.md](CODESTYLE.md),
+# copal — Source tree structure
+
+Status: **current** (matches the code as of Stage 7). Version: 1.0.
+Builds on [ARCHITECTURE.md](ARCHITECTURE.md), [CODESTYLE.md](CODESTYLE.md),
 [API.md](API.md).
 
-Документ описывает **фактическое** дерево репозитория и ответственность файлов —
-не эскиз. Разделы, начатые как проектные наброски (ARCHITECTURE §15, ранние
-версии этого файла), заменены на то, что реально собрано и протестировано.
+This document describes the **actual** repository tree and each file's
+responsibility — not a sketch. Sections that started as design drafts
+(ARCHITECTURE §15, early versions of this file) have been replaced with what is
+actually built and tested.
 
-## 1. Дерево каталогов (фактическое)
+## 1. Directory tree (actual)
 
 ```text
 copal/
-├── CMakeLists.txt                 корневой; target copal (alias copal::copal), опции, install
-├── README.md CHANGELOG.md         описание проекта; история версий
-├── COPYING                        полный текст GPL-3.0
-├── .clang-format .editorconfig .gitattributes   стиль/атрибуты (LF, UTF-8, 4 пробела, 80 колонок)
-├── .githooks/pre-commit           clang-format-проверка коммита
+├── CMakeLists.txt                 root; target copal (alias copal::copal), options, install
+├── README.md CHANGELOG.md         project description; version history
+├── COPYING                        full GPL-3.0 text
+├── .clang-format .editorconfig .gitattributes   style/attributes (LF, UTF-8, 4 spaces, 80 columns)
+├── .githooks/pre-commit           clang-format check on commit
 ├── .github/workflows/ci.yml       CI: Linux gcc/clang × mock|SDL+GL|SDL-soft (ASan/UBSan), shared, Windows MSVC
 ├── cmake/
 │   ├── CompilerWarnings.cmake      warnings (-Wall -Wextra -Wpedantic -Wshadow …) + sanitizers
-│   ├── copalConfig.cmake.in        package config для find_package(copal); find_dependency(Threads)
-│   └── copal.pc.in                 pkg-config-шаблон (устанавливается как lib/pkgconfig/copal.pc)
+│   ├── copalConfig.cmake.in        package config for find_package(copal); find_dependency(Threads)
+│   └── copal.pc.in                 pkg-config template (installed as lib/pkgconfig/copal.pc)
 ├── tools/
-│   ├── setup-hooks.sh              активация .githooks (core.hooksPath)
-│   └── lsan.supp                   supression-список для LeakSanitizer
-├── include/copal/                 ПУБЛИЧНЫЕ заголовки (устанавливаются)
-│   ├── backend/                   SPI бэкендов: platform.h, renderer.h (ARCHITECTURE §13)
-│   ├── copal.h                    зонтичный заголовок (всё, кроме widget_impl.h)
-│   ├── export.h                   CL_API (экспорт/видимость символов)
-│   ├── version.h                  версия compile/runtime + проверка
-│   ├── types.h                    геометрия, цвет, constraints, align/orientation, glyph handle
-│   ├── error.h                    cl_result_t, log-level, last-error, лог-callback
-│   ├── allocator.h                cl_allocator_t + обёртки cl_alloc/realloc/free
-│   ├── event.h                    типы событий, клавиши, модификаторы, cl_event_t, callback-типы
-│   ├── font.h                     загрузка шрифтов, метрики, измерение текста
-│   ├── image.h                    cl_image_t: RGBA8-ресурс для draw_image/imageview
-│   ├── theme.h                    роли цветов, light/dark, cl_text_style_t, тема
-│   ├── render.h                   cl_paint_context_t (рисование в paint)
-│   ├── widget.h                   базовый виджет (публичная часть для приложения)
-│   ├── widget_impl.h              база виджета для АВТОРОВ виджетов (vtable, class, каст)
-│   ├── layout.h                   контейнеры vbox/hbox
-│   ├── application.h              приложение, event loop, post
-│   ├── window.h                   окно, content, overlay-popup, tooltip
-│   ├── timer.h                    таймеры цикла приложения
-│   ├── animation.h                time-based анимации: easing, отмена, lerp-хелперы
+│   ├── setup-hooks.sh              activate .githooks (core.hooksPath)
+│   └── lsan.supp                   suppression list for LeakSanitizer
+├── include/copal/                 PUBLIC headers (installed)
+│   ├── backend/                   backend SPI: platform.h, renderer.h (ARCHITECTURE §13)
+│   ├── copal.h                    umbrella header (everything except widget_impl.h)
+│   ├── export.h                   CL_API (symbol export/visibility)
+│   ├── version.h                  compile/runtime version + check
+│   ├── types.h                    geometry, color, constraints, align/orientation, glyph handle
+│   ├── error.h                    cl_result_t, log level, last-error, log callback
+│   ├── allocator.h                cl_allocator_t + cl_alloc/realloc/free wrappers
+│   ├── event.h                    event types, keys, modifiers, cl_event_t, callback types
+│   ├── font.h                     font loading, metrics, text measurement
+│   ├── image.h                    cl_image_t: RGBA8 resource for draw_image/imageview
+│   ├── theme.h                    color roles, light/dark, cl_text_style_t, theme
+│   ├── render.h                   cl_paint_context_t (drawing inside paint)
+│   ├── widget.h                   base widget (public part for the application)
+│   ├── widget_impl.h              widget base for widget AUTHORS (vtable, class, cast)
+│   ├── layout.h                   vbox/hbox containers
+│   ├── application.h              application, event loop, post
+│   ├── window.h                   window, content, overlay popup, tooltip
+│   ├── timer.h                    application-loop timers
+│   ├── animation.h                time-based animations: easing, cancellation, lerp helpers
 │   └── widgets/                   label button checkbox radiobutton slider imageview
 │                                  menu menubar combobox textbox scrollview list
 │                                  progressbar messagebox panel spacer radiogroup
 ├── src/
-│   ├── core/foundation/           фундамент (ни от чего не зависит)
-│   │   ├── foundation_internal.h  внутренние объявления (cl_set_last_error)
-│   │   ├── version.c              версия runtime
-│   │   ├── error.c                thread-local last-error, строки ошибок, лог
-│   │   ├── allocator.c            дефолтный malloc-аллокатор, обёртки, учёт OOM
-│   │   ├── utf8.c                 декодер/итерация UTF-8 по кодовым точкам
-│   │   ├── mutex.c                непрозрачный кросс-платформенный мьютекс (pthread/CRITICAL_SECTION)
-│   │   └── mutex_internal.h       интерфейс мьютекса (для task-очереди приложения)
+│   ├── core/foundation/           foundation (depends on nothing)
+│   │   ├── foundation_internal.h  internal declarations (cl_set_last_error)
+│   │   ├── version.c              runtime version
+│   │   ├── error.c                thread-local last-error, error strings, log
+│   │   ├── allocator.c            default malloc allocator, wrappers, OOM accounting
+│   │   ├── abi.c                  desc/ops ABI handshake (cl_abi_ok, cl_desc_fill)
+│   │   ├── utf8.c                 UTF-8 decoder/code-point iteration
+│   │   ├── mutex.c                opaque cross-platform mutex (pthread/CRITICAL_SECTION)
+│   │   └── mutex_internal.h       mutex interface (for the application task queue)
 │   ├── widget/
-│   │   ├── widget.c               база, vtable-диспетчер, RTTI/каст, дерево, инвалидция,
-│   │   │                          clip-aware paint/hit-test, reveal, tooltip, event-dispatch
-│   │   ├── widget_internal.h      внутренние объявления виджет-слоя
-│   │   └── widget_host.h          host-интерфейс виджета (реализует окно; ацикличность §2)
+│   │   ├── widget.c               base, vtable dispatcher, RTTI/cast, tree, invalidation,
+│   │   │                          clip-aware paint/hit-test, reveal, tooltip, event dispatch
+│   │   ├── widget_internal.h      internal declarations for the widget layer
+│   │   └── widget_host.h          widget host interface (implemented by the window; acyclic §2)
 │   ├── layout/
-│   │   ├── vbox.c  hbox.c         measure/arrange контейнеров (flex, padding, spacing, align)
-│   │   └── scrollview.c           ScrollView: две оси, clip_rect, reveal, smooth-анимация
+│   │   ├── vbox.c  hbox.c         container measure/arrange (flex, padding, spacing, align)
+│   │   └── scrollview.c           ScrollView: two axes, clip_rect, reveal, smooth animation
 │   ├── theme/
-│   │   ├── theme.c                встроенные light/dark темы, роли цветов, радиус, шрифт
+│   │   ├── theme.c                built-in light/dark themes, color roles, radius, font
 │   │   └── theme_internal.h
 │   ├── render/
-│   │   ├── renderer.h             обёртка над публичным copal/backend/renderer.h
-│   │   ├── paint_context.c/.h     публичный cl_paint_context_t поверх renderer
-│   │   ├── image.c image_internal.h   cl_image_t: RGBA8-ресурс (evict в рендерах)
-│   │   ├── gl/                    OpenGL 3.3 core бэкенд (renderer_gl, gl_loader — glad-подобный)
-│   │   ├── soft/renderer_soft.c   software/CPU растеризатор (SDF+AA, glyph-блит, клип; без GL; собирается всегда)
-│   │   └── mock/                  record-renderer для headless-тестов (список draw-команд)
+│   │   ├── renderer.h             wrapper over the public copal/backend/renderer.h
+│   │   ├── paint_context.c/.h     public cl_paint_context_t on top of renderer
+│   │   ├── image.c image_internal.h   cl_image_t: RGBA8 resource (evict in renderers)
+│   │   ├── gl/                    OpenGL 3.3 core backend (renderer_gl, gl_loader — glad-like)
+│   │   ├── soft/renderer_soft.c   software/CPU rasterizer (SDF+AA, glyph blit, clip; no GL; always built)
+│   │   └── mock/                  record renderer for headless tests (draw-command list)
 │   ├── text/
-│   │   ├── font.c                 шрифт/метрики/измерение поверх stb_truetype
+│   │   ├── font.c                 font/metrics/measurement on top of stb_truetype
 │   │   ├── font_internal.h
-│   │   └── stb_impl.c             единственная TU с реализацией stb_truetype (STB_*_IMPLEMENTATION)
+│   │   └── stb_impl.c             the single TU with the stb_truetype implementation (STB_*_IMPLEMENTATION)
 │   ├── platform/
-│   │   ├── platform.h             обёртка над публичным copal/backend/platform.h
-│   │   ├── sdl/                   SDL2 бэкенд: GL-окно (cl_platform_sdl_create) И software-окно
-│   │   │                          без GL (cl_platform_sdl_soft_create, surface + UpdateWindowSurface)
-│   │   └── mock/                  headless-бэкенд (скриптованные события, управляемые часы)
-│   ├── widgets/                   реализации виджетов + внутренний tooltip-пузырь
+│   │   ├── platform.h             wrapper over the public copal/backend/platform.h
+│   │   ├── sdl/                   SDL2 backend: GL window (cl_platform_sdl_create) AND software window
+│   │   │                          without GL (cl_platform_sdl_soft_create, surface + UpdateWindowSurface)
+│   │   └── mock/                  headless backend (scripted events, controllable clock)
+│   ├── widgets/                   widget implementations + internal tooltip bubble
 │   │   ├── button.c label.c checkbox.c radiobutton.c slider.c imageview.c
 │   │   ├── combobox.c menu.c menubar.c textbox.c list.c
 │   │   ├── progressbar.c messagebox.c panel.c spacer.c radiogroup.c
-│   │   └── tooltip.c tooltip_internal.h   (внутренний виджет hover-подсказки)
+│   │   └── tooltip.c tooltip_internal.h   (internal hover-hint widget)
 │   └── app/
-│       ├── application.c          создание/цикл, таймеры, task-очередь, IME-rect, диспетчер событий
-│       ├── window.c               окно, content, overlay/tooltip-слой, focus/reveal, рендер
-│       ├── timer.c                список таймеров приложения (FIFO, монотонные часы)
-│       ├── animation.c            анимации на общем тикере (прогресс от now_ms, easing)
-│       └── app_internal.h         приватные объявления app/window/timer/task
+│       ├── application.c          create/loop, timers, task queue, IME rect, event dispatcher
+│       ├── window.c               window, content, overlay/tooltip layer, focus/reveal, render
+│       ├── timer.c                application timer list (FIFO, monotonic clock)
+│       ├── animation.c            animations on the shared ticker (progress from now_ms, easing)
+│       └── app_internal.h         private declarations for app/window/timer/task
 ├── third_party/
-│   ├── stb/stb_truetype.h         вендоренный растеризатор глифов
-│   ├── GL/glcorearb.h             заголовок OpenGL core (для собственного загрузчика)
-│   └── KHR/khrplatform.h          Khronos platform-типы (зависимость glcorearb.h)
-├── examples/                      по каталогу на пример (build/examples/<name>/<name>)
-│   ├── CMakeLists.txt              общий util-lib + хелпер copal_add_gui_example
-│   ├── common/example_util.{h,c}  загрузка шрифта, headless-run (COPAL_MAX_FRAMES), LSan-суппрессии
-│   ├── test_version/main.c        smoke-тест: печатает версию (без бэкендов)
-│   ├── helloworld/main.c          галерея всего API: все виджеты, меню/диалоги,
-│   │                              анимации (easing, смена темы), изображения,
-│   │                              курсоры, кастомный виджет, таймеры, post
-│   └── calc/                      калькулятор: calc_engine (модель) + calc_widgets
-│                                  (calc_key/calc_display — кастомные виджеты) + main.c
+│   ├── stb/stb_truetype.h         vendored glyph rasterizer
+│   ├── GL/glcorearb.h             OpenGL core header (for the in-house loader)
+│   └── KHR/khrplatform.h          Khronos platform types (glcorearb.h dependency)
+├── examples/                      one directory per example (build/examples/<name>/<name>)
+│   ├── CMakeLists.txt              shared util lib + copal_add_gui_example helper
+│   ├── common/example_util.{h,c}  font loading, headless run (COPAL_MAX_FRAMES), LSan suppressions
+│   ├── test_version/main.c        smoke test: prints the version (no backends)
+│   ├── helloworld/main.c          gallery of the whole API: all widgets, menus/dialogs,
+│   │                              animations (easing, theme switch), images,
+│   │                              cursors, a custom widget, timers, post
+│   └── calc/                      calculator: calc_engine (model) + calc_widgets
+│                                  (calc_key/calc_display — custom widgets) + main.c
 ├── tests/
-│   ├── CMakeLists.txt             регистрирует CTest-сьюты (copal_add_test)
-│   ├── test_foundation.c          версия/ошибки/аллокатор/UTF-8/типы
-│   ├── test_soft.c                golden-пиксели software-рендерера (stub-fb, без SDL)
-│   ├── test_theme.c               роли цветов, light/dark, радиус, шрифт
-│   ├── test_widgets.c             базовый виджет, дерево, каст, layout, базовые виджеты
-│   ├── test_textbox.c             однострочное редактирование/навигация/выделение
-│   ├── test_multiline.c           перенос по ширине, навигация вверх/вниз, вертикальный скролл
-│   ├── test_ime.c                 IME-композиция (preedit, commit, отмена)
-│   ├── test_scrollview.c          две оси, reveal, scroll-to-widget
-│   ├── test_combobox.c            combobox: элементы, выбор, popup
-│   ├── test_popup.c               overlay-popup/menu, light-dismiss
-│   ├── test_tooltip.c             hover-подсказка (dwell-таймер, отмена)
-│   ├── test_timer.c               one-shot/repeat, cancel/restart, коалесинг
-│   ├── test_animation.c           анимации: время-прогресс, easing, отмена, цепочки
-│   ├── test_damage.c              damage-регионы: union инвалидаций, полные кадры
+│   ├── CMakeLists.txt             registers the CTest suites (copal_add_test)
+│   ├── test_foundation.c          version/errors/allocator/UTF-8/types
+│   ├── test_abi.c                 desc/ops ABI evolution (ADR-005): tail-tolerant handshake
+│   ├── test_soft.c                golden pixels of the software renderer (stub fb, no SDL)
+│   ├── test_gl_golden.c           GL render vs the software reference (SDL+GL only; skips without GL)
+│   ├── test_image.c               cl_image_create: input validation, refuse a size overflow
+│   ├── test_theme.c               color roles, light/dark, radius, font
+│   ├── test_widgets.c             base widget, tree, cast, layout, basic widgets
+│   ├── test_textbox.c             single-line editing/navigation/selection
+│   ├── test_multiline.c           wrapping by width, up/down navigation, vertical scroll
+│   ├── test_ime.c                 IME composition (preedit, commit, cancel)
+│   ├── test_scrollview.c          two axes, reveal, scroll-to-widget
+│   ├── test_combobox.c            combobox: items, selection, popup
+│   ├── test_popup.c               overlay popup/menu, light dismiss
+│   ├── test_overlay.c             overlay-stack cap (CL_WINDOW_MAX_OVERLAYS): refused past the cap
+│   ├── test_tooltip.c             hover hint (dwell timer, cancel)
+│   ├── test_timer.c               one-shot/repeat, cancel/restart, coalescing
+│   ├── test_animation.c           animations: time progress, easing, cancellation, chains
+│   ├── test_damage.c              damage regions: union of invalidations, full frames
 │   ├── test_post.c                cross-thread cl_application_post
-│   ├── test_oom.c                 fail-after-N аллокатор: пути ошибок создания
-│   ├── test_layout.c              flex/align/margin, вложенные боксы
-│   ├── test_lifecycle.c           окно/фокус/hover/курсор, destroy из callback
-│   └── test_gui.c                 интеграционный сценарий на mock-бэкендах
+│   ├── test_oom.c                 fail-after-N allocator: create-path error handling
+│   ├── test_fuzz.c                robustness of cl_font_load_memory/cl_image_create (fixed seed, under ASan/UBSan)
+│   ├── test_layout.c              flex/align/margin, nested boxes
+│   ├── test_lifecycle.c           window/focus/hover/cursor, destroy from a callback
+│   ├── test_recursion.c           tree-depth cap (CL_WIDGET_MAX_DEPTH): no stack overflow
+│   └── test_gui.c                 integration scenario on the mock backends
+├── benchmarks/                    headless benchmarks (COPAL_BUILD_BENCHMARKS, OFF by default)
+│   ├── CMakeLists.txt             copal_bench target (links against copal::mocks)
+│   └── bench.c                    drives render/layout through white-box entry points
 └── docs/                          ARCHITECTURE.md CODESTYLE.md API.md STRUCTURE.md
 ```
 
-## 2. Ответственность ключевых файлов
+## 2. Responsibilities of the key files
 
-| Файл | Ответственность | Публичный? |
-|------|-----------------|-----------|
-| `include/copal/export.h` | `CL_API`: dllexport/import, visibility | да |
-| `include/copal/version.h` | версия compile/runtime, `COPAL_VERSION_ENCODE` | да |
-| `include/copal/types.h` | `cl_point/size/rect/insets/color/constraints/glyph_handle`, `cl_align/orientation`, `cl_rgba` | да |
-| `include/copal/error.h` | `cl_result_t`, `cl_log_*`, `cl_last_error`, `cl_result_string` | да |
-| `include/copal/allocator.h` | `cl_allocator_t`, `cl_alloc/realloc/free`, дефолт | да |
-| `include/copal/event.h` | типы событий/клавиш/модификаторов, `cl_event_t`, callback-типы | да |
-| `include/copal/widget.h` | дерево/владение, геометрия, фокус, инвалидция, tooltip | да |
-| `include/copal/widget_impl.h` | база виджета для авторов: vtable, class, флаги, каст | да (для расширения) |
-| `include/copal/application.h` | `cl_application_*`, event loop, `cl_application_post` | да |
-| `include/copal/window.h` | окно, content, overlay-popup, tooltip | да |
-| `include/copal/timer.h` | таймеры цикла приложения | да |
-| `include/copal/animation.h` | time-based анимации (easing, отмена, lerp-хелперы) | да |
-| `src/core/foundation/mutex.c` | непрозрачный мьютекс под потокобезопасную task-очередь | нет |
-| `src/widget/widget.c` | vtable-диспетчер, RTTI/каст, дерево, clip/hit/reveal, event-dispatch | нет |
-| `src/app/application.c` | цикл, таймеры, task-очередь, диспетчеризация нейтральных событий | нет |
-| `src/app/window.c` | content + overlay/tooltip-слой, focus/reveal, рендер кадра | нет |
-| `src/render/paint_context.c` | публичный `cl_paint_context_t` поверх внутреннего renderer | нет |
-| `src/render/soft/renderer_soft.c` | software/CPU растеризатор (9 op, SDF+AA, glyph-блит); без GL | нет |
-| `src/text/stb_impl.c` | единственная TU, инстанцирующая stb_truetype | нет |
+| File | Responsibility | Public? |
+|------|----------------|---------|
+| `include/copal/export.h` | `CL_API`: dllexport/import, visibility | yes |
+| `include/copal/version.h` | compile/runtime version, `COPAL_VERSION_ENCODE` | yes |
+| `include/copal/types.h` | `cl_point/size/rect/insets/color/constraints/glyph_handle`, `cl_align/orientation`, `cl_rgba` | yes |
+| `include/copal/error.h` | `cl_result_t`, `cl_log_*`, `cl_last_error`, `cl_result_string` | yes |
+| `include/copal/allocator.h` | `cl_allocator_t`, `cl_alloc/realloc/free`, default | yes |
+| `include/copal/event.h` | event/key/modifier types, `cl_event_t`, callback types | yes |
+| `include/copal/widget.h` | tree/ownership, geometry, focus, invalidation, tooltip | yes |
+| `include/copal/widget_impl.h` | widget base for authors: vtable, class, flags, cast | yes (for extension) |
+| `include/copal/application.h` | `cl_application_*`, event loop, `cl_application_post` | yes |
+| `include/copal/window.h` | window, content, overlay popup, tooltip | yes |
+| `include/copal/timer.h` | application-loop timers | yes |
+| `include/copal/animation.h` | time-based animations (easing, cancellation, lerp helpers) | yes |
+| `src/core/foundation/abi.c` | desc/ops ABI handshake: `cl_abi_ok`, `cl_desc_fill` | no |
+| `src/core/foundation/mutex.c` | opaque mutex behind the thread-safe task queue | no |
+| `src/widget/widget.c` | vtable dispatcher, RTTI/cast, tree, clip/hit/reveal, event dispatch | no |
+| `src/app/application.c` | loop, timers, task queue, dispatch of neutral events | no |
+| `src/app/window.c` | content + overlay/tooltip layer, focus/reveal, frame render | no |
+| `src/render/paint_context.c` | public `cl_paint_context_t` on top of the internal renderer | no |
+| `src/render/soft/renderer_soft.c` | software/CPU rasterizer (SDF+AA, glyph blit); no GL | no |
+| `src/text/stb_impl.c` | the single TU that instantiates stb_truetype | no |
 
-## 3. Направление зависимостей (без циклов)
+## 3. Dependency direction (no cycles)
 
-Правило (ARCHITECTURE §1/§2): стрелка `A → B` = «A зависит от B»; циклов нет.
+Rule (ARCHITECTURE §1/§2): an arrow `A → B` means "A depends on B"; there are no cycles.
 
 ```text
-Публичные заголовки (compile-time):
+Public headers (compile-time):
   copal.h → {export, version, types, error, allocator, event, font, theme,
              render, widget, layout, application, window, timer, widgets/*}
-  types.h → (только <stdint.h>/<stdbool.h>);  export.h — лист
-  widget_impl.h → widget.h, event.h, render.h        (для авторов виджетов)
+  types.h → (only <stdint.h>/<stdbool.h>);  export.h — leaf
+  widget_impl.h → widget.h, event.h, render.h        (for widget authors)
 
-Реализация:
-  foundation (alloc/error/utf8/version/mutex) → свои публичные .h + foundation_internal.h
-  widget/layout/theme/text → foundation + интерфейсы (platform/renderer)
-  render/gl · render/soft · render/mock → внутренний renderer.h
-      (gl: + third_party/GL,KHR; soft: платформо-нейтрален, только platform.h + font)
+Implementation:
+  foundation (alloc/error/utf8/version/mutex/abi) → own public .h + foundation_internal.h
+  widget/layout/theme/text → foundation + interfaces (platform/renderer)
+  render/gl · render/soft · render/mock → internal renderer.h
+      (gl: + third_party/GL,KHR; soft: platform-neutral, only platform.h + font)
   platform/sdl · platform/mock → platform.h
-  app/{application,window,timer} → всё вышеперечисленное; точка линковки бэкендов:
-      SDL2 при COPAL_ENABLE_SDL (software-путь), OpenGL — только доп. при
-      COPAL_ENABLE_OPENGL; либо DI из desc
+  app/{application,window,timer} → everything above; the backend link point:
+      SDL2 when COPAL_ENABLE_SDL (software path), OpenGL — extra, only when
+      COPAL_ENABLE_OPENGL; or DI from the desc
 ```
 
-Core (widget/layout/theme/text) на этапе компиляции зависит только от Foundation
-и от **интерфейсов** platform/renderer — никогда от конкретных SDL/GL/stb-типов.
-Конкретные бэкенды выбираются CMake-опциями и линкуются в `src/app`.
+At compile time the core (widget/layout/theme/text) depends only on Foundation
+and on the platform/renderer **interfaces** — never on concrete SDL/GL/stb types.
+The concrete backends are selected by CMake options and linked into `src/app`.
 
-Mock-бэкенды (`render/mock`, `platform/mock`) собираются в отдельную
-статическую библиотеку **`copal_mocks`** (цель `copal::mocks`, только при
-`COPAL_BUILD_TESTS`) — тесты линкуются с ней, а в устанавливаемый артефакт
-`libcopal` mock-код не попадает.
+The mock backends (`render/mock`, `platform/mock`) are built into a separate
+static library, **`copal_mocks`** (target `copal::mocks`, only when
+`COPAL_BUILD_TESTS`) — the tests link against it, and the mock code never lands
+in the installed `libcopal` artifact.
 
-## 4. Публичные vs внутренние заголовки
+## 4. Public vs internal headers
 
-- **Публичные** (`include/copal/*`) — устанавливаются, C++-совместимы (`extern "C"`),
-  используют `CL_API`, guard `CL_*_H`. `copal.h` — единый зонтик.
-- **Внутренние** (`src/**/*_internal.h` и пр.) — не устанавливаются, без
-  `CL_API`, доступны только внутри сборки библиотеки.
-- Исключения — заголовки «для расширения», устанавливаются, но в зонтичный
-  `copal.h` НЕ входят: `widget_impl.h` (база виджета для авторов сторонних
-  виджетов, ARCHITECTURE §9) и `backend/platform.h` + `backend/renderer.h`
-  (SPI бэкендов с ABI-рукопожатием в ops-таблице, ARCHITECTURE §13;
-  внутренние `src/platform/platform.h` и `src/render/renderer.h` — тонкие
-  обёртки над ними).
+- **Public** (`include/copal/*`) — installed, C++-compatible (`extern "C"`),
+  use `CL_API`, guard `CL_*_H`. `copal.h` is the single umbrella.
+- **Internal** (`src/**/*_internal.h` and the like) — not installed, no
+  `CL_API`, reachable only inside the library build.
+- The exceptions are the "for extension" headers: they are installed but do NOT
+  belong to the `copal.h` umbrella — `widget_impl.h` (the widget base for
+  third-party widget authors, ARCHITECTURE §9) and `backend/platform.h` +
+  `backend/renderer.h` (the backend SPI with an ABI handshake in the ops table,
+  ARCHITECTURE §13; the internal `src/platform/platform.h` and
+  `src/render/renderer.h` are thin wrappers over them).
 
-## 5. Как собрать и проверить
+## 5. How to build and check
 
-Headless-сборка (mock-бэкенды, без SDL/GL) — по умолчанию:
+Headless build (mock backends, no SDL/GL) — the default:
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
-ctest --test-dir build --output-on-failure     # 17 сьютов + smoke-прогоны
+ctest --test-dir build --output-on-failure     # 24 suites + smoke runs
 ./build/examples/test_version/test_version
 ```
 
-Нативная сборка с окном (SDL2 + OpenGL) — собирает GUI-примеры helloworld и calc:
+Native windowed build (SDL2 + OpenGL) — builds the helloworld and calc GUI examples:
 
 ```sh
 cmake -S . -B build-native -DCOPAL_ENABLE_SDL=ON -DCOPAL_ENABLE_OPENGL=ON
@@ -220,27 +234,28 @@ SDL_VIDEODRIVER=offscreen COPAL_MAX_FRAMES=3 ./build-native/examples/calc/calc
 SDL_VIDEODRIVER=offscreen COPAL_MAX_FRAMES=3 ./build-native/examples/helloworld/helloworld
 ```
 
-Software-сборка **без OpenGL** (только SDL2; libGL не линкуется — лёгкий бэкенд):
+Software build **without OpenGL** (SDL2 only; libGL is not linked — a lightweight backend):
 
 ```sh
 cmake -S . -B build-sw -DCOPAL_ENABLE_SDL=ON -DCOPAL_ENABLE_OPENGL=OFF
 cmake --build build-sw
-# software выбирается автоматически (GL не собран); либо явно COPAL_RENDER=software
+# software is chosen automatically (GL is not built); or explicitly COPAL_RENDER=software
 SDL_VIDEODRIVER=dummy COPAL_MAX_FRAMES=3 ./build-sw/examples/calc/calc
 ```
 
-Выбор бэкенда в рантайме при обеих опциях: `COPAL_RENDER=software` (или
-`cl_application_desc.render_backend = CL_RENDER_SOFTWARE`) — CPU-рендер без
-GL-контекста (меньше памяти, RDP/CI); по умолчанию GL. Примеры calc/helloworld
-принимают флаги **`--software`** / **`--gl`** (напр. `./calc --software`).
+Backend selection at runtime with both options enabled: `COPAL_RENDER=software`
+(or `cl_application_desc.render_backend = CL_RENDER_SOFTWARE`) — CPU rendering
+without a GL context (less memory, RDP/CI); GL by default. The calc/helloworld
+examples accept the flags **`--software`** / **`--gl`** (e.g. `./calc --software`).
 
-Опции: `-DCOPAL_BUILD_SHARED=ON` (shared; white-box тесты требуют статической
-библиотеки и отключаются — в ctest остаются smoke-прогоны примеров),
+Options: `-DCOPAL_BUILD_SHARED=ON` (shared; the white-box tests require a static
+library and are disabled — only the example smoke runs remain in ctest),
 `-DCOPAL_ENABLE_SANITIZERS=ON`
-(ASan/UBSan), `-DCOPAL_ENABLE_COVERAGE=ON` (gcov/llvm-cov; не MSVC),
-`-DCOPAL_FETCH_SDL2=ON` (скачать и собрать SDL2),
+(ASan/UBSan), `-DCOPAL_ENABLE_COVERAGE=ON` (gcov/llvm-cov; not MSVC),
+`-DCOPAL_FETCH_SDL2=ON` (download and build SDL2),
+`-DCOPAL_BUILD_BENCHMARKS=ON` (headless benchmarks; require a static library),
 `-DCOPAL_BUILD_EXAMPLES=OFF`, `-DCOPAL_BUILD_TESTS=OFF`,
 `-DCOPAL_ENABLE_INSTALL=OFF`.
 
-Использование как зависимости: `find_package(copal CONFIG REQUIRED)` +
-`target_link_libraries(app PRIVATE copal::copal)`, либо `add_subdirectory(copal)`.
+Using as a dependency: `find_package(copal CONFIG REQUIRED)` +
+`target_link_libraries(app PRIVATE copal::copal)`, or `add_subdirectory(copal)`.
