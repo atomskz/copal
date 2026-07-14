@@ -155,3 +155,64 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Debug --output-on-failure
+
+  # 32-bit build: exercises the size_t overflow guard in cl_image_create (only
+  # reachable where size_t is 32-bit) and catches any 64-bit width assumption.
+  linux-32bit:
+    name: linux gcc 32-bit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib g++-multilib fonts-dejavu-core
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test
+        env:
+          COPAL_FONT: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+        run: ctest --test-dir build --output-on-failure
+
+  # MinGW cross-compile: the other Windows toolchain (the msvc job covers MSVC).
+  # The headless build (mock backends, no SDL) is cross-compiled and its tests
+  # run under Wine; statically linked so no runtime DLLs are needed. The font
+  # suites skip themselves without COPAL_FONT.
+  mingw:
+    name: windows mingw-w64 cross (wine)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 wine wine64
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_SYSTEM_NAME=Windows
+          -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc
+          -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++
+          -DCMAKE_EXE_LINKER_FLAGS=-static
+          -DCMAKE_CROSSCOMPILING_EMULATOR=wine
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+# macOS is intentionally NOT in the matrix. copal targets Windows and Linux
+# (README); macOS is unsupported and untested. The __APPLE__ font-path branch in
+# src/text/font.c is best-effort only. Revisit if macOS becomes a supported
+# platform.
