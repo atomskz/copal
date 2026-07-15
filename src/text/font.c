@@ -3,9 +3,11 @@
 #include <copal/application.h>
 #include <copal/allocator.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#ifdef CL_HOSTED
+#include <stdio.h>  /* file font loaders (hosted only) */
+#include <stdlib.h> /* getenv for cl_font_load_system (hosted only) */
+#endif
+#include <string.h> /* memcpy (residual mem*) */
 
 #include "stb_truetype.h"
 #include "app/app_internal.h"
@@ -154,6 +156,7 @@ cl_font_t *cl_font_load_memory(cl_application_t *app, const void *data,
     return font_from_data(app, a, buf, len, size_px);
 }
 
+#ifdef CL_HOSTED
 cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
                              float size_px)
 {
@@ -242,6 +245,26 @@ cl_font_t *cl_font_load_system(cl_application_t *app, float size_px)
     cl_set_last_error(CL_ERROR_FONT);
     return NULL;
 }
+#else /* !CL_HOSTED: no filesystem or system fonts - embed the bytes and use
+       * cl_font_load_memory instead. The public API stays linkable. */
+cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
+                             float size_px)
+{
+    (void)app;
+    (void)path;
+    (void)size_px;
+    cl_set_last_error(CL_ERROR_UNSUPPORTED);
+    return NULL;
+}
+
+cl_font_t *cl_font_load_system(cl_application_t *app, float size_px)
+{
+    (void)app;
+    (void)size_px;
+    cl_set_last_error(CL_ERROR_UNSUPPORTED);
+    return NULL;
+}
+#endif /* CL_HOSTED */
 
 void cl_font_release(cl_font_t *font)
 {
