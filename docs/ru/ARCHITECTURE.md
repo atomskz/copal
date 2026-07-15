@@ -718,6 +718,8 @@ hosted-зависимость не пролезет.
 очередь, поэтому ей всё ещё нужно взаимное исключение, а `cl_application_post`
 аллоцирует вне залоченной секции, так что лок может исполняться на поднятом TPL);
 платформу поверх GOP плюс протоколы ввода/таймера; встроенный шрифт; и опционально
-assert-хендлер (`cl_set_assert_handler`). Флаги сборки повторяют CI-проверку —
-`-ffreestanding -fno-math-errno -D_FORTIFY_SOURCE=0 -fno-stack-protector` — плюс
-UEFI-ABI набор (`-mno-red-zone`, PE/COFF, MS x64).
+assert-хендлер (`cl_set_assert_handler`). Канонический freestanding-набор флагов —
+тот, что применяет CI-проверка (`scripts/check-freestanding-symbols.sh`:
+`-ffreestanding -fno-math-errno -D_FORTIFY_SOURCE=0 -fno-stack-protector` плюс
+секции функций/данных); скрипт — источник истины. UEFI-цель добавляет сверху
+ABI-набор (`-mno-red-zone`, PE/COFF, MS x64).

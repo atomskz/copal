@@ -726,6 +726,9 @@ mutex (`cl_mutex_iface_t` over `RaiseTPL`/`RestoreTPL` - a TPL notify callback c
 post into the loop, so the queue still needs mutual exclusion, and
 `cl_application_post` allocates outside the locked region so the lock may run at
 raised TPL); a platform over GOP plus the input/timer protocols; an embedded font;
-and optionally an assert handler (`cl_set_assert_handler`). Build flags mirror the
-CI check - `-ffreestanding -fno-math-errno -D_FORTIFY_SOURCE=0 -fno-stack-protector`
-- plus the UEFI ABI set (`-mno-red-zone`, PE/COFF, MS x64).
+and optionally an assert handler (`cl_set_assert_handler`). The canonical
+freestanding flag set is the one the CI check applies
+(`scripts/check-freestanding-symbols.sh`: `-ffreestanding -fno-math-errno
+-D_FORTIFY_SOURCE=0 -fno-stack-protector`, plus function/data sections) - treat
+the script as the source of truth; a UEFI target adds the ABI set on top
+(`-mno-red-zone`, PE/COFF, MS x64).
