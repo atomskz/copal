@@ -127,7 +127,10 @@ double cl_fmod(double x, double y)
     return x < 0.0 ? -r : r;
 }
 
-/* ---- cos: fold to [0, pi/2] by symmetry, then a Taylor polynomial ---- */
+/* ---- cos: fold to [0, pi/2] by symmetry, then a Taylor polynomial.
+ * The range reduction (x - floor(x/2pi)*2pi) targets the small angles of font
+ * work; for very large |x| the subtraction cancels and precision drops. copal
+ * never passes such arguments - cos is on stb's SDF path, which it never uses. */
 double cl_cos(double x)
 {
     double s = 1.0, x2;
