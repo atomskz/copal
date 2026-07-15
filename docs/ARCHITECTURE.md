@@ -364,10 +364,13 @@ widget author overrides **either** `on_event` **or** the individual methods. An
 
 - A single GUI thread owns app/window/widgets/renderer.
 - **`cl_application_post(app, fn, user)`** is thread-safe: it puts the task into the
-  queue under the mutex (`mutex.c`) and wakes the loop via `platform.wakeup()`; the
-  queue is **detached wholesale under the lock and executed without the lock** (a task
-  may post a new one — it is drained on the next pass, with no deadlock); FIFO; tasks
-  not drained by destroy are discarded.
+  queue under a mutex and wakes the loop via `platform.wakeup()`; the queue is
+  **detached wholesale under the lock and executed without the lock** (a task may post
+  a new one — it is drained on the next pass, with no deadlock); FIFO; tasks not
+  drained by destroy are discarded. The mutex is injectable (`cl_mutex_iface_t` in the
+  app desc): the hosted build defaults to pthread / a critical section; a freestanding
+  build injects one (on UEFI, `RaiseTPL`/`RestoreTPL` — §19). The node is allocated
+  outside the locked region, so the lock may run at a raised TPL.
 - **Animations** (`animation.c`, `animation.h`): all of the application's live
   animations share one ~60 Hz repeat timer (created with the first one, dropped when
   the list empties — the idle loop keeps sleeping). Progress is from elapsed time, not
@@ -630,6 +633,11 @@ brief take on the build:
   against ~70–83 MB for GL), works over RDP and in CI with no GPU driver. The cost is a
   speed ceiling on a heavy/animated UI. GL remains the default for AUTO when present;
   software is selected via `render_backend`/`COPAL_RENDER`.
+- **ADR-016** **Freestanding core (`COPAL_HOSTED=OFF`)** for UEFI/bare-metal (§19).
+  The core carries copal-namespaced str/math/format helpers (no libc/libm), gates
+  the hosted paths (default allocator, file font loaders, stderr log), and makes the
+  task-queue mutex and the assert handler injectable. The residual external surface
+  is `memcpy/memmove/memset`, enforced by a CI job.
 
 ## 17. What was added in Stages 6–7 (delta to the MVP design)
 
@@ -680,3 +688,44 @@ brief take on the build:
 - Renderer/platform are replaceable (DI, §3.9); DPI rounding is specified (§8.3).
 - Casts with no UB on function-pointer types (§9); the ABI handshake in `*_desc_t`.
 - Builds as C; the headers are C++-compatible (`extern "C"`); export via `CL_API`.
+
+## 19. Freestanding / UEFI
+
+copal's core (foundation + software renderer + widgets + layout + text) builds in a
+**freestanding** environment (`-ffreestanding`, no hosted C runtime) for targets
+like UEFI, where the software renderer draws into a linear framebuffer (GOP) - the
+only viable model before an OS and its GL driver exist. The GL and SDL backends are
+hosted-only and stay out of such a build.
+
+**The `COPAL_HOSTED` axis.** The CMake option `COPAL_HOSTED` (default ON) defines
+`CL_HOSTED`. With it OFF the paths that need a hosted runtime are compiled out:
+- the default malloc allocator - `cl_allocator_default()` returns NULL, so the
+  embedder must inject one via `cl_application_desc_t.allocator`;
+- the file/system font loaders - `cl_font_load_file`/`cl_font_load_system` return
+  `CL_ERROR_UNSUPPORTED`; load fonts from memory with `cl_font_load_memory`;
+- the stderr log fallback - diagnostics go only to a `cl_set_log_callback` sink;
+- the built-in task-queue mutex - inject one via `cl_application_desc_t.mutex`.
+
+**No libc/libm dependency.** The core carries copal-namespaced helpers so it
+references no libc str*/math symbol: `cl_strlen`/`cl_strcmp` (`cstr.c`), the whole
+math surface the renderer and stb_truetype use (`fmath.c`: sqrt/floor/ceil/fabs and
+the SDF-path fmod/cos/acos/pow), and a minimal `cl_vsnprintf` (`format.c`) for the
+log. libm is not linked at all; the sqrt/abs builtins lower to hardware ops under
+`-fno-math-errno`.
+
+**The shim contract.** After the gates the freestanding core references only three
+external symbols - `memcpy`, `memmove`, `memset` - which the compiler emits
+implicitly (struct copies, initialization) and every UEFI toolchain provides (EDK2
+`BaseMemoryLib`, gnu-efi). A CI job (`scripts/check-freestanding-symbols.sh`) builds
+`COPAL_HOSTED=OFF` and fails if any symbol escapes that set, so a new hosted
+dependency cannot slip in.
+
+**Backend responsibilities (out of tree).** The UEFI backend is the app's, the way
+the SDL backend is in-tree. It injects: an allocator (AllocatePool/FreePool); a
+mutex (`cl_mutex_iface_t` over `RaiseTPL`/`RestoreTPL` - a TPL notify callback can
+post into the loop, so the queue still needs mutual exclusion, and
+`cl_application_post` allocates outside the locked region so the lock may run at
+raised TPL); a platform over GOP plus the input/timer protocols; an embedded font;
+and optionally an assert handler (`cl_set_assert_handler`). Build flags mirror the
+CI check - `-ffreestanding -fno-math-errno -D_FORTIFY_SOURCE=0 -fno-stack-protector`
+- plus the UEFI ABI set (`-mno-red-zone`, PE/COFF, MS x64).

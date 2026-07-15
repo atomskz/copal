@@ -355,10 +355,13 @@ DEAD-очередь приложения. Порядок (`widget.c`, `applicati
 
 - Один GUI-поток владеет app/window/widgets/renderer.
 - **`cl_application_post(app, fn, user)`** потокобезопасен: кладёт задачу в
-  очередь под мьютексом (`mutex.c`) и будит цикл через `platform.wakeup()`;
-  очередь **целиком отцепляется под локом и выполняется без лока** (задача может
-  поставить новую — дренируется на следующем проходе, без дедлока); FIFO;
-  недренированные при destroy — отбрасываются.
+  очередь под мьютексом и будит цикл через `platform.wakeup()`; очередь **целиком
+  отцепляется под локом и выполняется без лока** (задача может поставить новую —
+  дренируется на следующем проходе, без дедлока); FIFO; недренированные при destroy
+  — отбрасываются. Мьютекс инжектируемый (`cl_mutex_iface_t` в desc приложения):
+  hosted-сборка по умолчанию берёт pthread / critical section; freestanding-сборка
+  инжектирует свой (на UEFI — `RaiseTPL`/`RestoreTPL`, §19). Узел аллоцируется вне
+  залоченной секции, так что лок может исполняться на поднятом TPL.
 - **Анимации** (`animation.c`, `animation.h`): все живые анимации приложения
   разделяют один repeat-таймер ~60 Гц (создаётся при первой, снимается когда
   список пустеет — idle-цикл продолжает спать). Прогресс — от прошедшего
@@ -621,6 +624,11 @@ stb_truetype растеризует глифы, но не делает shaping, 
   против ~70–83 МБ у GL), работает по RDP и в CI без GPU-драйвера. Плата —
   потолок скорости на тяжёлом/анимированном UI. GL остаётся дефолтом для AUTO
   при наличии; software выбирается через `render_backend`/`COPAL_RENDER`.
+- **ADR-016** **Freestanding-ядро (`COPAL_HOSTED=OFF`)** для UEFI/bare-metal (§19).
+  Ядро несёт свои namespaced str/math/format-хелперы (без libc/libm), гейтит
+  hosted-пути (дефолт-аллокатор, файловые загрузчики шрифта, stderr-лог) и делает
+  мьютекс task-очереди и assert-хендлер инжектируемыми. Остаточная внешняя
+  поверхность — `memcpy/memmove/memset`, что стережёт CI-джоба.
 
 ## 17. Что добавлено на Этапах 6–7 (дельта к MVP-дизайну)
 
@@ -672,3 +680,44 @@ stb_truetype растеризует глифы, но не делает shaping, 
 - Renderer/platform заменяемы (DI, §3.9); округление DPI специфицировано (§8.3).
 - Касты без UB на типах указателей функций (§9); ABI-рукопожатие в `*_desc_t`.
 - Собирается как C; заголовки C++-совместимы (`extern "C"`); экспорт через `CL_API`.
+
+## 19. Freestanding / UEFI
+
+Ядро copal (foundation + software renderer + widgets + layout + text) собирается в
+**freestanding**-окружении (`-ffreestanding`, без hosted C-рантайма) под цели вроде
+UEFI, где software-рендер рисует в линейный framebuffer (GOP) — единственная рабочая
+модель до появления ОС и её GL-драйвера. GL- и SDL-бэкенды hosted-only и в такую
+сборку не входят.
+
+**Ось `COPAL_HOSTED`.** Опция CMake `COPAL_HOSTED` (по умолчанию ON) задаёт
+`CL_HOSTED`. При OFF пути, которым нужен hosted-рантайм, компилируются прочь:
+- дефолтный malloc-аллокатор — `cl_allocator_default()` возвращает NULL, embedder
+  обязан инжектировать свой через `cl_application_desc_t.allocator`;
+- файловые/системные загрузчики шрифта — `cl_font_load_file`/`cl_font_load_system`
+  возвращают `CL_ERROR_UNSUPPORTED`; шрифт грузится из памяти `cl_font_load_memory`;
+- stderr-fallback лога — диагностика идёт только в sink `cl_set_log_callback`;
+- встроенный мьютекс task-очереди — инжектируется через `cl_application_desc_t.mutex`.
+
+**Без зависимости от libc/libm.** Ядро несёт copal-namespaced хелперы и не ссылается
+ни на один libc str*/math-символ: `cl_strlen`/`cl_strcmp` (`cstr.c`), всю math-поверх­
+ность рендера и stb_truetype (`fmath.c`: sqrt/floor/ceil/fabs и SDF-путь
+fmod/cos/acos/pow), и минимальный `cl_vsnprintf` (`format.c`) для лога. libm не
+линкуется вовсе; builtins sqrt/abs ложатся в аппаратные инструкции под
+`-fno-math-errno`.
+
+**Контракт shim.** После гейтов freestanding-ядро ссылается только на три внешних
+символа — `memcpy`, `memmove`, `memset` — которые компилятор эмитит неявно
+(копирование структур, инициализация) и которые даёт любой UEFI-toolchain (EDK2
+`BaseMemoryLib`, gnu-efi). CI-джоба (`scripts/check-freestanding-symbols.sh`) собирает
+`COPAL_HOSTED=OFF` и падает, если хоть один символ вышел за это множество, — новая
+hosted-зависимость не пролезет.
+
+**Ответственность бэкенда (вне дерева).** UEFI-бэкенд — приложения, как SDL-бэкенд
+внутри дерева. Он инжектирует: аллокатор (AllocatePool/FreePool); мьютекс
+(`cl_mutex_iface_t` поверх `RaiseTPL`/`RestoreTPL` — TPL-notify-колбэк может класть в
+очередь, поэтому ей всё ещё нужно взаимное исключение, а `cl_application_post`
+аллоцирует вне залоченной секции, так что лок может исполняться на поднятом TPL);
+платформу поверх GOP плюс протоколы ввода/таймера; встроенный шрифт; и опционально
+assert-хендлер (`cl_set_assert_handler`). Флаги сборки повторяют CI-проверку —
+`-ffreestanding -fno-math-errno -D_FORTIFY_SOURCE=0 -fno-stack-protector` — плюс
+UEFI-ABI набор (`-mno-red-zone`, PE/COFF, MS x64).

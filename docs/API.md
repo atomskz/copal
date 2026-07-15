@@ -241,10 +241,15 @@ does not own it.
   cl_result_t cl_last_error(void);
   const char *cl_result_string(cl_result_t result);
   void        cl_set_log_callback(cl_log_fn fn, void *user);
+  void        cl_set_assert_handler(cl_assert_fn fn); /* (expr, file, line) */
   ```
 - The log callback is the **only** logging mechanism (process-wide); it receives
   library diagnostics (backend failures, GL shader errors, rejected fonts).
-  Without a callback, WARN/ERROR go to stderr.
+  Without a callback, WARN/ERROR go to stderr (hosted only).
+- `cl_set_assert_handler` installs the handler for a failed `CL_ASSERT` (debug
+  builds). The hosted default logs and aborts; a freestanding embedder installs
+  one to report and halt (there is no libc assert). Assertions are compiled out
+  in release (NDEBUG).
 - Simple setters are `void` and validate/clamp their input.
 - Codes: `CL_ERROR_INVALID_ARGUMENT`, `CL_ERROR_OUT_OF_MEMORY`, `CL_ERROR_PLATFORM`,
   `CL_ERROR_RENDERER`, `CL_ERROR_FONT`, `CL_ERROR_UNSUPPORTED`, `CL_ERROR_ABI_MISMATCH`.
@@ -328,12 +333,24 @@ typedef enum cl_render_backend {
     CL_RENDER_SOFTWARE   /* CPU rasterizer, no GPU context */
 } cl_render_backend_t;
 
+/* Injectable mutex for the cross-thread task queue (cl_application_post).
+ * NULL uses the hosted default (pthread / critical section); a freestanding
+ * build has no default and must inject one (on UEFI: RaiseTPL/RestoreTPL). */
+typedef struct cl_mutex_iface {
+    void *(*create)(void *user);
+    void  (*destroy)(void *user, void *handle);
+    void  (*lock)(void *user, void *handle);
+    void  (*unlock)(void *user, void *handle);
+    void  *user;
+} cl_mutex_iface_t;
+
 typedef struct cl_application_desc {
     uint32_t abi_version; size_t struct_size;
-    const cl_allocator_t *allocator;      /* NULL -> built-in malloc */
+    const cl_allocator_t *allocator;      /* NULL -> built-in malloc (none freestanding) */
     cl_platform_t        *platform;       /* backend DI; ownership → app */
     cl_renderer_t        *renderer;       /* backend DI; ownership → app */
     cl_render_backend_t   render_backend; /* built-in backend choice (0 = AUTO) */
+    const cl_mutex_iface_t *mutex;        /* NULL -> hosted default (see above) */
 } cl_application_desc_t;
 #define CL_APPLICATION_DESC_INIT \
     { .abi_version = COPAL_VERSION, .struct_size = sizeof(cl_application_desc_t) }
