@@ -82,6 +82,18 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  # Freestanding symbol contract: with COPAL_HOSTED=OFF the core must reference
+  # no external symbol beyond the residual mem* the target provides. Guards
+  # against a new hosted dependency (malloc/fopen/pthread/libm) creeping in.
+  freestanding:
+    name: linux freestanding symbol contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Enforce the freestanding symbol surface
+        run: sh scripts/check-freestanding-symbols.sh
+
   benchmarks:
     name: linux gcc benchmarks
     runs-on: ubuntu-24.04
