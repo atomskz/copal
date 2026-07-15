@@ -5,6 +5,8 @@
 
 #include "core/foundation/foundation_internal.h"
 
+#ifdef CL_HOSTED
+
 #if defined(_WIN32)
 #  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
@@ -96,4 +98,47 @@ void cl_mutex_unlock(cl_mutex_t *m)
     pthread_mutex_unlock(&m->m);
 }
 
-#endif
+#endif /* _WIN32 / POSIX */
+
+/* Built-in iface: wrap the functions above. `user` carries the allocator. */
+static void *builtin_create(void *user)
+{
+    return cl_mutex_create((const cl_allocator_t *)user);
+}
+static void builtin_destroy(void *user, void *h)
+{
+    (void)user;
+    cl_mutex_destroy((cl_mutex_t *)h);
+}
+static void builtin_lock(void *user, void *h)
+{
+    (void)user;
+    cl_mutex_lock((cl_mutex_t *)h);
+}
+static void builtin_unlock(void *user, void *h)
+{
+    (void)user;
+    cl_mutex_unlock((cl_mutex_t *)h);
+}
+
+void cl_mutex_builtin_iface(cl_mutex_iface_t *out)
+{
+    out->create = builtin_create;
+    out->destroy = builtin_destroy;
+    out->lock = builtin_lock;
+    out->unlock = builtin_unlock;
+    out->user = NULL; /* the application sets this to its allocator */
+}
+
+#else /* !CL_HOSTED: no built-in mutex; the embedder injects one */
+
+void cl_mutex_builtin_iface(cl_mutex_iface_t *out)
+{
+    out->create = NULL;
+    out->destroy = NULL;
+    out->lock = NULL;
+    out->unlock = NULL;
+    out->user = NULL;
+}
+
+#endif /* CL_HOSTED */

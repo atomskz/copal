@@ -152,11 +152,14 @@ if(NOT MSVC)
     target_compile_options(copal PRIVATE -fno-math-errno)
 endif()
 
-# Cross-thread task queue (cl_application_post) uses a mutex; PUBLIC so headless
-# consumers that post from their own threads inherit the pthread flags.
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
-target_link_libraries(copal PUBLIC Threads::Threads)
+# The hosted build's default task-queue mutex uses pthreads; PUBLIC so headless
+# consumers that post from their own threads inherit the flags. The freestanding
+# build has no built-in mutex (the embedder injects one), so it needs no threads.
+if(COPAL_HOSTED)
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries(copal PUBLIC Threads::Threads)
+endif()
 
 # Native backend: SDL2 platform. The SDL platform (including the OpenGL-free
 # software window) needs only SDL2; the OpenGL renderer is added on top when
@@ -212,7 +215,9 @@ target_compile_definitions(copal PRIVATE COPAL_BUILDING)
 # builds the freestanding core - the embedder injects the allocator and mutex
 # and loads fonts from memory (see docs, freestanding/UEFI).
 if(COPAL_HOSTED)
-    target_compile_definitions(copal PRIVATE CL_HOSTED)
+    # PUBLIC so white-box tests and the mock library, which include internal
+    # headers gated on CL_HOSTED (e.g. the built-in mutex), see the same value.
+    target_compile_definitions(copal PUBLIC CL_HOSTED)
 else()
     message(STATUS "copal: COPAL_HOSTED=OFF - freestanding core "
                    "(inject allocator/mutex; load fonts from memory)")
@@ -353,7 +358,7 @@ if(COPAL_ENABLE_INSTALL)
         set(COPAL_PC_REQUIRES_PRIVATE "sdl2")
     endif()
     set(COPAL_PC_LIBS_PRIVATE "")
-    if(NOT WIN32)
+    if(NOT WIN32 AND COPAL_HOSTED)
         set(COPAL_PC_LIBS_PRIVATE "-pthread")
     endif()
     if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)

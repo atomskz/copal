@@ -28,8 +28,9 @@ struct cl_application {
     cl_animation_t *animations; /* owned; running animations (animation.c) */
     cl_timer_t *anim_timer;     /* shared ~60 Hz ticker, NULL while idle */
     bool anim_firing;           /* true while ticking: defers animation reap */
-    cl_mutex_t *task_mutex; /* guards the cross-thread task queue */
-    cl_task_t *task_head;   /* FIFO of posted tasks (guarded) */
+    cl_mutex_iface_t mtx; /* effective mutex iface (injected or built-in) */
+    void *task_mutex;     /* opaque handle from mtx.create; NULL if no mutex */
+    cl_task_t *task_head; /* FIFO of posted tasks (guarded) */
     cl_task_t *task_tail;
     cl_widget_t *dead; /* deferred-destruction chain (via next_sibling) */
     bool quit;

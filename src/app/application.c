@@ -126,9 +126,20 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
     if (!app->theme)
         goto fail;
 
-    app->task_mutex = cl_mutex_create(&app->alloc);
-    if (!app->task_mutex)
-        goto fail;
+    /* Cross-thread task queue mutex: an injected iface wins; otherwise the
+     * hosted built-in (NULL on freestanding, where cl_application_post is then
+     * unsupported unless the embedder injects one). */
+    if (desc->mutex && desc->mutex->create) {
+        app->mtx = *desc->mutex;
+    } else {
+        cl_mutex_builtin_iface(&app->mtx);
+        app->mtx.user = &app->alloc;
+    }
+    if (app->mtx.create) {
+        app->task_mutex = app->mtx.create(app->mtx.user);
+        if (!app->task_mutex)
+            goto fail;
+    }
     return app;
 
 fail:
@@ -204,7 +215,8 @@ void cl_application_destroy(cl_application_t *app)
             t = next;
         }
         app->task_head = app->task_tail = NULL;
-        cl_mutex_destroy(app->task_mutex);
+        if (app->mtx.destroy)
+            app->mtx.destroy(app->mtx.user, app->task_mutex);
         app->task_mutex = NULL;
     }
     if (app->theme)
@@ -364,13 +376,13 @@ cl_result_t cl_application_post(cl_application_t *app, cl_task_fn fn, void *user
     t->user = user;
     t->next = NULL;
 
-    cl_mutex_lock(app->task_mutex);
+    app->mtx.lock(app->mtx.user, app->task_mutex);
     if (app->task_tail)
         app->task_tail->next = t;
     else
         app->task_head = t;
     app->task_tail = t;
-    cl_mutex_unlock(app->task_mutex);
+    app->mtx.unlock(app->mtx.user, app->task_mutex);
 
     /* Wake a blocked run loop so the task is drained promptly. */
     if (app->platform->ops->wakeup)
@@ -386,11 +398,11 @@ void cl_app_run_tasks(cl_application_t *app)
         return;
     /* Detach the whole queue under the lock, then run tasks WITHOUT holding it
      * so a task may post more work (drained on the next pass) without deadlock. */
-    cl_mutex_lock(app->task_mutex);
+    app->mtx.lock(app->mtx.user, app->task_mutex);
     t = app->task_head;
     app->task_head = NULL;
     app->task_tail = NULL;
-    cl_mutex_unlock(app->task_mutex);
+    app->mtx.unlock(app->mtx.user, app->task_mutex);
 
     while (t) {
         cl_task_t *next = t->next;

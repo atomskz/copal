@@ -49,6 +49,23 @@ typedef enum cl_render_backend {
  * cl_application_destroy). When it returns NULL, injected backends are NOT
  * destroyed - they stay with the caller, who may retry or free them.
  */
+/*
+ * Injectable mutex for the cross-thread task queue (cl_application_post).
+ * Optional on the hosted build - a pthread / critical-section default is used
+ * when the desc leaves it NULL. On a freestanding build there is no default:
+ * an embedder that wants cl_application_post must inject one (on UEFI this is
+ * RaiseTPL/RestoreTPL, since a TPL notify callback can post into the loop, so
+ * the queue still needs mutual exclusion). create() returns an opaque handle;
+ * lock()/unlock() bracket a tiny critical section and must not allocate.
+ */
+typedef struct cl_mutex_iface {
+    void *(*create)(void *user);
+    void (*destroy)(void *user, void *handle);
+    void (*lock)(void *user, void *handle);
+    void (*unlock)(void *user, void *handle);
+    void *user;
+} cl_mutex_iface_t;
+
 typedef struct cl_application_desc {
     uint32_t abi_version;
     size_t struct_size;
@@ -56,6 +73,7 @@ typedef struct cl_application_desc {
     cl_platform_t *platform; /* injected backend; see ownership note above */
     cl_renderer_t *renderer; /* injected backend; see ownership note above */
     cl_render_backend_t render_backend; /* built-in backend choice (0 = AUTO) */
+    const cl_mutex_iface_t *mutex; /* NULL -> hosted default; see above */
 } cl_application_desc_t;
 
 /* Service fields for a designated initializer / compound literal (the same
