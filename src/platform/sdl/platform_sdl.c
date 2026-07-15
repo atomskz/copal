@@ -399,7 +399,7 @@ static char *sdl_clipboard_get(cl_platform_t *p, const cl_allocator_t *a)
         SDL_free(sdl_text);
         return NULL;
     }
-    n = strlen(sdl_text) + 1;
+    n = cl_strlen(sdl_text) + 1;
     out = cl_alloc(a, n);
     if (out)
         memcpy(out, sdl_text, n);

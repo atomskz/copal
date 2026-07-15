@@ -340,7 +340,7 @@ cl_result_t cl_menu_add_item(cl_widget_t *menu, const char *text,
         m->cap = nc;
     }
 
-    n = strlen(text) + 1;
+    n = cl_strlen(text) + 1;
     dup = cl_alloc(a, n);
     if (!dup)
         return CL_ERROR_OUT_OF_MEMORY;

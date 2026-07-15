@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "platform/mock/platform_mock.h"
+#include "core/foundation/foundation_internal.h" /* cl_strlen */
 
 #include <string.h>
 
@@ -110,7 +111,7 @@ static char *mock_clipboard_get(cl_platform_t *p, const cl_allocator_t *a)
 
     if (!m->clipboard)
         return NULL;
-    n = strlen(m->clipboard) + 1;
+    n = cl_strlen(m->clipboard) + 1;
     out = cl_alloc(a, n);
     if (out)
         memcpy(out, m->clipboard, n);
@@ -124,7 +125,7 @@ static void mock_clipboard_set(cl_platform_t *p, const char *utf8)
     char *copy = NULL;
 
     if (utf8) {
-        n = strlen(utf8) + 1;
+        n = cl_strlen(utf8) + 1;
         copy = cl_alloc(m->a, n);
         if (copy)
             memcpy(copy, utf8, n);

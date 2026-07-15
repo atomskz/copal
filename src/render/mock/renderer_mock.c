@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "render/mock/renderer_mock.h"
+#include "core/foundation/foundation_internal.h" /* cl_strlen */
 
 #include <string.h>
 
@@ -166,7 +167,7 @@ static void mock_draw_text(cl_renderer_t *r, cl_font_t *font, const char *utf8,
     c.pos = pos;
     c.color = color;
     if (utf8) {
-        size_t n = strlen(utf8);
+        size_t n = cl_strlen(utf8);
         if (n >= sizeof(c.text))
             n = sizeof(c.text) - 1;
         memcpy(c.text, utf8, n);

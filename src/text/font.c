@@ -293,7 +293,7 @@ cl_size_t cl_text_measure_bytes(cl_font_t *font, const char *utf8, size_t len,
 
 cl_size_t cl_text_measure(cl_font_t *font, const char *utf8, float max_width)
 {
-    size_t len = utf8 ? strlen(utf8) : 0;
+    size_t len = utf8 ? cl_strlen(utf8) : 0;
 
     return cl_text_measure_bytes(font, utf8, len, max_width);
 }

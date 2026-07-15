@@ -811,7 +811,7 @@ static bool edit_commit(cl_textbox_t *tb, tb_edit_kind_t kind)
 
     if (!tb->pending)
         return false;
-    changed = strcmp(tb->pending, tb->buf) != 0;
+    changed = cl_strcmp(tb->pending, tb->buf) != 0;
     if (!changed || (kind == tb->coalesce && kind != TB_EDIT_OTHER)) {
         cl_free(a, tb->pending);
         tb->pending = NULL;
@@ -832,7 +832,7 @@ static void edit_break(cl_textbox_t *tb)
 
 static void restore_snapshot(cl_textbox_t *tb, const tb_snapshot_t *snap)
 {
-    size_t n = strlen(snap->text);
+    size_t n = cl_strlen(snap->text);
 
     if (!ensure_cap(tb, n + 1))
         return;
@@ -984,7 +984,7 @@ static void textbox_paint_multi(cl_widget_t *w, cl_paint_context_t *ctx,
     }
 
     if (composing) {
-        size_t pb = byte_offset_of_cp(tb->preedit, strlen(tb->preedit),
+        size_t pb = byte_offset_of_cp(tb->preedit, cl_strlen(tb->preedit),
                                       (size_t)tb->preedit_cursor);
         float cxp = text_x + caret_cx +
                     cl_text_measure_bytes(font, tb->preedit, pb, CL_UNBOUNDED).w;
@@ -1087,7 +1087,7 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
         if (tb->buf[tb->cursor])
             cl_paint_draw_text(ctx, font, tb->buf + tb->cursor,
                                (cl_point_t){ px + pw, text_y }, tc);
-        pb = byte_offset_of_cp(tb->preedit, strlen(tb->preedit),
+        pb = byte_offset_of_cp(tb->preedit, cl_strlen(tb->preedit),
                                (size_t)tb->preedit_cursor);
         cl_paint_fill_rect(
             ctx,
@@ -1414,7 +1414,7 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
                          * newline-only clipboard) must not fire on_changed */
                         if (clip[0]) {
                             edit_begin(tb);
-                            insert_text(tb, clip, strlen(clip));
+                            insert_text(tb, clip, cl_strlen(clip));
                             commit = TB_EDIT_OTHER;
                         }
                         cl_free(cl_application_allocator(w->app), clip);
@@ -1527,7 +1527,7 @@ static bool textbox_text_input(cl_widget_t *w, const cl_event_t *ev)
         return true;
     tb_clear_preedit(tb); /* the composition is committed by this input */
     edit_begin(tb);
-    insert_text(tb, s, strlen(s));
+    insert_text(tb, s, cl_strlen(s));
     changed = edit_commit(tb, TB_EDIT_TYPE); /* true only when bytes changed */
     update_scroll(tb);
     tb_update_ime_rect(tb);
@@ -1569,7 +1569,7 @@ static void textbox_destroy(cl_widget_t *w)
 
 static void set_text_internal(cl_textbox_t *tb, const char *utf8)
 {
-    size_t n = utf8 ? strlen(utf8) : 0;
+    size_t n = utf8 ? cl_strlen(utf8) : 0;
 
     if (tb->max_length && cp_count(utf8, n) > tb->max_length)
         n = byte_offset_of_cp(utf8, n, tb->max_length);

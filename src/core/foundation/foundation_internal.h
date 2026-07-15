@@ -47,6 +47,15 @@ void cl_desc_fill(void *dst, size_t dst_size, const void *src, size_t src_size);
 char *cl_strdup(const cl_allocator_t *a, const char *s);
 
 /*
+ * Freestanding string helpers. The library uses only these (never libc strlen/
+ * strcmp), so a freestanding build depends on no <string.h> str* function. The
+ * mem* family (memcpy/memmove/memset) is deliberately NOT wrapped: the compiler
+ * emits those implicitly and every target/toolchain provides them.
+ */
+size_t cl_strlen(const char *s);
+int cl_strcmp(const char *a, const char *b);
+
+/*
  * Diagnostics channel: formats the message and hands it to the process-wide
  * cl_set_log_callback() sink; without one, WARN and ERROR go to stderr.
  */

@@ -76,7 +76,7 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
         if (desc->render_backend == CL_RENDER_AUTO) {
             const char *env = getenv("COPAL_RENDER");
 
-            if (env && strcmp(env, "software") == 0)
+            if (env && cl_strcmp(env, "software") == 0)
                 software = true;
         }
         if (software) {

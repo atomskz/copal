@@ -422,7 +422,7 @@ void cl_widget_set_tooltip(cl_widget_t *w, const char *utf8)
     cl_free(a, w->tooltip);
     w->tooltip = NULL;
     if (utf8 && utf8[0]) {
-        size_t n = strlen(utf8) + 1;
+        size_t n = cl_strlen(utf8) + 1;
 
         w->tooltip = cl_alloc(a, n);
         if (w->tooltip)

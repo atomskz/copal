@@ -86,7 +86,7 @@ char *cl_strdup(const cl_allocator_t *a, const char *s)
 
     if (!s)
         return NULL;
-    n = strlen(s) + 1;
+    n = cl_strlen(s) + 1;
     p = cl_alloc(a, n);
     if (p)
         memcpy(p, s, n);

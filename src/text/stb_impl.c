@@ -11,6 +11,7 @@
  * stb_truetype.h, so the paired ones (sqrt+pow, cos+acos) are defined together.
  * cos/acos/fmod/pow are reached only from the SDF path, which copal never uses. */
 #include "core/foundation/fmath.h"
+#include "core/foundation/foundation_internal.h" /* cl_strlen for STBTT_strlen */
 #define STBTT_ifloor(x) ((int)cl_floor(x))
 #define STBTT_iceil(x) ((int)cl_ceil(x))
 #define STBTT_sqrt(x) cl_sqrt(x)
@@ -19,6 +20,7 @@
 #define STBTT_cos(x) cl_cos(x)
 #define STBTT_acos(x) cl_acos(x)
 #define STBTT_fabs(x) cl_fabs(x)
+#define STBTT_strlen(x) cl_strlen(x)
 
 #if defined(_MSC_VER)
 #  pragma warning(push, 0)
