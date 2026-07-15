@@ -40,6 +40,8 @@ int main(void)
     chk("%d %d %d", 0, INT_MAX, INT_MIN);
     chk("%u", 4000000000u);
     chk("hex %x upper %X", 0xdeadbeefu, 0xABCu);
+    chk("oct %o and %o", 0u, 511u);
+    chk("%lo", 0777777UL);
     chk("%c%c", 'O', 'K');
     chk("100%% done");
     chk("null=%s", (char *)NULL); /* both print "(null)" */

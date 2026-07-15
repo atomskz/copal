@@ -1,11 +1,14 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * Minimal vsnprintf for the freestanding core: the log path formats its message
- * without libc. Supports %s %d/%i %u %x/%X %p %c %% with the l/ll/z length
+ * without libc. Supports %s %d/%i %u %o %x/%X %p %c %% with the l/ll/z length
  * modifiers; flags/width/precision are parsed and ignored (copal's log strings
- * use none), and an unknown conversion is emitted verbatim. No floating point.
- * Always NUL-terminates and never writes past @size; returns the length the
- * output would have had (like C vsnprintf).
+ * use none). copal formats no floating point, but a float conversion
+ * (%f/%F/%e/%E/%g/%G/%a/%A) still consumes its double argument and echoes the
+ * specifier verbatim, so any later conversions stay aligned. Any other unknown
+ * conversion is echoed verbatim and consumes no argument (callers must not pass
+ * one). Always NUL-terminates and never writes past @size; returns the length
+ * the output would have had (like C vsnprintf).
  */
 #include "core/foundation/foundation_internal.h"
 
@@ -112,15 +115,17 @@ size_t cl_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
                 put_int(buf, size, &n, v);
                 break;
             }
+            case 'o':
             case 'u':
             case 'x':
             case 'X': {
+                unsigned base = c == 'o' ? 8u : c == 'u' ? 10u : 16u;
                 unsigned long long v =
                     lng == 3   ? (unsigned long long)va_arg(ap, size_t)
                     : lng == 2 ? va_arg(ap, unsigned long long)
                     : lng == 1 ? va_arg(ap, unsigned long)
                                : va_arg(ap, unsigned int);
-                put_uint(buf, size, &n, v, c == 'u' ? 10u : 16u, c == 'X');
+                put_uint(buf, size, &n, v, base, c == 'X');
                 break;
             }
             case 'p':
@@ -135,10 +140,25 @@ size_t cl_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
             case '%':
                 put(buf, size, &n, '%');
                 break;
+            case 'f':
+            case 'F':
+            case 'e':
+            case 'E':
+            case 'g':
+            case 'G':
+            case 'a':
+            case 'A':
+                /* No floating-point formatting (freestanding, by design), but
+                 * consume the double so later conversions stay aligned, and
+                 * echo the specifier verbatim. */
+                (void)va_arg(ap, double);
+                put(buf, size, &n, '%');
+                put(buf, size, &n, c);
+                break;
             case '\0':
                 fmt--; /* trailing '%': stop cleanly on the next loop test */
                 break;
-            default: /* unknown conversion: emit it verbatim */
+            default: /* unknown conversion: emit it verbatim (consumes no arg) */
                 put(buf, size, &n, '%');
                 put(buf, size, &n, c);
                 break;

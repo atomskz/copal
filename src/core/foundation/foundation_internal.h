@@ -67,8 +67,10 @@ void cl_log(cl_log_level_t level, const char *fmt, ...);
 
 /*
  * Minimal vsnprintf used by the log path (freestanding, no libc). Supports
- * %s %d/%i %u %x/%X %p %c %% with l/ll/z; no floating point. Always
- * NUL-terminates within @size and returns the would-be length.
+ * %s %d/%i %u %o %x/%X %p %c %% with l/ll/z. No floating point: a
+ * %f/%e/%g/%a consumes its double and is echoed verbatim (so later args stay
+ * aligned); any other unknown conversion is echoed verbatim and consumes
+ * nothing. Always NUL-terminates within @size and returns the would-be length.
  */
 size_t cl_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap);
 
