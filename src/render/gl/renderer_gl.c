@@ -385,7 +385,7 @@ static glyph_t *get_glyph(gl_renderer_t *r, cl_font_t *font, uint32_t cp,
         }
         if (r->pen_y + h + 1 > ATLAS_H && !force) {
             /* Atlas full: ask the caller to flush + reset and retry. */
-            stbtt_FreeBitmap(bmp, NULL);
+            stbtt_FreeBitmap(bmp, info->userdata);
             r->cache_full = true;
             return NULL;
         }
@@ -415,7 +415,7 @@ static glyph_t *get_glyph(gl_renderer_t *r, cl_font_t *font, uint32_t cp,
             r->row_h = h;
     }
     if (bmp)
-        stbtt_FreeBitmap(bmp, NULL);
+        stbtt_FreeBitmap(bmp, info->userdata);
     return g;
 }
 

@@ -21,6 +21,10 @@
 #define STBTT_acos(x) cl_acos(x)
 #define STBTT_fabs(x) cl_fabs(x)
 #define STBTT_strlen(x) cl_strlen(x)
+/* Allocate through the injected allocator (threaded via fontinfo.userdata),
+ * so font rasterization never touches the CRT malloc/free. */
+#define STBTT_malloc(sz, u) cl_alloc((const cl_allocator_t *)(u), (sz))
+#define STBTT_free(p, u) cl_free((const cl_allocator_t *)(u), (p))
 
 #if defined(_MSC_VER)
 #  pragma warning(push, 0)

@@ -510,7 +510,7 @@ static soft_glyph_t *soft_get_glyph(soft_renderer_t *r, cl_font_t *font,
         }
     }
     if (bmp)
-        stbtt_FreeBitmap(bmp, NULL);
+        stbtt_FreeBitmap(bmp, info->userdata);
     return g;
 }
 

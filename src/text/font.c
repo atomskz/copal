@@ -86,6 +86,10 @@ static cl_font_t *font_from_data(cl_application_t *app,
         return NULL;
     }
 
+    /* stb_truetype threads this through to STBTT_malloc/STBTT_free, so its
+     * rasterization allocates through the injected allocator, not the CRT. */
+    f->info.userdata = (void *)f->a;
+
     f->px = size_px;
     f->scale = stbtt_ScaleForPixelHeight(&f->info, size_px);
     stbtt_GetFontVMetrics(&f->info, &asc, &desc, &gap);
