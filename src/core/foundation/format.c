@@ -129,6 +129,8 @@ size_t cl_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
                 break;
             }
             case 'p':
+                /* "0x" + lowercase hex, no zero-padding (NULL prints as 0x0).
+                 * Stable across targets; not byte-identical to every libc %p. */
                 put_str(buf, size, &n, "0x");
                 put_uint(buf, size, &n, (unsigned long long)(uintptr_t)va_arg(
                                             ap, void *),
