@@ -5,6 +5,12 @@
  * emitted); floor/ceil/fmod are exact bit/arithmetic tricks; the transcendentals
  * are compact approximations sufficient for font rasterization. On MSVC (a
  * hosted Windows target, never freestanding) the CRT math is used for sqrt.
+ *
+ * fmod/cos/acos/pow are reached only from stb_truetype's SDF path, which copal
+ * never invokes at run time. But stb references those symbols from the same
+ * translation unit as the glyph rasterizer copal does use, so the helpers must
+ * exist to keep libm off the freestanding symbol surface. Runtime-dead,
+ * link-live: do not drop them (or their tests) as unused.
  */
 #include "core/foundation/fmath.h"
 
