@@ -83,6 +83,16 @@ void cl_log(cl_log_level_t level, const char *fmt, ...)
     char msg[256];
     va_list ap;
 
+#ifndef CL_HOSTED
+    /* Freestanding: the callback is the only sink. With none installed the
+     * message is dropped, so skip formatting it entirely. The embedder should
+     * install one via cl_set_log_callback to surface diagnostics. */
+    if (!g_log_fn) {
+        (void)level;
+        (void)fmt;
+        return;
+    }
+#endif
     va_start(ap, fmt);
     cl_vsnprintf(msg, sizeof(msg), fmt, ap);
     va_end(ap);
@@ -94,9 +104,5 @@ void cl_log(cl_log_level_t level, const char *fmt, ...)
     /* No sink installed: keep problems visible on the hosted build. */
     if (level >= CL_LOG_WARN)
         fprintf(stderr, "copal: %s\n", msg);
-#else
-    /* Freestanding: without a sink the message is dropped - the embedder should
-     * install one via cl_set_log_callback to surface diagnostics. */
-    (void)level;
 #endif
 }
