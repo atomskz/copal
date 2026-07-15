@@ -206,14 +206,14 @@ static double fm_exp(double x)
     int ki = (int)k;
 
     r = x - k * CL_LN2;
+    if (ki < -1022)
+        return 0.0; /* 2^ki underflows to zero; skip the polynomial */
     er = 1.0 +
          r * (1.0 +
               r * (0.5 +
                    r * (1.0 / 6.0 +
                         r * (1.0 / 24.0 +
                              r * (1.0 / 120.0 + r * (1.0 / 720.0))))));
-    if (ki < -1022)
-        return 0.0;
     if (ki > 1023)
         ki = 1023;
     v.u = (uint64_t)(ki + 1023) << 52; /* 2^ki */
