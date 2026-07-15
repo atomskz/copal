@@ -73,6 +73,21 @@ void cl_log(cl_log_level_t level, const char *fmt, ...);
 size_t cl_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap);
 
 /*
+ * Assertion: CL_ASSERT(cond) is a no-op in release (NDEBUG); otherwise a failed
+ * condition calls cl_assert_fail, which dispatches to the installed handler
+ * (cl_set_assert_handler). The hosted default logs and aborts; a freestanding
+ * build with no handler halts. Kept out of the hot paths' release builds so it
+ * costs nothing there.
+ */
+void cl_assert_fail(const char *expr, const char *file, int line);
+#ifdef NDEBUG
+#define CL_ASSERT(cond) ((void)0)
+#else
+#define CL_ASSERT(cond) \
+    ((cond) ? (void)0 : cl_assert_fail(#cond, __FILE__, __LINE__))
+#endif
+
+/*
  * Decode one UTF-8 codepoint from @s into @cp. Returns the number of bytes
  * consumed, or 0 at the terminating NUL. Invalid sequences yield U+FFFD and
  * consume one byte. @s must be NUL-terminated.

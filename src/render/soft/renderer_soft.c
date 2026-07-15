@@ -7,7 +7,6 @@
 
 #include "stb_truetype.h"
 
-#include <assert.h>
 #include <string.h>
 
 #define SOFT_MAX_GLYPHS 512
@@ -182,7 +181,7 @@ static void blend_px(soft_renderer_t *r, int ix, int iy, cl_color_t color,
     uint32_t d;
     int dr, dg, db;
 
-    assert(ix >= 0 && iy >= 0); /* clip_ibounds clamped the caller's bounds */
+    CL_ASSERT(ix >= 0 && iy >= 0); /* clip_ibounds clamped the caller's bounds */
     if (a <= 0.0f)
         return;
     p = (uint32_t *)(r->px + (size_t)iy * (size_t)r->pitch + (size_t)ix * 4);

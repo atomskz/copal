@@ -45,6 +45,17 @@ CL_API const char *cl_result_string(cl_result_t result);
  */
 CL_API void cl_set_log_callback(cl_log_fn fn, void *user);
 
+/** Assertion handler: called when a CL_ASSERT fails in a debug build. */
+typedef void (*cl_assert_fn)(const char *expr, const char *file, int line);
+
+/**
+ * cl_set_assert_handler() - install a process-wide assertion handler (NULL
+ * removes). On the hosted build the default logs the failure and aborts; a
+ * freestanding embedder should install one to report and halt (there is no
+ * libc assert). Assertions are compiled out entirely in release (NDEBUG).
+ */
+CL_API void cl_set_assert_handler(cl_assert_fn fn);
+
 #ifdef __cplusplus
 }
 #endif

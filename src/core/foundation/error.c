@@ -4,7 +4,8 @@
 #include <stdarg.h>
 #include <stddef.h>
 #ifdef CL_HOSTED
-#include <stdio.h> /* stderr fallback when no log sink is installed */
+#include <stdio.h>  /* stderr fallback when no log sink is installed */
+#include <stdlib.h> /* abort() in the default assert handler */
 #endif
 
 #include "foundation_internal.h"
@@ -18,6 +19,7 @@
 static CL_THREAD_LOCAL cl_result_t g_last_error = CL_OK;
 static cl_log_fn g_log_fn;
 static void *g_log_user;
+static cl_assert_fn g_assert_fn;
 
 void cl_set_last_error(cl_result_t result)
 {
@@ -49,6 +51,31 @@ void cl_set_log_callback(cl_log_fn fn, void *user)
 {
     g_log_fn = fn;
     g_log_user = user;
+}
+
+void cl_set_assert_handler(cl_assert_fn fn)
+{
+    g_assert_fn = fn;
+}
+
+void cl_assert_fail(const char *expr, const char *file, int line)
+{
+    if (g_assert_fn) {
+        g_assert_fn(expr, file, line);
+        return;
+    }
+#ifdef CL_HOSTED
+    cl_log(CL_LOG_ERROR, "assertion failed: %s (%s:%d)", expr, file, line);
+    abort();
+#else
+    /* Freestanding with no handler installed: nothing we can safely do but
+     * stop. The embedder should install one via cl_set_assert_handler. */
+    (void)expr;
+    (void)file;
+    (void)line;
+    for (;;) {
+    }
+#endif
 }
 
 void cl_log(cl_log_level_t level, const char *fmt, ...)

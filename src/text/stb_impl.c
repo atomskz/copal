@@ -25,6 +25,7 @@
  * so font rasterization never touches the CRT malloc/free. */
 #define STBTT_malloc(sz, u) cl_alloc((const cl_allocator_t *)(u), (sz))
 #define STBTT_free(p, u) cl_free((const cl_allocator_t *)(u), (p))
+#define STBTT_assert(x) CL_ASSERT(x)
 
 #if defined(_MSC_VER)
 #  pragma warning(push, 0)
