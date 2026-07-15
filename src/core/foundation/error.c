@@ -3,7 +3,9 @@
 
 #include <stdarg.h>
 #include <stddef.h>
-#include <stdio.h>
+#ifdef CL_HOSTED
+#include <stdio.h> /* stderr fallback when no log sink is installed */
+#endif
 
 #include "foundation_internal.h"
 
@@ -55,13 +57,19 @@ void cl_log(cl_log_level_t level, const char *fmt, ...)
     va_list ap;
 
     va_start(ap, fmt);
-    vsnprintf(msg, sizeof(msg), fmt, ap);
+    cl_vsnprintf(msg, sizeof(msg), fmt, ap);
     va_end(ap);
     if (g_log_fn) {
         g_log_fn(level, msg, g_log_user);
         return;
     }
-    /* No sink installed: keep problems visible. */
+#ifdef CL_HOSTED
+    /* No sink installed: keep problems visible on the hosted build. */
     if (level >= CL_LOG_WARN)
         fprintf(stderr, "copal: %s\n", msg);
+#else
+    /* Freestanding: without a sink the message is dropped - the embedder should
+     * install one via cl_set_log_callback to surface diagnostics. */
+    (void)level;
+#endif
 }

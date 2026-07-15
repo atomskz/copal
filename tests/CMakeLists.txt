@@ -35,6 +35,7 @@ endfunction()
 
 copal_add_test(foundation)
 copal_add_test(fmath)
+copal_add_test(format)
 # The freestanding cl_* math is checked against libm, which the test (not the
 # library) links for the reference values.
 if(NOT WIN32)

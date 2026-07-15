@@ -87,6 +87,7 @@ set(COPAL_SOURCES
     src/core/foundation/allocator.c
     src/core/foundation/cstr.c
     src/core/foundation/fmath.c
+    src/core/foundation/format.c
     src/core/foundation/utf8.c
     src/core/foundation/mutex.c
     src/text/font.c

@@ -2,6 +2,7 @@
 #ifndef CL_FOUNDATION_INTERNAL_H
 #define CL_FOUNDATION_INTERNAL_H
 
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -63,6 +64,13 @@ int cl_strcmp(const char *a, const char *b);
 __attribute__((format(printf, 2, 3)))
 #endif
 void cl_log(cl_log_level_t level, const char *fmt, ...);
+
+/*
+ * Minimal vsnprintf used by the log path (freestanding, no libc). Supports
+ * %s %d/%i %u %x/%X %p %c %% with l/ll/z; no floating point. Always
+ * NUL-terminates within @size and returns the would-be length.
+ */
+size_t cl_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap);
 
 /*
  * Decode one UTF-8 codepoint from @s into @cp. Returns the number of bytes
