@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(copal
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Lightweight cross-platform GUI library in C"
     HOMEPAGE_URL "https://atomskz.github.io/copal"
     LANGUAGES C)

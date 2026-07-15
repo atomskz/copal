@@ -12,6 +12,8 @@ every 0.x version.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-15
+
 ### Added
 
 - Backend SPI published: installable headers `copal/backend/platform.h` and
@@ -79,6 +81,19 @@ every 0.x version.
   `set_damage` region is available to tests; push/pop transform/opacity are
   recorded, and draw-command geometry is already transformed.
 
+- Freestanding core (`COPAL_HOSTED=OFF`, a new CMake option, default ON): the core
+  (foundation + software renderer + widgets + layout + text) builds for
+  `-ffreestanding`/UEFI with no hosted C runtime and no libc/libm — copal
+  namespaces the str/math/format helpers it needs (`cl_strlen`/`cl_strcmp`, an
+  `fmath` set, a minimal `cl_vsnprintf`), and a CI job pins the residual external
+  surface to `memcpy`/`memmove`/`memset`. See ARCHITECTURE §19 / ADR-016.
+- Injectable task-queue mutex: `cl_mutex_iface_t` and `cl_application_desc_t.mutex`
+  (a tail-appended, ABI-compatible field). NULL keeps the hosted default (pthread /
+  critical section); a freestanding embedder injects one (on UEFI,
+  `RaiseTPL`/`RestoreTPL`).
+- Injectable assertion handler: `cl_set_assert_handler` (a failed `CL_ASSERT` is
+  routed to it; compiled out under `NDEBUG`). The hosted default logs and aborts.
+
 ### Changed
 
 - `cl_menu_create` takes a `cl_menu_desc_t` (the last widget without a desc);
@@ -89,6 +104,24 @@ every 0.x version.
   the attached widgets is freed at the end of the current loop iteration (the
   DEAD queue) — destroying any widget from any callback is safe, and a repeated
   destroy is a no-op.
+
+- The hosted build no longer links libm: the software renderer and stb_truetype
+  route their math through the `cl_*` helpers, and the `sqrt`/`abs` builtins lower
+  to hardware ops under `-fno-math-errno`.
+- With `COPAL_HOSTED=OFF` the hosted-only paths compile out and fail closed:
+  `cl_allocator_default()` returns NULL (inject an allocator via the app desc),
+  `cl_font_load_file`/`cl_font_load_system` return `CL_ERROR_UNSUPPORTED` (use
+  `cl_font_load_memory`), the stderr log fallback is gone (install a
+  `cl_set_log_callback` sink), and there is no built-in task-queue mutex.
+
+### Fixed
+
+- Rounded-rect borders: the software renderer paints the outer edge and AA of a
+  thin border instead of clipping it to the fill rect, matching the OpenGL path
+  pixel-for-pixel.
+- Text crispness: glyph origins snap to the device pixel grid on both renderers,
+  and a CI golden pixel-verifies the OpenGL renderer against the software
+  reference (strokes and text).
 
 ## [0.1.0] — 2026-07-12
 

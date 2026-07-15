@@ -12,6 +12,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-15
+
 ### Добавлено
 
 - SPI бэкендов опубликован: устанавливаемые заголовки
@@ -80,6 +82,20 @@
   transform/opacity записываются, геометрия draw-команд — уже
   трансформированной.
 
+- Freestanding-ядро (`COPAL_HOSTED=OFF`, новая опция CMake, по умолчанию ON):
+  ядро (foundation + software-рендер + виджеты + layout + текст) собирается под
+  `-ffreestanding`/UEFI без hosted C-рантайма и без libc/libm — copal неймспейсит
+  нужные str/math/format-хелперы (`cl_strlen`/`cl_strcmp`, набор `fmath`,
+  минимальный `cl_vsnprintf`), а CI-джоба фиксирует остаточную внешнюю поверхность
+  как `memcpy`/`memmove`/`memset`. См. ARCHITECTURE §19 / ADR-016.
+- Инжектируемый мьютекс task-очереди: `cl_mutex_iface_t` и
+  `cl_application_desc_t.mutex` (хвостовое, ABI-совместимое поле). NULL сохраняет
+  hosted-дефолт (pthread / critical section); freestanding-embedder инжектирует
+  свой (на UEFI — `RaiseTPL`/`RestoreTPL`).
+- Инжектируемый обработчик ассертов: `cl_set_assert_handler` (провал `CL_ASSERT`
+  уходит в него; в `NDEBUG` компилируется прочь). Hosted-дефолт логирует и делает
+  abort.
+
 ### Изменено
 
 - `cl_menu_create` принимает `cl_menu_desc_t` (последний виджет без desc);
@@ -90,6 +106,24 @@
   присоединённых виджетов освобождается в конце текущей итерации цикла
   (DEAD-очередь) — уничтожение любого виджета из любого callback безопасно,
   повторный destroy — no-op.
+
+- Hosted-сборка больше не линкует libm: software-рендер и stb_truetype проводят
+  математику через `cl_*`-хелперы, а builtins `sqrt`/`abs` ложатся в аппаратные
+  инструкции под `-fno-math-errno`.
+- При `COPAL_HOSTED=OFF` hosted-only пути компилируются прочь и fail-closed:
+  `cl_allocator_default()` возвращает NULL (инжектируйте аллокатор через desc),
+  `cl_font_load_file`/`cl_font_load_system` возвращают `CL_ERROR_UNSUPPORTED`
+  (используйте `cl_font_load_memory`), stderr-fallback лога убран (поставьте sink
+  `cl_set_log_callback`), встроенного мьютекса task-очереди нет.
+
+### Исправлено
+
+- Границы скруглённых прямоугольников: software-рендер рисует внешний край и AA
+  тонкой рамки, а не обрезает её по fill-прямоугольнику — совпадает с OpenGL-путём
+  пиксель-в-пиксель.
+- Чёткость текста: начала глифов привязываются к пиксельной сетке устройства в
+  обоих рендерах, а golden-тест в CI пиксельно сверяет OpenGL-рендер с
+  software-эталоном (штрихи и текст).
 
 ## [0.1.0] — 2026-07-12
 

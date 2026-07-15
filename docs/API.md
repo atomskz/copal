@@ -3,7 +3,7 @@
 # copal — Public API
 
 Status: **current** (matches the public headers `include/copal/*` as of Stage 7).
-Version: 1.0. The current library version is **0.1.0**.
+Version: 1.0. The current library version is **0.2.0**.
 Notation is canonical (`cl_*` / `cl_*_t` / `CL_*`); see [CODESTYLE §2](CODESTYLE.md).
 Builds on [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -264,7 +264,7 @@ does not own it.
 #define COPAL_VERSION COPAL_VERSION_ENCODE(COPAL_VERSION_MAJOR, COPAL_VERSION_MINOR, COPAL_VERSION_PATCH)
 
 uint32_t    cl_version_runtime(void);
-const char *cl_version_string(void);   /* "0.1.0" */
+const char *cl_version_string(void);   /* "0.2.0" */
 ```
 
 A mismatch between the headers and the `.so`/`.dll` is caught by the ABI
