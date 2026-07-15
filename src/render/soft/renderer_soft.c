@@ -3,11 +3,11 @@
 #include "render/image_internal.h"
 #include "text/font_internal.h"
 #include "core/foundation/foundation_internal.h"
+#include "core/foundation/fmath.h"
 
 #include "stb_truetype.h"
 
 #include <assert.h>
-#include <math.h>
 #include <string.h>
 
 #define SOFT_MAX_GLYPHS 512
@@ -84,11 +84,11 @@ static float smoothstep01(float e0, float e1, float x)
  * r); ported from the GL renderer's SDF fragment shader. */
 static float sd_round_box(float px, float py, float bx, float by, float r)
 {
-    float qx = fabsf(px) - bx + r;
-    float qy = fabsf(py) - by + r;
+    float qx = cl_fabsf(px) - bx + r;
+    float qy = cl_fabsf(py) - by + r;
     float mx = qx > 0.0f ? qx : 0.0f;
     float my = qy > 0.0f ? qy : 0.0f;
-    float outer = sqrtf(mx * mx + my * my);
+    float outer = cl_sqrtf(mx * mx + my * my);
     float inner = qx > qy ? qx : qy;
 
     if (inner > 0.0f)
@@ -155,10 +155,10 @@ static void clip_ibounds(const soft_renderer_t *r, int *x0, int *y0, int *x1,
 {
     cl_rect_t c = clip_cur(r);
 
-    *x0 = (int)floorf(c.x);
-    *y0 = (int)floorf(c.y);
-    *x1 = (int)ceilf(c.x + c.w);
-    *y1 = (int)ceilf(c.y + c.h);
+    *x0 = (int)cl_floorf(c.x);
+    *y0 = (int)cl_floorf(c.y);
+    *x1 = (int)cl_ceilf(c.x + c.w);
+    *y1 = (int)cl_ceilf(c.y + c.h);
     if (*x0 < 0)
         *x0 = 0;
     if (*y0 < 0)
@@ -292,10 +292,10 @@ static void soft_fill_rect(cl_renderer_t *rr, cl_rect_t rect, cl_color_t color)
         return;
     rect = tf_rect(r, rect);
     clip_ibounds(r, &cx0, &cy0, &cx1, &cy1);
-    x0 = (int)floorf(rect.x * r->scale);
-    y0 = (int)floorf(rect.y * r->scale);
-    x1 = (int)ceilf((rect.x + rect.w) * r->scale);
-    y1 = (int)ceilf((rect.y + rect.h) * r->scale);
+    x0 = (int)cl_floorf(rect.x * r->scale);
+    y0 = (int)cl_floorf(rect.y * r->scale);
+    x1 = (int)cl_ceilf((rect.x + rect.w) * r->scale);
+    y1 = (int)cl_ceilf((rect.y + rect.h) * r->scale);
     if (x0 < cx0)
         x0 = cx0;
     if (y0 < cy0)
@@ -324,10 +324,10 @@ static void soft_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
     if (dst.w <= 0.0f || dst.h <= 0.0f)
         return;
     clip_ibounds(r, &cx0, &cy0, &cx1, &cy1);
-    x0 = (int)floorf(dst.x * r->scale);
-    y0 = (int)floorf(dst.y * r->scale);
-    x1 = (int)ceilf((dst.x + dst.w) * r->scale);
-    y1 = (int)ceilf((dst.y + dst.h) * r->scale);
+    x0 = (int)cl_floorf(dst.x * r->scale);
+    y0 = (int)cl_floorf(dst.y * r->scale);
+    x1 = (int)cl_ceilf((dst.x + dst.w) * r->scale);
+    y1 = (int)cl_ceilf((dst.y + dst.h) * r->scale);
     pw = (float)(x1 - x0); /* physical extent the image maps onto */
     ph = (float)(y1 - y0);
     if (pw <= 0.0f || ph <= 0.0f)
@@ -341,7 +341,7 @@ static void soft_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
     if (y1 > cy1)
         y1 = cy1;
     for (iy = y0; iy < y1; iy++) {
-        int sy = (int)(((float)iy - floorf(dst.y * r->scale) + 0.5f) / ph *
+        int sy = (int)(((float)iy - cl_floorf(dst.y * r->scale) + 0.5f) / ph *
                        (float)img->h);
         const unsigned char *row;
 
@@ -351,7 +351,7 @@ static void soft_draw_image(cl_renderer_t *rr, cl_image_t *img, cl_rect_t dst)
             sy = img->h - 1;
         row = img->rgba + (size_t)sy * (size_t)img->w * 4u;
         for (ix = x0; ix < x1; ix++) {
-            int sx = (int)(((float)ix - floorf(dst.x * r->scale) + 0.5f) /
+            int sx = (int)(((float)ix - cl_floorf(dst.x * r->scale) + 0.5f) /
                            pw * (float)img->w);
             const unsigned char *px;
             cl_color_t c;
@@ -399,10 +399,10 @@ static void soft_round(soft_renderer_t *r, cl_rect_t rect, float radius,
      * 1px fringe the GL fill path never draws. The clip clamp keeps us in the
      * framebuffer. */
     pad = border > 0.0f ? 1 : 0;
-    x0 = (int)floorf(rect.x * r->scale) - pad;
-    y0 = (int)floorf(rect.y * r->scale) - pad;
-    x1 = (int)ceilf((rect.x + rect.w) * r->scale) + pad;
-    y1 = (int)ceilf((rect.y + rect.h) * r->scale) + pad;
+    x0 = (int)cl_floorf(rect.x * r->scale) - pad;
+    y0 = (int)cl_floorf(rect.y * r->scale) - pad;
+    x1 = (int)cl_ceilf((rect.x + rect.w) * r->scale) + pad;
+    y1 = (int)cl_ceilf((rect.y + rect.h) * r->scale) + pad;
     if (x0 < cx0)
         x0 = cx0;
     if (y0 < cy0)
@@ -547,13 +547,13 @@ static void soft_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
              * pixels the GL renderer snaps to. */
             float gx = (penx + (float)g->xoff) * tf.s + tf.tx;
             float gy = (baseline + (float)g->yoff) * tf.s + tf.ty;
-            float ox = floorf(gx * r->scale + 0.5f);
-            float oy = floorf(gy * r->scale + 0.5f);
+            float ox = cl_floorf(gx * r->scale + 0.5f);
+            float oy = cl_floorf(gy * r->scale + 0.5f);
             float step = tf.s * r->scale; /* device px per bitmap px (> 0) */
             int px0 = (int)ox;
             int py0 = (int)oy;
-            int px1 = (int)ceilf(ox + (float)g->w * step);
-            int py1 = (int)ceilf(oy + (float)g->h * step);
+            int px1 = (int)cl_ceilf(ox + (float)g->w * step);
+            int py1 = (int)cl_ceilf(oy + (float)g->h * step);
             int ix, iy;
 
             if (px0 < cx0)
@@ -569,12 +569,12 @@ static void soft_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
              * zero and duplicates the edge row/column). At scale == 1 and no
              * transform scale this is a straight 1:1 blit. */
             for (iy = py0; iy < py1; iy++) {
-                int ty = (int)floorf(((float)iy + 0.5f - oy) / step);
+                int ty = (int)cl_floorf(((float)iy + 0.5f - oy) / step);
 
                 if (ty < 0 || ty >= g->h)
                     continue;
                 for (ix = px0; ix < px1; ix++) {
-                    int tx = (int)floorf(((float)ix + 0.5f - ox) / step);
+                    int tx = (int)cl_floorf(((float)ix + 0.5f - ox) / step);
                     float cov;
 
                     if (tx < 0 || tx >= g->w)

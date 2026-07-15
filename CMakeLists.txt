@@ -85,6 +85,7 @@ set(COPAL_SOURCES
     src/core/foundation/error.c
     src/core/foundation/abi.c
     src/core/foundation/allocator.c
+    src/core/foundation/fmath.c
     src/core/foundation/utf8.c
     src/core/foundation/mutex.c
     src/text/font.c
@@ -141,9 +142,12 @@ if(NOT MSVC)
         COMPILE_FLAGS "-w")
 endif()
 
-# stb_truetype uses the C math library.
-if(NOT WIN32)
-    target_link_libraries(copal PRIVATE m)
+# copal carries no libm dependency: the software renderer and stb_truetype route
+# their math through the freestanding cl_* helpers (src/core/foundation/fmath.c).
+# -fno-math-errno lets GCC/Clang lower the sqrt/abs builtins to hardware ops with
+# no errno-setting libm call, so nothing pulls in -lm.
+if(NOT MSVC)
+    target_compile_options(copal PRIVATE -fno-math-errno)
 endif()
 
 # Cross-thread task queue (cl_application_post) uses a mutex; PUBLIC so headless
@@ -348,7 +352,7 @@ if(COPAL_ENABLE_INSTALL)
     endif()
     set(COPAL_PC_LIBS_PRIVATE "")
     if(NOT WIN32)
-        set(COPAL_PC_LIBS_PRIVATE "-lm -pthread")
+        set(COPAL_PC_LIBS_PRIVATE "-pthread")
     endif()
     if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
         string(STRIP "${COPAL_PC_LIBS_PRIVATE} -lGL" COPAL_PC_LIBS_PRIVATE)

@@ -4,8 +4,8 @@
 #include "text/font_internal.h"
 #include "render/image_internal.h"
 #include "core/foundation/foundation_internal.h"
+#include "core/foundation/fmath.h"
 
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -599,10 +599,10 @@ static void gl_pop_opacity(cl_renderer_t *rr)
 static void gl_apply_scissor(gl_renderer_t *r, cl_rect_t c)
 {
     float s = r->scale;
-    int left = (int)floorf(c.x * s);
-    int right = (int)ceilf((c.x + c.w) * s);
-    int top = (int)floorf(c.y * s);
-    int bottom = (int)ceilf((c.y + c.h) * s);
+    int left = (int)cl_floorf(c.x * s);
+    int right = (int)cl_ceilf((c.x + c.w) * s);
+    int top = (int)cl_floorf(c.y * s);
+    int bottom = (int)cl_ceilf((c.y + c.h) * s);
     int w = right - left;
     int h = bottom - top;
     int y = r->fb_h - bottom; /* GL scissor origin is bottom-left */
@@ -780,8 +780,8 @@ static void gl_draw_text(cl_renderer_t *rr, cl_font_t *font, const char *utf8,
              * device-resolution bitmap; a fractional origin sampled through
              * GL_LINEAR would blur it. Snapping keeps text crisp and lands it
              * on the same pixels as the software renderer. */
-            float x0 = floorf((lx0 * tf.s + tf.tx) * r->scale + 0.5f) * inv;
-            float y0 = floorf((ly0 * tf.s + tf.ty) * r->scale + 0.5f) * inv;
+            float x0 = cl_floorf((lx0 * tf.s + tf.tx) * r->scale + 0.5f) * inv;
+            float y0 = cl_floorf((ly0 * tf.s + tf.ty) * r->scale + 0.5f) * inv;
             float x1 = x0 + (float)g->w * inv * tf.s;
             float y1 = y0 + (float)g->h * inv * tf.s;
             const float quad[24] = {
