@@ -29,6 +29,7 @@ option(COPAL_ENABLE_SANITIZERS "Enable ASan/UBSan"                  OFF)
 option(COPAL_ENABLE_COVERAGE   "Instrument for gcov/llvm-cov coverage" OFF)
 option(COPAL_ENABLE_INSTALL    "Enable install rules"               ${COPAL_IS_TOP_LEVEL})
 option(COPAL_BUILD_BENCHMARKS  "Build the headless benchmark harness" OFF)
+option(COPAL_HOSTED            "Build the hosted (OS libc) support paths; OFF = freestanding core (inject allocator/mutex, load fonts from memory)" ON)
 
 # Single-config generators build with no optimisation at all when
 # CMAKE_BUILD_TYPE is empty; default to Release for a top-level build.
@@ -200,6 +201,16 @@ if(COPAL_FETCH_SDL2 AND NOT COPAL_ENABLE_SDL)
 endif()
 
 target_compile_definitions(copal PRIVATE COPAL_BUILDING)
+# CL_HOSTED gates the paths that need a hosted C runtime: the default malloc
+# allocator, the file/system font loaders, and the stderr log fallback. OFF
+# builds the freestanding core - the embedder injects the allocator and mutex
+# and loads fonts from memory (see docs, freestanding/UEFI).
+if(COPAL_HOSTED)
+    target_compile_definitions(copal PRIVATE CL_HOSTED)
+else()
+    message(STATUS "copal: COPAL_HOSTED=OFF - freestanding core "
+                   "(inject allocator/mutex; load fonts from memory)")
+endif()
 # _CRT_SECURE_NO_WARNINGS (MSVC C4996) is applied by copal_set_warnings() below.
 if(COPAL_BUILD_SHARED)
     target_compile_definitions(copal PUBLIC COPAL_SHARED)
