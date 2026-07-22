@@ -349,10 +349,18 @@ if(COPAL_ENABLE_INSTALL)
         cmake/copalConfig.cmake.in
         ${CMAKE_CURRENT_BINARY_DIR}/copalConfig.cmake
         INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/copal)
+    # Pre-1.0, 0.x minors are not API/ABI compatible, so find_package(copal 0.2)
+    # must not accept an installed 0.3. Use SameMinorVersion while the major is
+    # 0; switch to SameMajorVersion at 1.0.
+    if(PROJECT_VERSION_MAJOR EQUAL 0)
+        set(COPAL_PKG_COMPAT SameMinorVersion)
+    else()
+        set(COPAL_PKG_COMPAT SameMajorVersion)
+    endif()
     write_basic_package_version_file(
         ${CMAKE_CURRENT_BINARY_DIR}/copalConfigVersion.cmake
         VERSION ${PROJECT_VERSION}
-        COMPATIBILITY SameMajorVersion)
+        COMPATIBILITY ${COPAL_PKG_COMPAT})
 
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/copalConfig.cmake
