@@ -679,6 +679,52 @@ static const cl_platform_ops_t min_ops = {
 
 static cl_platform_t g_min_platform = { &min_ops };
 
+/* Same minimal backend with a REQUIRED op (present) dropped: cl_application_create
+ * must reject it with a named error rather than fault on the first frame. */
+static const cl_platform_ops_t min_ops_no_present = {
+    .struct_size = sizeof(cl_platform_ops_t),
+    .abi_version = COPAL_VERSION,
+    .create_window = min_create_window,
+    .drawable_size = min_drawable_size,
+    .scale = min_scale,
+    .poll = min_poll,
+    .wait = min_wait,
+    /* present intentionally NULL */
+    .now_ms = min_now_ms,
+    .destroy = min_destroy,
+};
+
+static cl_platform_t g_min_no_present = { &min_ops_no_present };
+
+/* Minimal backend with the CONDITIONAL now_ms dropped: create must SUCCEED
+ * (timers just become unavailable) after a single warning. */
+static const cl_platform_ops_t min_ops_no_now_ms = {
+    .struct_size = sizeof(cl_platform_ops_t),
+    .abi_version = COPAL_VERSION,
+    .create_window = min_create_window,
+    .drawable_size = min_drawable_size,
+    .scale = min_scale,
+    .poll = min_poll,
+    .wait = min_wait,
+    .present = min_present,
+    /* now_ms intentionally NULL -> timers disabled, warns */
+    .destroy = min_destroy,
+};
+
+static cl_platform_t g_min_no_now_ms = { &min_ops_no_now_ms };
+
+/* Log capture for the contract-enforcement checks below. */
+static char cap_log[160];
+static bool cap_saw_now_ms;
+static void cap_log_sink(cl_log_level_t level, const char *msg, void *user)
+{
+    (void)level;
+    (void)user;
+    snprintf(cap_log, sizeof(cap_log), "%s", msg);
+    if (strstr(msg, "now_ms"))
+        cap_saw_now_ms = true;
+}
+
 static void test_minimal_platform(void)
 {
     cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
@@ -708,11 +754,54 @@ static void test_minimal_platform(void)
     cl_application_destroy(app);
 }
 
+/* A backend missing a REQUIRED op fails at create with a named error; a backend
+ * missing only a CONDITIONAL op (now_ms) still succeeds, with a warning. */
+static void test_required_ops(void)
+{
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .width = 200, .height = 150 };
+    cl_renderer_t *rend;
+    cl_application_t *app;
+
+    /* Missing a required op (present): create returns NULL, sets
+     * CL_ERROR_INVALID_ARGUMENT, and names the op in an ERROR log. The injected
+     * renderer stays with the caller on failure (destroyed by hand below). */
+    cl_set_log_callback(cap_log_sink, NULL);
+    cap_log[0] = '\0';
+    rend = cl_renderer_mock_create(cl_allocator_default());
+    ad.platform = &g_min_no_present;
+    ad.renderer = rend;
+    app = cl_application_create(&ad);
+    CHECK(app == NULL);
+    CHECK(cl_last_error() == CL_ERROR_INVALID_ARGUMENT);
+    CHECK(strstr(cap_log, "present") != NULL);
+    CHECK(strstr(cap_log, "required") != NULL);
+    rend->ops->destroy(rend); /* not adopted: create failed */
+
+    /* Missing only now_ms: create succeeds and warns; timers are unavailable. */
+    cap_saw_now_ms = false;
+    rend = cl_renderer_mock_create(cl_allocator_default());
+    ad.platform = &g_min_no_now_ms;
+    ad.renderer = rend;
+    app = cl_application_create(&ad);
+    CHECK(app != NULL);
+    CHECK(cap_saw_now_ms);
+    if (app) {
+        CHECK(cl_window_create(app, &wd) != NULL);
+        cl_application_destroy(app); /* adopts and frees the renderer */
+    } else {
+        rend->ops->destroy(rend);
+    }
+    cl_set_log_callback(NULL, NULL);
+}
+
 int main(void)
 {
     test_on_close();
     test_backend_abi();
     test_minimal_platform();
+    test_required_ops();
     test_run_exit_code();
     test_window_lifecycle();
     test_disabled();

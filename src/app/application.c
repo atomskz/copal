@@ -27,10 +27,85 @@ struct cl_task {
     cl_task_t *next;
 };
 
+/*
+ * The first REQUIRED platform op the backend leaves NULL, or NULL when they are
+ * all present. These are the ops the library calls unconditionally, so a
+ * backend that omits one would fault on the first call at run time rather than
+ * fail cleanly here. @need_software also requires the software renderer's
+ * lockable-framebuffer pair; @need_gl the GL renderer's proc loader. Optional
+ * ops (set_title, wakeup, clipboard, ...) stay NULL-guarded at their call sites;
+ * the conditional ops (wait, now_ms) only warn.
+ */
+static const char *platform_missing_op(const cl_platform_t *p,
+                                       bool need_software, bool need_gl)
+{
+    const cl_platform_ops_t *o = p->ops;
+
+    if (!o->create_window)
+        return "create_window";
+    if (!o->drawable_size)
+        return "drawable_size";
+    if (!o->scale)
+        return "scale";
+    if (!o->poll)
+        return "poll";
+    if (!o->present)
+        return "present";
+    if (!o->destroy)
+        return "destroy";
+    if (need_software) {
+        if (!o->lock_framebuffer)
+            return "lock_framebuffer";
+        if (!o->unlock_framebuffer)
+            return "unlock_framebuffer";
+    }
+    if (need_gl && !o->gl_get_proc)
+        return "gl_get_proc";
+    return NULL;
+}
+
+/*
+ * The first REQUIRED renderer op left NULL, or NULL when all are present: the
+ * ops the paint walk and the frame bracket call unconditionally. The optional
+ * slots (draw_image, the transform/opacity/damage/evict pairs, destroy) stay
+ * NULL-guarded at their call sites.
+ */
+static const char *renderer_missing_op(const cl_renderer_t *r)
+{
+    const cl_renderer_ops_t *o = r->ops;
+
+    if (!o->begin_frame)
+        return "begin_frame";
+    if (!o->end_frame)
+        return "end_frame";
+    if (!o->fill_rect)
+        return "fill_rect";
+    if (!o->fill_round_rect)
+        return "fill_round_rect";
+    if (!o->stroke_round_rect)
+        return "stroke_round_rect";
+    if (!o->draw_text)
+        return "draw_text";
+    if (!o->push_clip)
+        return "push_clip";
+    if (!o->pop_clip)
+        return "pop_clip";
+    return NULL;
+}
+
 cl_application_t *cl_application_create(const cl_application_desc_t *desc)
 {
     const cl_allocator_t *a;
     cl_application_t *app;
+    /*
+     * Track which built-in renderer we bind so the platform contract can
+     * demand exactly what that renderer needs of it (the software framebuffer
+     * pair / the GL proc loader). Both stay false for an injected renderer -
+     * its needs are opaque, so only the base platform ops are enforced.
+     */
+    bool need_soft_fb = false;
+    bool need_gl_proc = false;
+    const char *missing;
 
     cl_application_desc_t norm;
 
@@ -90,9 +165,11 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
              * to an injected platform that cannot supply one (renderer stays
              * NULL -> CL_ERROR_UNSUPPORTED below). */
             if (!app->renderer && app->platform &&
-                app->platform->ops->lock_framebuffer)
+                app->platform->ops->lock_framebuffer) {
                 app->renderer =
                     cl_renderer_soft_create(&app->alloc, app->platform);
+                need_soft_fb = true;
+            }
         }
 #if defined(CL_ENABLE_OPENGL)
         else {
@@ -108,9 +185,11 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
              * would crash on the first frame (renderer stays NULL ->
              * CL_ERROR_UNSUPPORTED below). */
             if (!app->renderer && app->platform &&
-                app->platform->ops->gl_get_proc)
+                app->platform->ops->gl_get_proc) {
                 app->renderer =
                     cl_renderer_gl_create(&app->alloc, app->platform);
+                need_gl_proc = true;
+            }
         }
 #endif
     }
@@ -127,8 +206,10 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
      */
     if (!app->renderer && app->platform &&
         app->platform->ops->lock_framebuffer &&
-        desc->render_backend != CL_RENDER_GL)
+        desc->render_backend != CL_RENDER_GL) {
         app->renderer = cl_renderer_soft_create(&app->alloc, app->platform);
+        need_soft_fb = true;
+    }
 
     if (!app->platform || !app->renderer) {
         cl_log(CL_LOG_ERROR,
@@ -139,6 +220,31 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
         cl_set_last_error(CL_ERROR_UNSUPPORTED);
         goto fail;
     }
+
+    /*
+     * The backends are resolved: enforce that both expose every op the library
+     * calls unconditionally, so a missing op fails here with a named error
+     * instead of faulting on the first frame. Optional ops stay NULL-guarded at
+     * their call sites; the conditional ops (wait, now_ms) only warn - the loop
+     * and the timer subsystem degrade gracefully without them.
+     */
+    missing = platform_missing_op(app->platform, need_soft_fb, need_gl_proc);
+    if (missing) {
+        cl_log(CL_LOG_ERROR, "platform op '%s' is required", missing);
+        cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
+        goto fail;
+    }
+    missing = renderer_missing_op(app->renderer);
+    if (missing) {
+        cl_log(CL_LOG_ERROR, "renderer op '%s' is required", missing);
+        cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
+        goto fail;
+    }
+    if (!app->platform->ops->wait)
+        cl_log(CL_LOG_WARN, "platform op 'wait' is NULL; cl_application_run "
+                            "and step(wait) will not block");
+    if (!app->platform->ops->now_ms)
+        cl_log(CL_LOG_WARN, "platform op 'now_ms' is NULL; timers disabled");
 
     app->theme = cl_theme_default(app);
     if (!app->theme)
