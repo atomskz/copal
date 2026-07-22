@@ -33,7 +33,7 @@ copal/
 │   ├── copal.h                    umbrella header (everything except widget_impl.h)
 │   ├── export.h                   CL_API (symbol export/visibility)
 │   ├── version.h                  compile/runtime version + check
-│   ├── types.h                    geometry, color, constraints, align/orientation, glyph handle
+│   ├── types.h                    geometry, color, constraints, align/orientation, cursor
 │   ├── error.h                    cl_result_t, log level, last-error, log callback
 │   ├── allocator.h                cl_allocator_t + cl_alloc/realloc/free wrappers
 │   ├── event.h                    event types, keys, modifiers, cl_event_t, callback types
@@ -60,7 +60,10 @@ copal/
 │   │   ├── abi.c                  desc/ops ABI handshake (cl_abi_ok, cl_desc_fill)
 │   │   ├── utf8.c                 UTF-8 decoder/code-point iteration
 │   │   ├── mutex.c                opaque cross-platform mutex (pthread/CRITICAL_SECTION)
-│   │   └── mutex_internal.h       mutex interface (for the application task queue)
+│   │   ├── mutex_internal.h       mutex interface (for the application task queue)
+│   │   ├── cstr.c                 libc-free str* helpers (freestanding core, ADR-016)
+│   │   ├── fmath.c fmath.h        libc-free math (sqrt/floor/ceil/fabs, SDF fmod/cos/acos/pow)
+│   │   └── format.c               minimal libc-free vsnprintf (freestanding log)
 │   ├── widget/
 │   │   ├── widget.c               base, vtable dispatcher, RTTI/cast, tree, invalidation,
 │   │   │                          clip-aware paint/hit-test, reveal, tooltip, event dispatch
@@ -116,6 +119,8 @@ copal/
 │   ├── CMakeLists.txt             registers the CTest suites (copal_add_test)
 │   ├── test_foundation.c          version/errors/allocator/UTF-8/types
 │   ├── test_abi.c                 desc/ops ABI evolution (ADR-005): tail-tolerant handshake
+│   ├── test_fmath.c               freestanding math vs libm (fabs/sqrt/floor/fmod/cos/acos/pow)
+│   ├── test_format.c              freestanding cl_vsnprintf vs libc (specifiers + truncation)
 │   ├── test_soft.c                golden pixels of the software renderer (stub fb, no SDL)
 │   ├── test_gl_golden.c           GL render vs the software reference (SDL+GL only; skips without GL)
 │   ├── test_image.c               cl_image_create: input validation, refuse a size overflow
@@ -151,7 +156,7 @@ copal/
 |------|----------------|---------|
 | `include/copal/export.h` | `CL_API`: dllexport/import, visibility | yes |
 | `include/copal/version.h` | compile/runtime version, `COPAL_VERSION_ENCODE` | yes |
-| `include/copal/types.h` | `cl_point/size/rect/insets/color/constraints/glyph_handle`, `cl_align/orientation`, `cl_rgba` | yes |
+| `include/copal/types.h` | `cl_point/size/rect/insets/color/constraints/cursor`, `cl_align/orientation`, `cl_rgba` | yes |
 | `include/copal/error.h` | `cl_result_t`, `cl_log_*`, `cl_last_error`, `cl_result_string` | yes |
 | `include/copal/allocator.h` | `cl_allocator_t`, `cl_alloc/realloc/free`, default | yes |
 | `include/copal/event.h` | event/key/modifier types, `cl_event_t`, callback types | yes |
@@ -221,7 +226,7 @@ Headless build (mock backends, no SDL/GL) — the default:
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
-ctest --test-dir build --output-on-failure     # 24 suites + smoke runs
+ctest --test-dir build --output-on-failure     # 27 tests (suites + smoke runs)
 ./build/examples/test_version/test_version
 ```
 
