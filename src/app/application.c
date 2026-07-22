@@ -174,13 +174,21 @@ bool cl_app_software_fallback(cl_application_t *app)
         plat->ops->destroy(plat);
         return false;
     }
-    /* Swap out the GL pair (created by us: soft_fallback_ok excludes DI). */
+    /*
+     * Swap out the GL pair (created by us: soft_fallback_ok excludes DI).
+     * Take the task lock so a concurrent cl_application_post/quit on another
+     * thread cannot read app->platform while it is being freed and replaced.
+     */
+    if (app->task_mutex)
+        app->mtx.lock(app->mtx.user, app->task_mutex);
     if (app->renderer && app->renderer->ops->destroy)
         app->renderer->ops->destroy(app->renderer);
     if (app->platform && app->platform->ops->destroy)
         app->platform->ops->destroy(app->platform);
     app->platform = plat;
     app->renderer = rend;
+    if (app->task_mutex)
+        app->mtx.unlock(app->mtx.user, app->task_mutex);
     cl_log(CL_LOG_WARN,
            "application: OpenGL window failed; falling back to the software "
            "renderer");
@@ -382,11 +390,15 @@ cl_result_t cl_application_post(cl_application_t *app, cl_task_fn fn, void *user
     else
         app->task_head = t;
     app->task_tail = t;
-    app->mtx.unlock(app->mtx.user, app->task_mutex);
-
-    /* Wake a blocked run loop so the task is drained promptly. */
-    if (app->platform->ops->wakeup)
+    /*
+     * Wake a blocked run loop so the task is drained promptly. The wakeup is
+     * issued while still holding the task lock, which cl_app_software_fallback
+     * also takes around its platform swap: this call can therefore never
+     * dereference a platform object being destroyed on the loop thread.
+     */
+    if (app->platform && app->platform->ops->wakeup)
         app->platform->ops->wakeup(app->platform);
+    app->mtx.unlock(app->mtx.user, app->task_mutex);
     return CL_OK;
 }
 
