@@ -44,6 +44,12 @@ CL_API cl_result_t cl_list_remove(cl_widget_t *list, size_t index);
 /** cl_list_clear() - remove every item and clear the selection. */
 CL_API void cl_list_clear(cl_widget_t *list);
 
+/*
+ * Index convention: a valid item index is size_t (0..count-1), used for
+ * remove/item_text; the SELECTION is a signed int so -1 can mean "no
+ * selection". Comparing the two therefore mixes signedness by design.
+ */
+
 /** cl_list_count() - number of items. */
 CL_API size_t cl_list_count(cl_widget_t *list);
 

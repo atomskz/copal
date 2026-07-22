@@ -38,6 +38,12 @@ CL_API cl_widget_t *cl_combobox_create(cl_application_t *app,
 /** cl_combobox_add_item() - append a selectable item (UTF-8). */
 CL_API cl_result_t cl_combobox_add_item(cl_widget_t *combo, const char *text);
 
+/*
+ * Index convention: a valid item index is size_t (0..count-1), used for
+ * count/remove/item_text; the SELECTION is a signed int so -1 can mean "no
+ * selection". Comparing the two therefore mixes signedness by design.
+ */
+
 /** cl_combobox_count() - number of items. */
 CL_API size_t cl_combobox_count(cl_widget_t *combo);
 
