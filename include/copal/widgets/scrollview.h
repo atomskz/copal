@@ -56,11 +56,15 @@ CL_API void cl_scrollview_set_content(cl_widget_t *sv, cl_widget_t *content);
 /** cl_scrollview_content() - the current content widget, or NULL. */
 CL_API cl_widget_t *cl_scrollview_content(cl_widget_t *sv);
 
-/** cl_scrollview_scroll_to() - set the vertical scroll offset (clamped). */
+/** cl_scrollview_scroll_to() - set the vertical scroll offset (clamped).
+ *  The offset is clamped against the content/viewport sizes, which are known
+ *  only after the first layout, so call this once the scrollview has been laid
+ *  out (e.g. after the first frame); before that the offset clamps to 0. */
 CL_API void cl_scrollview_scroll_to(cl_widget_t *sv, float y);
 
 /** cl_scrollview_scroll_to_x() - set the horizontal scroll offset (clamped).
- *  Has no visible effect unless the scrollview was created with horizontal. */
+ *  Has no visible effect unless the scrollview was created with horizontal.
+ *  Like cl_scrollview_scroll_to, only takes effect after the first layout. */
 CL_API void cl_scrollview_scroll_to_x(cl_widget_t *sv, float x);
 
 /** cl_scrollview_scroll_y() - the current vertical scroll offset in pixels. */
@@ -70,7 +74,10 @@ CL_API float cl_scrollview_scroll_y(cl_widget_t *sv);
 CL_API float cl_scrollview_scroll_x(cl_widget_t *sv);
 
 /** cl_scrollview_scroll_to_widget() - scroll the minimal amount so `descendant`
- *  (a widget somewhere inside the content) is visible within the viewport. */
+ *  (a widget somewhere inside the content) is visible within the viewport.
+ *  Computed from the laid-out geometry, so it requires a completed layout: call
+ *  it after the first frame (a call made before then is a no-op). Automatic
+ *  scroll-to-focus does not need this - it defers itself until after layout. */
 CL_API void cl_scrollview_scroll_to_widget(cl_widget_t *sv,
                                            cl_widget_t *descendant);
 
