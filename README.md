@@ -95,6 +95,8 @@ int main(void)
 {
     cl_application_desc_t ad = CL_APPLICATION_DESC_INIT;
     cl_application_t *app = cl_application_create(&ad);
+    if (!app) /* e.g. the default headless build has no backend */
+        return 1;
 
     cl_font_t *font = cl_font_load_system(app, 16.0f);
     cl_theme_set_font(cl_application_theme(app), font);

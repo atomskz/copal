@@ -290,6 +290,8 @@ int main(void)
 {
     cl_application_desc_t ad = CL_APPLICATION_DESC_INIT;
     cl_application_t *app = cl_application_create(&ad);
+    if (!app) /* e.g. the default headless build has no backend */
+        return 1;
 
     cl_window_desc_t wd = CL_WINDOW_DESC_INIT;
     wd.title = "Example"; wd.width = 800; wd.height = 600;
@@ -946,6 +948,7 @@ static const cl_widget_vtable_t cl_mycounter_vtable = {
 static const cl_widget_class_t cl_mycounter_class = {
     .name = "cl_mycounter", .base = NULL, .type_id = 0,
     .instance_size = sizeof(cl_mycounter_t), .vtable = &cl_mycounter_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t), /* required when vtable is set */
 };
 cl_widget_t *cl_mycounter_create(cl_application_t *app) {
     cl_widget_t *w = cl_widget_alloc(app, &cl_mycounter_class); /* zero + init_base */
