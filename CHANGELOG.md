@@ -12,6 +12,43 @@ every 0.x version.
 
 ## [Unreleased]
 
+### Added
+
+- Read-back getters to pair existing setters: `cl_button_text`,
+  `cl_label_text`, `cl_checkbox_text`, `cl_radiobutton_text`,
+  `cl_radiobutton_set_text`, `cl_window_title`, `cl_slider_min`/`_max`/`_step`,
+  and `cl_theme_radius` (declared; it already existed).
+- `cl_textbox_set_on_change` as an alias of `cl_textbox_set_on_changed`, for a
+  consistent change-callback spelling across widgets.
+- CI now installs copal and consumes it through `find_package` and pkg-config
+  (static and shared), guarding the packaging surface.
+
+### Changed
+
+- **Breaking:** `cl_msgbox_fn` now leads with the dialog widget
+  (`void (*)(cl_widget_t *dialog, int index, void *user)`), matching the other
+  widget callbacks.
+- `cl_list_set_selected` no longer fires `on_select` (now consistent with every
+  other widget's programmatic setter).
+- `cl_window_open_modal` returns `bool` (false when the overlay stack is full);
+  `cl_messagebox_show` returns NULL in that case instead of a dead handle.
+- Pre-1.0 packaging: the shared library's SONAME and the CMake package version
+  now encode the minor (each 0.x is a distinct, non-interchangeable ABI).
+
+### Fixed
+
+- Double-free when a focused widget is destroyed from its own `focus_lost`;
+  events no longer dispatch to widgets destroyed mid-bubble.
+- `cl_application_post`/`_quit` no longer race the software-fallback platform
+  swap.
+- Non-finite input is rejected/clamped for the slider, progressbar and font
+  size; a password field never renders cleartext on an allocation failure.
+- The software renderer no longer caches a blank glyph after a transient
+  allocation failure; window resize and `cl_window_show` repaint in full on the
+  partial-redraw path; mouse side buttons are ignored rather than left-clicks.
+- Numerous smaller correctness, portability and consistency fixes across the
+  widgets, layout, text, backends and documentation.
+
 ## [0.2.0] — 2026-07-15
 
 ### Added
