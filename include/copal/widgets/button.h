@@ -29,6 +29,8 @@ typedef struct cl_button_desc {
 CL_API cl_widget_t *cl_button_create(cl_application_t *app,
                                      const cl_button_desc_t *desc);
 CL_API void cl_button_set_text(cl_widget_t *button, const char *utf8);
+/* Borrowed label text (UTF-8), or NULL; valid until the next set_text. */
+CL_API const char *cl_button_text(cl_widget_t *button);
 CL_API void cl_button_set_on_click(cl_widget_t *button, cl_action_fn fn,
                                    void *user);
 

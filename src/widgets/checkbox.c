@@ -194,6 +194,13 @@ void cl_checkbox_set_text(cl_widget_t *cb_w, const char *utf8)
     cl_widget_invalidate_layout(cb_w);
 }
 
+const char *cl_checkbox_text(cl_widget_t *cb_w)
+{
+    cl_checkbox_t *self = CL_WIDGET_CAST(cl_checkbox, cb_w);
+
+    return self ? self->text : NULL;
+}
+
 void cl_checkbox_set_on_toggle(cl_widget_t *cb_w, cl_toggled_fn fn, void *user)
 {
     cl_checkbox_t *self = CL_WIDGET_CAST(cl_checkbox, cb_w);

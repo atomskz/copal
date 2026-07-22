@@ -213,6 +213,13 @@ void cl_radiobutton_set_text(cl_widget_t *rb_w, const char *utf8)
     cl_widget_invalidate_layout(rb_w);
 }
 
+const char *cl_radiobutton_text(cl_widget_t *rb_w)
+{
+    cl_radiobutton_t *self = CL_WIDGET_CAST(cl_radiobutton, rb_w);
+
+    return self ? self->text : NULL;
+}
+
 void cl_radiobutton_set_on_select(cl_widget_t *rb_w, cl_toggled_fn fn,
                                   void *user)
 {

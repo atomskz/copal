@@ -181,6 +181,13 @@ void cl_button_set_text(cl_widget_t *button, const char *utf8)
     cl_widget_invalidate_layout(button);
 }
 
+const char *cl_button_text(cl_widget_t *button)
+{
+    cl_button_t *self = CL_WIDGET_CAST(cl_button, button);
+
+    return self ? self->text : NULL;
+}
+
 void cl_button_set_on_click(cl_widget_t *button, cl_action_fn fn, void *user)
 {
     cl_button_t *self = CL_WIDGET_CAST(cl_button, button);

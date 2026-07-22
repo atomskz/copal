@@ -120,3 +120,10 @@ void cl_label_set_text(cl_widget_t *label, const char *utf8)
     self->text = cl_strdup(cl_application_allocator(label->app), utf8);
     cl_widget_invalidate_layout(label);
 }
+
+const char *cl_label_text(cl_widget_t *label)
+{
+    cl_label_t *self = CL_WIDGET_CAST(cl_label, label);
+
+    return self ? self->text : NULL;
+}

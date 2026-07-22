@@ -37,6 +37,8 @@ typedef struct cl_label_desc {
 CL_API cl_widget_t *cl_label_create(cl_application_t *app,
                                     const cl_label_desc_t *desc);
 CL_API void cl_label_set_text(cl_widget_t *label, const char *utf8);
+/* Borrowed label text (UTF-8), or NULL; valid until the next set_text. */
+CL_API const char *cl_label_text(cl_widget_t *label);
 
 #ifdef __cplusplus
 }

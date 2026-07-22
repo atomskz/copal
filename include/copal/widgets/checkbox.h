@@ -43,6 +43,8 @@ CL_API bool cl_checkbox_is_checked(cl_widget_t *cb);
 
 /** cl_checkbox_set_text() - set the label. */
 CL_API void cl_checkbox_set_text(cl_widget_t *cb, const char *utf8);
+/** cl_checkbox_text() - borrowed label (UTF-8) or NULL; valid until set_text. */
+CL_API const char *cl_checkbox_text(cl_widget_t *cb);
 
 /** cl_checkbox_set_on_toggle() - called only on user toggles (not set_checked). */
 CL_API void cl_checkbox_set_on_toggle(cl_widget_t *cb, cl_toggled_fn fn,
