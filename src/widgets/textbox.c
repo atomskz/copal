@@ -1582,6 +1582,12 @@ static void set_text_internal(cl_textbox_t *tb, const char *utf8)
     if (n)
         memcpy(tb->buf, utf8, n);
     tb->buf[n] = '\0';
+    if (!tb->multiline) {
+        /* A single-line box never stores line breaks, so programmatic text
+         * agrees with interactive input (paste strips them too). */
+        strip_newlines(tb->buf);
+        n = cl_strlen(tb->buf);
+    }
     tb->len = n;
     tb->cursor = n;
     tb->anchor = n;
