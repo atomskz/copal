@@ -127,6 +127,13 @@ CL_API void cl_application_quit(cl_application_t *app, int exit_code);
  * loop is woken so it drains promptly). A task may itself post more work. Tasks
  * still queued when the application is destroyed are dropped without running.
  * Requires the application's allocator to be thread-safe (the default is).
+ *
+ * Waking a blocked run loop needs the platform's wakeup op. The built-in
+ * backends provide it; an injected platform that omits wakeup can still queue
+ * tasks, but they are only drained on the next loop iteration that is already
+ * awake (a step(wait=false) tick or the next event/timer). Supply a wakeup op
+ * if you post from another thread while the loop blocks in run().
+ *
  * Returns CL_OK, or CL_ERROR_INVALID_ARGUMENT / CL_ERROR_OUT_OF_MEMORY.
  */
 CL_API cl_result_t cl_application_post(cl_application_t *app, cl_task_fn fn,
