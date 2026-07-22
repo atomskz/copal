@@ -8,6 +8,7 @@
 #include <stdlib.h> /* getenv for cl_font_load_system (hosted only) */
 #endif
 #include <string.h> /* memcpy (residual mem*) */
+#include <float.h>  /* FLT_MAX for the size_px range check (freestanding-safe) */
 
 #include "stb_truetype.h"
 #include "app/app_internal.h"
@@ -63,6 +64,15 @@ static cl_font_t *font_from_data(cl_application_t *app,
     if (len < 12) {
         cl_log(CL_LOG_WARN, "font: data too short to be a font");
         cl_set_last_error(CL_ERROR_FONT);
+        cl_free(a, data);
+        return NULL;
+    }
+
+    /* A non-positive or non-finite size yields a degenerate scale (0 or
+     * negative), zero metrics and a divide-by-zero downstream. Reject it. */
+    if (!(size_px > 0.0f) || size_px > FLT_MAX) {
+        cl_log(CL_LOG_WARN, "font: size_px must be positive and finite");
+        cl_set_last_error(CL_ERROR_INVALID_ARGUMENT);
         cl_free(a, data);
         return NULL;
     }
