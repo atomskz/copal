@@ -1323,9 +1323,16 @@ static bool textbox_key_down(cl_widget_t *w, const cl_event_t *ev)
 
                 tb_ensure_layout(tb, font);
                 if (tb->line_count > 0) { /* 0 only if a layout alloc failed */
-                    tb_line_t L = tb->lines[tb_line_of(tb, tb->cursor)];
+                    size_t li = tb_line_of(tb, tb->cursor);
+                    tb_line_t L = tb->lines[li];
+                    size_t end = L.start + L.len;
 
-                    move_cursor(tb, L.start + L.len, shift);
+                    /* A soft-wrapped line keeps its trailing break space in
+                     * len; that offset resolves to the next visual line, so
+                     * step back over it to stay at the end of this line. */
+                    if (end > L.start && tb_line_of(tb, end) != li)
+                        end--;
+                    move_cursor(tb, end, shift);
                 }
             } else if (ctrl && !tb->multiline) {
                 handled = false;
