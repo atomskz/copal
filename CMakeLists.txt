@@ -381,6 +381,13 @@ if(COPAL_ENABLE_INSTALL)
     if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
         string(STRIP "${COPAL_PC_LIBS_PRIVATE} -lGL" COPAL_PC_LIBS_PRIVATE)
     endif()
+    # A shared build needs COPAL_SHARED defined so CL_API decorates symbols with
+    # dllimport on Windows; CMake consumers inherit it, pkg-config ones need it
+    # in Cflags. The leading space keeps the line well-formed when empty.
+    set(COPAL_PC_CFLAGS "")
+    if(COPAL_BUILD_SHARED)
+        set(COPAL_PC_CFLAGS " -DCOPAL_SHARED")
+    endif()
     configure_file(cmake/copal.pc.in ${CMAKE_CURRENT_BINARY_DIR}/copal.pc
         @ONLY)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/copal.pc
