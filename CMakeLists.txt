@@ -344,6 +344,15 @@ if(COPAL_ENABLE_INSTALL)
         NAMESPACE copal::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/copal)
 
+    # Export the EFFECTIVE backend/dependency state, not the raw options: the
+    # GL renderer (and its OpenGL link) exists only when SDL is also enabled,
+    # and Threads is linked only on the hosted build.
+    if(COPAL_ENABLE_SDL AND COPAL_ENABLE_OPENGL)
+        set(COPAL_EXPORT_OPENGL ON)
+    else()
+        set(COPAL_EXPORT_OPENGL OFF)
+    endif()
+
     include(CMakePackageConfigHelpers)
     configure_package_config_file(
         cmake/copalConfig.cmake.in

@@ -3,16 +3,20 @@
 
 include(CMakeFindDependencyMacro)
 
-# copal links Threads::Threads (PUBLIC) for the cross-thread task queue, so the
-# export set references it unconditionally.
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_dependency(Threads)
+# copal links Threads::Threads (PUBLIC) for the cross-thread task queue only on
+# the hosted build, so require it only then.
+set(COPAL_WITH_THREADS @COPAL_HOSTED@)
+if(COPAL_WITH_THREADS)
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_dependency(Threads)
+endif()
 
 # The static library records its native backend link deps in its export set, so
 # a consumer must be able to resolve them. Only pull them in when copal was
-# actually built with those backends.
+# actually built with those backends (the GL renderer exists only alongside
+# SDL, so COPAL_WITH_OPENGL is the effective, not the raw, option).
 set(COPAL_WITH_SDL @COPAL_ENABLE_SDL@)
-set(COPAL_WITH_OPENGL @COPAL_ENABLE_OPENGL@)
+set(COPAL_WITH_OPENGL @COPAL_EXPORT_OPENGL@)
 if(COPAL_WITH_OPENGL)
     find_dependency(OpenGL)
 endif()
