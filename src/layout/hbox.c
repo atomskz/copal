@@ -99,6 +99,11 @@ static void hbox_arrange(cl_widget_t *w, cl_rect_t rect)
     if (leftover < 0.0f || total_flex <= 0.0f)
         leftover = 0.0f; /* grow only: never shrink below measured */
 
+    /* Distribute against the REMAINING flex/space so rounding never leaves an
+     * unclaimed sliver: the last flex child absorbs the exact remainder. */
+    float flex_rem = total_flex;
+    float space_rem = leftover;
+
     for (ch = w->first_child; ch; ch = ch->next_sibling) {
         cl_size_t cs;
         cl_align_t cross;
@@ -113,8 +118,13 @@ static void hbox_arrange(cl_widget_t *w, cl_rect_t rect)
         first = false;
 
         cs = ch->measured;
-        if (ch->flex > 0.0f && leftover > 0.0f)
-            cs.w += leftover * (ch->flex / total_flex);
+        if (ch->flex > 0.0f && space_rem > 0.0f && flex_rem > 0.0f) {
+            float share = space_rem * (ch->flex / flex_rem);
+
+            cs.w += share;
+            space_rem -= share;
+            flex_rem -= ch->flex;
+        }
         avail_h = content_h - ch->margin.top - ch->margin.bottom;
         if (avail_h < 0.0f)
             avail_h = 0.0f;
