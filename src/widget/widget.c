@@ -280,11 +280,13 @@ cl_window_t *cl_widget_window(cl_widget_t *w)
 
 cl_rect_t cl_widget_rect(cl_widget_t *w)
 {
-    return w->rect;
+    return w ? w->rect : (cl_rect_t){ 0.0f, 0.0f, 0.0f, 0.0f };
 }
 
 void cl_widget_set_visible(cl_widget_t *w, bool v)
 {
+    if (!w)
+        return;
     if (v) {
         w->flags |= CL_WF_VISIBLE;
     } else {
@@ -298,11 +300,13 @@ void cl_widget_set_visible(cl_widget_t *w, bool v)
 
 bool cl_widget_is_visible(cl_widget_t *w)
 {
-    return (w->flags & CL_WF_VISIBLE) != 0;
+    return w && (w->flags & CL_WF_VISIBLE) != 0;
 }
 
 void cl_widget_set_enabled(cl_widget_t *w, bool e)
 {
+    if (!w)
+        return;
     if (e) {
         w->flags |= CL_WF_ENABLED;
     } else {
@@ -316,6 +320,8 @@ void cl_widget_set_enabled(cl_widget_t *w, bool e)
 
 void cl_widget_set_focusable(cl_widget_t *w, bool focusable)
 {
+    if (!w)
+        return;
     if (focusable) {
         w->flags |= CL_WF_FOCUSABLE;
     } else {
@@ -344,7 +350,7 @@ bool cl_widget_has_focus(cl_widget_t *w)
 
 bool cl_widget_is_enabled(cl_widget_t *w)
 {
-    return (w->flags & CL_WF_ENABLED) != 0;
+    return w && (w->flags & CL_WF_ENABLED) != 0;
 }
 
 cl_size_t cl_widget_preferred_size(cl_widget_t *w)
@@ -390,18 +396,24 @@ cl_cursor_t cl_widget_cursor(cl_widget_t *w)
 
 void cl_widget_set_preferred_size(cl_widget_t *w, cl_size_t s)
 {
+    if (!w)
+        return;
     w->pref_size = s;
     cl_widget_invalidate_layout(w);
 }
 
 void cl_widget_set_margin(cl_widget_t *w, cl_insets_t m)
 {
+    if (!w)
+        return;
     w->margin = m;
     cl_widget_invalidate_layout(w);
 }
 
 void cl_widget_set_align(cl_widget_t *w, cl_align_t h, cl_align_t v)
 {
+    if (!w)
+        return;
     w->align_h = h;
     w->align_v = v;
     cl_widget_invalidate_layout(w);
@@ -409,24 +421,31 @@ void cl_widget_set_align(cl_widget_t *w, cl_align_t h, cl_align_t v)
 
 void cl_widget_set_flex(cl_widget_t *w, float weight)
 {
+    if (!w)
+        return;
     w->flex = weight;
     cl_widget_invalidate_layout(w);
 }
 
 void cl_widget_set_userdata(cl_widget_t *w, void *user)
 {
+    if (!w)
+        return;
     w->userdata = user;
 }
 
 void *cl_widget_userdata(cl_widget_t *w)
 {
-    return w->userdata;
+    return w ? w->userdata : NULL;
 }
 
 void cl_widget_set_tooltip(cl_widget_t *w, const char *utf8)
 {
-    const cl_allocator_t *a = cl_application_allocator(w->app);
+    const cl_allocator_t *a;
 
+    if (!w)
+        return;
+    a = cl_application_allocator(w->app);
     cl_free(a, w->tooltip);
     w->tooltip = NULL;
     if (utf8 && utf8[0]) {
@@ -440,7 +459,7 @@ void cl_widget_set_tooltip(cl_widget_t *w, const char *utf8)
 
 const char *cl_widget_tooltip(cl_widget_t *w)
 {
-    return w->tooltip;
+    return w ? w->tooltip : NULL;
 }
 
 /* ---- layout / paint / hit-test ----------------------------------------- */
