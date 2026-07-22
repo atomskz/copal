@@ -17,7 +17,9 @@ typedef enum cl_msgbox_buttons {
 } cl_msgbox_buttons_t;
 
 /* index: 0 = OK/Yes, 1 = Cancel/No (also Escape; Enter picks 0). */
-typedef void (*cl_msgbox_fn)(int index, void *user);
+/* index: 0 = first button (OK/Yes), 1 = second (Cancel/No). dialog is the
+ * message box widget, valid for the duration of the callback. */
+typedef void (*cl_msgbox_fn)(cl_widget_t *dialog, int index, void *user);
 
 /**
  * cl_messagebox_show() - a modal message box over the window's content.

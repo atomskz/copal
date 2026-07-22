@@ -53,8 +53,9 @@ static void on_toggle(cl_widget_t *w, bool checked, void *user)
 static int mb_fires;
 static int mb_last;
 
-static void on_msgbox(int index, void *user)
+static void on_msgbox(cl_widget_t *dialog, int index, void *user)
 {
+    (void)dialog;
     (void)user;
     mb_fires++;
     mb_last = index;

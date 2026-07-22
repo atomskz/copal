@@ -64,7 +64,7 @@ static void msg_finish(cl_msgbox_t *mb, int index)
     if (win)
         cl_window_close_popup(win); /* deferred; the dialog outlives this */
     if (fn)
-        fn(index, user); /* last: may open another dialog */
+        fn(&mb->base, index, user); /* last: may open another dialog */
 }
 
 static cl_size_t msgbox_measure(cl_widget_t *w, cl_constraints_t c)

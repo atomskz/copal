@@ -966,8 +966,9 @@ static cl_widget_t *make_media_section(void)
 
 /* --- section: dialogs ------------------------------------------------------------------ */
 
-static void msg_result(int index, void *user)
+static void msg_result(cl_widget_t *dialog, int index, void *user)
 {
+    (void)dialog;
     (void)user;
     status_msg("message box: %s (index %d)",
                index == 0 ? "confirmed" : "dismissed", index);
