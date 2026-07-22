@@ -12,6 +12,18 @@ every 0.x version.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-23
+
+### Added
+
+- `cl_platform_fb_create` (`copal/platform/fb.h`): a linear-framebuffer platform
+  backend that draws into a caller-provided 32-bit buffer with no windowing
+  system, so the built-in software renderer rasterises straight into it. This
+  is the minimal software/freestanding reference backend and the substrate for
+  host render-to-pixmap tests. Events arrive through `cl_platform_fb_push_event`;
+  `cl_pixmap_set_format` fills the channel masks for the common 32-bit layouts
+  (ARGB/XRGB/ABGR/XBGR/RGBA/BGRA). Always built (software, freestanding-safe).
+
 ## [0.4.0] — 2026-07-23
 
 ### Changed
@@ -37,6 +49,8 @@ every 0.x version.
   cannot use — a failed lock, or a base/pitch that is not 4-byte aligned — now
   produces exactly one ERROR line per renderer instead of a black screen; an
   all-zero R/G/B mask surface also warns once.
+
+## [0.3.2] — 2026-07-22
 
 ### Fixed
 

@@ -21,7 +21,7 @@ static int failures;
 static void test_version(void)
 {
     CHECK(cl_version_runtime() == COPAL_VERSION);
-    CHECK(strcmp(cl_version_string(), "0.4.0") == 0);
+    CHECK(strcmp(cl_version_string(), "0.5.0") == 0);
     CHECK(COPAL_VERSION_ENCODE(1, 2, 3) == 0x010203u);
 }
 

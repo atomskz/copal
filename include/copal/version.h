@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 #define COPAL_VERSION_MAJOR 0
-#define COPAL_VERSION_MINOR 4
+#define COPAL_VERSION_MINOR 5
 #define COPAL_VERSION_PATCH 0
 
 /* Pack a version into a single 0x00MMmmpp integer. */
