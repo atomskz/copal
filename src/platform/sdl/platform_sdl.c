@@ -268,8 +268,15 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                 out->window_id = e.wheel.windowID;
                 out->pos.x = (float)mx;
                 out->pos.y = (float)my;
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+                /* Precise fractional deltas from high-resolution wheels and
+                 * touchpads; the integer x/y stay 0 until a full notch. */
+                out->wheel_x = e.wheel.preciseX * dir;
+                out->wheel_y = e.wheel.preciseY * dir;
+#else
                 out->wheel_x = (float)e.wheel.x * dir;
                 out->wheel_y = (float)e.wheel.y * dir;
+#endif
                 out->mods = map_mods(SDL_GetModState());
                 return true;
             }
