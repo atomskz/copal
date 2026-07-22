@@ -232,6 +232,61 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  # Packaging: install copal to a staging prefix and consume it both ways
+  # (find_package and pkg-config), for the static and shared configs. Guards
+  # the install rules, copalConfig.cmake and copal.pc against silent breakage
+  # that would otherwise surface only in a downstream build.
+  install-consume:
+    name: linux install + find_package + pkg-config (${{ matrix.shared }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shared: [OFF, ON]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build and install copal
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          -DCOPAL_BUILD_SHARED=${{ matrix.shared }}
+          -DCOPAL_BUILD_EXAMPLES=OFF -DCOPAL_BUILD_TESTS=OFF &&
+          cmake --build build -j &&
+          cmake --install build --prefix "$PWD/stage"
+
+      - name: Write a tiny consumer
+        run: |
+          mkdir -p consumer
+          cat > consumer/main.c <<'EOF'
+          #include <copal/copal.h>
+          #include <stdio.h>
+          int main(void) { printf("copal %s\n", cl_version_string()); return 0; }
+          EOF
+          cat > consumer/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          project(consumer C)
+          find_package(copal CONFIG REQUIRED)
+          add_executable(app main.c)
+          target_link_libraries(app PRIVATE copal::copal)
+          EOF
+
+      - name: Consume via find_package(copal)
+        run: |
+          cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH="$PWD/stage"
+          cmake --build consumer/build -j
+          LD_LIBRARY_PATH="$(dirname "$(find "$PWD/stage" -name 'libcopal*.so*' | head -1)")" \
+            ./consumer/build/app
+
+      - name: Consume via pkg-config
+        run: |
+          export PKG_CONFIG_PATH="$(dirname "$(find "$PWD/stage" -name copal.pc | head -1)")"
+          pkg-config --exists copal
+          echo "cflags: $(pkg-config --cflags copal)"
+          echo "libs:   $(pkg-config --static --libs copal)"
+          cc consumer/main.c $(pkg-config --cflags --static --libs copal) -o pc-app
+          LD_LIBRARY_PATH="$(dirname "$(find "$PWD/stage" -name 'libcopal*.so*' | head -1)")" \
+            ./pc-app
+
 # macOS is intentionally NOT in the matrix. copal targets Windows and Linux
 # (README); macOS is unsupported and untested. The __APPLE__ font-path branch in
 # src/text/font.c is best-effort only. Revisit if macOS becomes a supported
