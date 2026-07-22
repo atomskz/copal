@@ -12,7 +12,7 @@ extern "C" {
 
 #define COPAL_VERSION_MAJOR 0
 #define COPAL_VERSION_MINOR 3
-#define COPAL_VERSION_PATCH 0
+#define COPAL_VERSION_PATCH 1
 
 /* Pack a version into a single 0x00MMmmpp integer. */
 #define COPAL_VERSION_ENCODE(major, minor, patch) \
@@ -29,7 +29,7 @@ extern "C" {
  */
 CL_API uint32_t cl_version_runtime(void);
 
-/** cl_version_string() - human-readable library version, e.g. "0.3.0". */
+/** cl_version_string() - human-readable library version, e.g. "0.3.1". */
 CL_API const char *cl_version_string(void);
 
 #ifdef __cplusplus

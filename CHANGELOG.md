@@ -12,6 +12,29 @@ every 0.x version.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-07-22
+
+### Fixed
+
+- Freestanding/UEFI: the built-in software renderer is now reachable without
+  SDL. `cl_application_create` builds it against any injected platform that
+  exposes a lockable framebuffer when `render_backend = CL_RENDER_SOFTWARE`, so
+  a freestanding app injecting a GOP platform no longer fails with
+  `CL_ERROR_UNSUPPORTED`.
+- Freestanding/UEFI: the last-error global is no longer thread-local in a
+  freestanding build (single-threaded; no TLS runtime to set up a thread
+  pointer), which would have faulted on UEFI at the first recorded error.
+- Freestanding: dropped an unused `<stdio.h>` include and gated a `<stdlib.h>`
+  include so the freestanding core pulls in only the sanctioned headers.
+
+### Documentation
+
+- The documentation was restructured into a wiki under `docs/` (building,
+  architecture, api, widgets, extending, performance, code-style); the
+  non-README Russian docs were removed. The freestanding/UEFI section now
+  documents selecting the software renderer, the platform injection point, and
+  the single-threaded last-error and assert-halt behaviours.
+
 ## [0.3.0] — 2026-07-22
 
 ### Added
