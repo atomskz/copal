@@ -214,6 +214,7 @@ cl_application_t *cl_window_application(cl_window_t *win)
 void cl_window_show(cl_window_t *win)
 {
     win->dirty = true;
+    win->damage_all = true; /* force a full first paint, not a stale region */
 }
 
 void cl_window_set_content(cl_window_t *win, cl_widget_t *root)
