@@ -1690,6 +1690,12 @@ void cl_textbox_set_on_changed(cl_widget_t *tb_w, cl_text_changed_fn fn,
     }
 }
 
+void cl_textbox_set_on_change(cl_widget_t *tb_w, cl_text_changed_fn fn,
+                              void *user)
+{
+    cl_textbox_set_on_changed(tb_w, fn, user);
+}
+
 void cl_textbox_set_on_submit(cl_widget_t *tb_w, cl_text_changed_fn fn,
                               void *user)
 {

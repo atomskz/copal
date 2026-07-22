@@ -64,6 +64,10 @@ CL_API const char *cl_textbox_text(cl_widget_t *tb);
 /** cl_textbox_set_on_changed() - called only on user edits that change text. */
 CL_API void cl_textbox_set_on_changed(cl_widget_t *tb, cl_text_changed_fn fn,
                                       void *user);
+/** cl_textbox_set_on_change() - alias of cl_textbox_set_on_changed, spelled to
+ *  match the other widgets' cl_*_set_on_change setters. */
+CL_API void cl_textbox_set_on_change(cl_widget_t *tb, cl_text_changed_fn fn,
+                                     void *user);
 
 /** cl_textbox_set_on_submit() - called only when Enter is pressed (single-line;
  *  in multiline mode Enter inserts a newline and never submits). */
