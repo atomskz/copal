@@ -74,16 +74,27 @@ size_t cl_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
             continue;
         }
         fmt++;
-        /* flags / width / precision: parsed, not applied */
+        /* flags / width / precision: parsed, not applied. The '*' forms still
+         * consume their int argument so later conversions stay aligned. */
         while (*fmt == '-' || *fmt == '+' || *fmt == ' ' || *fmt == '#' ||
                *fmt == '0')
             fmt++;
-        while (*fmt >= '0' && *fmt <= '9')
+        if (*fmt == '*') {
             fmt++;
-        if (*fmt == '.') {
-            fmt++;
+            (void)va_arg(ap, int);
+        } else {
             while (*fmt >= '0' && *fmt <= '9')
                 fmt++;
+        }
+        if (*fmt == '.') {
+            fmt++;
+            if (*fmt == '*') {
+                fmt++;
+                (void)va_arg(ap, int);
+            } else {
+                while (*fmt >= '0' && *fmt <= '9')
+                    fmt++;
+            }
         }
         lng = 0;
         if (*fmt == 'z') {
