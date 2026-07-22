@@ -230,11 +230,20 @@ if(COPAL_BUILD_SHARED)
         VISIBILITY_INLINES_HIDDEN ON)
 endif()
 
+# Pre-1.0 the ABI is not frozen: each 0.x minor gets its own SONAME so a
+# consumer linked against one 0.x is never silently loaded against another
+# (matches the "rebuild for every 0.x" policy). Switch to major-only at 1.0.
+if(PROJECT_VERSION_MAJOR EQUAL 0)
+    set(COPAL_SOVERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
+else()
+    set(COPAL_SOVERSION ${PROJECT_VERSION_MAJOR})
+endif()
+
 set_target_properties(copal PROPERTIES
     OUTPUT_NAME copal
     EXPORT_NAME copal
     VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR})
+    SOVERSION ${COPAL_SOVERSION})
 
 copal_set_warnings(copal)
 if(COPAL_ENABLE_SANITIZERS)
