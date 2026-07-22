@@ -302,6 +302,7 @@ void cl_window_resize(cl_window_t *win, cl_size_t size)
         win->scale = 1.0f;
     win->layout_dirty = true;
     win->dirty = true;
+    win->damage_all = true; /* the whole surface changed: repaint everything */
 }
 
 /* ---- overlay popups ----------------------------------------------------- */
