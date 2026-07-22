@@ -25,6 +25,17 @@ static int failures;
         }                                                               \
     } while (0)
 
+/* Number of children in a widget's subtree list (uses the widget_impl base). */
+static int child_count(cl_widget_t *w)
+{
+    int n = 0;
+    cl_widget_t *c;
+
+    for (c = w->first_child; c; c = c->next_sibling)
+        n++;
+    return n;
+}
+
 /* ---- close-request veto -------------------------------------------------- */
 
 static int close_calls;
@@ -315,13 +326,13 @@ static void test_destroy_from_callback(void)
     cl_application_step(app, false);
 
     /* destroying a SIBLING mid-dispatch: freed only after the iteration */
+    CHECK(child_count(box) == 2);
     cl_button_set_on_click(killer, kill_widget, victim);
     kr = cl_widget_rect(killer);
     click_at(plat, (cl_point_t){ kr.x + kr.w * 0.5f, kr.y + kr.h * 0.5f });
     cl_application_step(app, false);
-    CHECK(cl_widget_parent(killer) == box);
-    /* the victim is gone from the tree */
-    CHECK(cl_widget_parent(killer) != NULL);
+    CHECK(cl_widget_parent(killer) == box); /* the killer survives */
+    CHECK(child_count(box) == 1);           /* the victim was detached + reaped */
 
     /* destroying SELF from the click callback */
     cl_application_step(app, false);
