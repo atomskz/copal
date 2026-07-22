@@ -12,6 +12,8 @@ every 0.x version.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-22
+
 ### Added
 
 - Read-back getters to pair existing setters: `cl_button_text`,
