@@ -111,6 +111,12 @@ typedef struct cl_platform_ops {
                       const char *utf8);
     cl_size_t (*drawable_size)(cl_platform_t *p, cl_platform_window_t *win);
     float (*scale)(cl_platform_t *p, cl_platform_window_t *win);
+    /*
+     * Dequeue the next pending event into *out and return true, or return false
+     * when the queue is empty. The caller zero-initialises *out before each
+     * call, so fill only `kind` and the fields relevant to that kind; the rest
+     * stay zero (mods == CL_MOD_NONE, etc.).
+     */
     bool (*poll)(cl_platform_t *p, cl_platform_event_t *out);
     void (*wait)(cl_platform_t *p, int timeout_ms);
     void (*present)(cl_platform_t *p, cl_platform_window_t *win);

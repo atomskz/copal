@@ -257,9 +257,17 @@ void cl_application_destroy(cl_application_t *app)
 
 static void process_events(cl_application_t *app)
 {
-    cl_platform_event_t ev;
+    for (;;) {
+        /*
+         * Zero-init before each poll: a backend fills only the fields relevant
+         * to the event kind it reports, so the rest must read as well-defined
+         * defaults (e.g. mods == CL_MOD_NONE) rather than stale/garbage data
+         * carried over from a previous event.
+         */
+        cl_platform_event_t ev = { 0 };
 
-    while (app->platform->ops->poll(app->platform, &ev)) {
+        if (!app->platform->ops->poll(app->platform, &ev))
+            break;
         switch (ev.kind) {
             case CL_PEV_QUIT:
                 /* The window's close callback may veto the request. */
