@@ -1048,6 +1048,10 @@ static void textbox_paint(cl_widget_t *w, cl_paint_context_t *ctx)
                 stars[i] = '*';
             stars[k] = '\0';
             draw = stars;
+        } else {
+            /* Masking buffer could not be allocated: skip drawing the text
+             * rather than ever fall back to the real password buffer. */
+            draw = NULL;
         }
     }
 
