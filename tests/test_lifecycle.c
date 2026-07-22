@@ -612,10 +612,107 @@ static void test_custom_widget(void)
     cl_application_destroy(app);
 }
 
+/* ---- a minimal backend: only the required ops, every optional op NULL ----
+ * Mirrors a bare firmware/UEFI platform and guards against unconditional calls
+ * into optional platform ops (start_text_input, set_title, ...). */
+
+static cl_result_t min_create_window(cl_platform_t *p, const cl_window_desc_t *d,
+                                     cl_platform_window_t **out)
+{
+    (void)p;
+    (void)d;
+    *out = (cl_platform_window_t *)1; /* single window: any non-NULL handle */
+    return CL_OK;
+}
+static cl_size_t min_drawable_size(cl_platform_t *p, cl_platform_window_t *w)
+{
+    (void)p;
+    (void)w;
+    return (cl_size_t){ 200.0f, 150.0f };
+}
+static float min_scale(cl_platform_t *p, cl_platform_window_t *w)
+{
+    (void)p;
+    (void)w;
+    return 1.0f;
+}
+static bool min_poll(cl_platform_t *p, cl_platform_event_t *out)
+{
+    (void)p;
+    (void)out;
+    return false;
+}
+static void min_wait(cl_platform_t *p, int timeout_ms)
+{
+    (void)p;
+    (void)timeout_ms;
+}
+static void min_present(cl_platform_t *p, cl_platform_window_t *w)
+{
+    (void)p;
+    (void)w;
+}
+static uint64_t min_now_ms(cl_platform_t *p)
+{
+    (void)p;
+    return 0;
+}
+static void min_destroy(cl_platform_t *p)
+{
+    (void)p; /* the instance is static */
+}
+
+static const cl_platform_ops_t min_ops = {
+    .struct_size = sizeof(cl_platform_ops_t),
+    .abi_version = COPAL_VERSION,
+    .create_window = min_create_window,
+    .drawable_size = min_drawable_size,
+    .scale = min_scale,
+    .poll = min_poll,
+    .wait = min_wait,
+    .present = min_present,
+    .now_ms = min_now_ms,
+    .destroy = min_destroy,
+    /* set_title, start_text_input, set_cursor, wakeup, clipboard_*, set_ime_rect,
+     * present_region, destroy_window, lock/unlock_framebuffer, gl_get_proc = NULL */
+};
+
+static cl_platform_t g_min_platform = { &min_ops };
+
+static void test_minimal_platform(void)
+{
+    cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
+    cl_window_desc_t wd = { CL_WINDOW_DESC_INIT_FIELDS,
+                            .width = 200, .height = 150 };
+    cl_application_t *app;
+    cl_window_t *win;
+
+    ad.platform = &g_min_platform;
+    ad.renderer = cl_renderer_mock_create(cl_allocator_default());
+    app = cl_application_create(&ad);
+    CHECK(app != NULL);
+
+    /* cl_window_create called start_text_input unconditionally and
+     * cl_window_set_title called set_title unconditionally; both ops are NULL
+     * on this backend, so a minimal platform must not crash. */
+    win = cl_window_create(app, &wd);
+    CHECK(win != NULL);
+    cl_window_set_title(win, "firmware");
+    CHECK(win && strcmp(cl_window_title(win), "firmware") == 0); /* stored anyway */
+
+    cl_window_set_content(
+        win, cl_vbox_create(app, &(cl_vbox_desc_t){ CL_VBOX_DESC_INIT_FIELDS }));
+    cl_window_show(win);
+    cl_application_step(app, false); /* render through the minimal platform */
+
+    cl_application_destroy(app);
+}
+
 int main(void)
 {
     test_on_close();
     test_backend_abi();
+    test_minimal_platform();
     test_run_exit_code();
     test_window_lifecycle();
     test_disabled();

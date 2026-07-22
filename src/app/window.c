@@ -186,7 +186,8 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
     win->layout_dirty = true;
     win->damage_all = true;
     app->window = win;
-    app->platform->ops->start_text_input(app->platform, native, true);
+    if (app->platform->ops->start_text_input)
+        app->platform->ops->start_text_input(app->platform, native, true);
     return win;
 }
 
@@ -249,7 +250,8 @@ void cl_window_set_title(cl_window_t *win, const char *utf8)
         return;
     cl_free(&win->app->alloc, win->title);
     win->title = cl_strdup(&win->app->alloc, utf8);
-    win->app->platform->ops->set_title(win->app->platform, win->native, utf8);
+    if (win->app->platform->ops->set_title)
+        win->app->platform->ops->set_title(win->app->platform, win->native, utf8);
 }
 
 const char *cl_window_title(cl_window_t *win)

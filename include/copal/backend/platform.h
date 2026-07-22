@@ -104,6 +104,9 @@ typedef struct cl_platform_ops {
      * being called with no window.
      */
     void (*destroy_window)(cl_platform_t *p, cl_platform_window_t *win);
+    /* Set the native window title. Optional: NULL when the backend has no
+     * title (e.g. a bare framebuffer); the title is still stored and readable
+     * via cl_window_title. */
     void (*set_title)(cl_platform_t *p, cl_platform_window_t *win,
                       const char *utf8);
     cl_size_t (*drawable_size)(cl_platform_t *p, cl_platform_window_t *win);
@@ -120,6 +123,9 @@ typedef struct cl_platform_ops {
     void (*present_region)(cl_platform_t *p, cl_platform_window_t *win,
                            cl_rect_t rect);
     void (*wakeup)(cl_platform_t *p);
+    /* Enable/disable text input (drives the platform IME/keyboard). Optional:
+     * NULL when the backend has no text-input concept (e.g. a bare firmware
+     * console); text widgets still receive key/text events the backend posts. */
     void (*start_text_input)(cl_platform_t *p, cl_platform_window_t *win,
                              bool enable);
     /* Show a system cursor shape (process-wide, follows the pointer).
