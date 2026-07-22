@@ -60,6 +60,9 @@ CL_API cl_theme_variant_t cl_theme_variant(cl_theme_t *theme);
 /** cl_theme_set_radius() - set the default widget corner radius. */
 CL_API void cl_theme_set_radius(cl_theme_t *theme, float radius);
 
+/** cl_theme_radius() - the current default widget corner radius. */
+CL_API float cl_theme_radius(cl_theme_t *theme);
+
 /** cl_theme_font() - the theme's default font (may be NULL until set). */
 CL_API cl_font_t *cl_theme_font(cl_theme_t *theme);
 
