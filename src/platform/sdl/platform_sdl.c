@@ -232,6 +232,12 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
 
             case SDL_MOUSEBUTTONDOWN:
             case SDL_MOUSEBUTTONUP:
+                /* Only left/middle/right map to cl_mouse_button_t; drop the
+                 * X1/X2 side buttons rather than reporting them as clicks. */
+                if (e.button.button != SDL_BUTTON_LEFT &&
+                    e.button.button != SDL_BUTTON_MIDDLE &&
+                    e.button.button != SDL_BUTTON_RIGHT)
+                    break;
                 out->kind = e.type == SDL_MOUSEBUTTONDOWN ? CL_PEV_MOUSE_DOWN
                                                           : CL_PEV_MOUSE_UP;
                 out->window_id = e.button.windowID;
