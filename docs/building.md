@@ -128,10 +128,13 @@ With `CL_HOSTED` undefined, these paths compile out and the embedder must supply
 |---|---|
 | Default malloc allocator (`cl_allocator_default()` returns `NULL`) | An allocator via `cl_application_desc_t.allocator` |
 | File/system font loaders (`cl_font_load_file`/`cl_font_load_system` return `CL_ERROR_UNSUPPORTED`) | A font from memory via `cl_font_load_memory` |
-| stderr log fallback | A log sink via `cl_set_log_callback` |
+| stderr log / `abort()` diagnostics | A log sink via `cl_set_log_callback` and an assert handler via `cl_set_assert_handler` |
 | Built-in task-queue mutex | A mutex via `cl_application_desc_t.mutex` (e.g. UEFI `RaiseTPL`/`RestoreTPL`) |
+| SDL platform / GL renderer | A platform via `cl_application_desc_t.platform` (out of tree, over GOP + input/timer protocols) |
 
-The embedder also provides a platform over GOP plus input/timer protocols (out of tree, the way the SDL backend is in-tree). The core links no libm and references only `memcpy`/`memmove`/`memset`, which every UEFI toolchain supplies; see [architecture.md](./architecture.md) for the rationale and the shim contract.
+The **software renderer is not injected** — it is built in and always compiled. Ask for it with `cl_application_desc_t.render_backend = CL_RENDER_SOFTWARE`; `cl_application_create` builds it against your platform's `lock_framebuffer` op (the GOP linear framebuffer), so your platform must implement `lock_framebuffer`/`unlock_framebuffer` returning a `cl_pixmap_t`. See [extending.md](./extending.md) for the platform SPI.
+
+Two behaviours to know freestanding: the last error is a plain global (single-threaded — no TLS runtime is needed), and a failed `CL_ASSERT` with no handler installed halts in a spin loop, so install `cl_set_assert_handler` for debug builds (assertions are compiled out under `NDEBUG`). The core links no libm and references only `memcpy`/`memmove`/`memset`, which every UEFI toolchain supplies; see [architecture.md](./architecture.md) for the rationale and the shim contract.
 
 ---
 *See also: [architecture.md](./architecture.md) · [api.md](./api.md) · [performance.md](./performance.md)*

@@ -93,7 +93,7 @@ The limitation is real and stated plainly: there is **no shaping, no bidi, no ma
 | Platform | SDL2 behind a `platform` interface (plus a mock). |
 | Renderer | OpenGL 3.3 core behind an interface: SDF primitives + glyph atlas. |
 | Lightweight renderer | Selectable software/CPU backend, no GL context, always built. |
-| Freestanding | `COPAL_HOSTED=OFF` core for UEFI/bare-metal; libc/libm-free, injectable allocator/mutex/assert. |
+| Freestanding | `COPAL_HOSTED=OFF` core for UEFI/bare-metal; libc/libm-free, injectable allocator/mutex/platform, software renderer into a GOP framebuffer. |
 | Look & feel | Own rendering + light/dark themes; no native controls. |
 | Text | stb_truetype, UTF-8, no shaping/bidi/fallback. |
 | Object model | Public base as the first field + reserve + runtime ABI (`abi_version`/`struct_size`) check. |
