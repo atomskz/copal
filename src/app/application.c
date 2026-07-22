@@ -363,10 +363,18 @@ bool cl_application_step(cl_application_t *app, bool wait)
 
 void cl_application_quit(cl_application_t *app, int exit_code)
 {
+    if (!app)
+        return;
     app->quit = true;
     app->exit_code = exit_code;
-    if (app->platform)
+    /* Wake the loop under the task lock (as cl_application_post does) so a
+     * cross-thread quit cannot race the software-fallback platform swap. */
+    if (app->task_mutex)
+        app->mtx.lock(app->mtx.user, app->task_mutex);
+    if (app->platform && app->platform->ops->wakeup)
         app->platform->ops->wakeup(app->platform);
+    if (app->task_mutex)
+        app->mtx.unlock(app->mtx.user, app->task_mutex);
 }
 
 cl_result_t cl_application_post(cl_application_t *app, cl_task_fn fn, void *user)
