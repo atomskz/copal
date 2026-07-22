@@ -9,9 +9,11 @@
 #include "widget/widget_internal.h"
 #include "core/foundation/foundation_internal.h"
 
+/* The software renderer is always compiled (freestanding core), so its factory
+ * is available regardless of the SDL/GL backends. */
+#include "render/soft/renderer_soft.h"
 #if defined(CL_ENABLE_SDL)
 #include "platform/sdl/platform_sdl.h"
-#include "render/soft/renderer_soft.h"
 #endif
 #if defined(CL_ENABLE_OPENGL)
 #include "render/gl/renderer_gl.h"
@@ -111,6 +113,20 @@ cl_application_t *cl_application_create(const cl_application_desc_t *desc)
 #endif
     }
 #endif
+
+    /*
+     * Software renderer against any platform that exposes a lockable CPU
+     * framebuffer. This is the freestanding/UEFI path: the embedder injects a
+     * GOP-backed platform and asks for CL_RENDER_SOFTWARE (or AUTO, which has
+     * no GL to prefer here). It also lets a hosted build use an injected
+     * software-only platform. Skipped for an explicit CL_RENDER_GL request and
+     * when a renderer was already injected or built above; runs regardless of
+     * COPAL_ENABLE_SDL.
+     */
+    if (!app->renderer && app->platform &&
+        app->platform->ops->lock_framebuffer &&
+        desc->render_backend != CL_RENDER_GL)
+        app->renderer = cl_renderer_soft_create(&app->alloc, app->platform);
 
     if (!app->platform || !app->renderer) {
         cl_log(CL_LOG_ERROR,
