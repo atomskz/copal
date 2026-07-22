@@ -69,6 +69,7 @@ typedef struct cl_textbox {
     tb_edit_kind_t coalesce; /* kind of the current undo group */
     char *pending;           /* pre-edit snapshot text, or NULL */
     size_t pending_cursor, pending_anchor;
+    bool pending_failed;     /* snapshot alloc failed: no undo, still notify */
     char *preedit;           /* IME composition shown at the caret, or NULL */
     int preedit_cursor;      /* caret within the composition, in codepoints */
 } cl_textbox_t;
@@ -789,6 +790,7 @@ static void clear_history(cl_textbox_t *tb)
     tb->redo_count = 0;
     cl_free(cl_application_allocator(tb->base.app), tb->pending);
     tb->pending = NULL;
+    tb->pending_failed = false;
     tb->coalesce = TB_EDIT_NONE;
 }
 
@@ -797,6 +799,10 @@ static void edit_begin(cl_textbox_t *tb)
 {
     cl_free(cl_application_allocator(tb->base.app), tb->pending);
     tb->pending = tb_dup_n(tb, tb->buf, tb->len);
+    /* If the snapshot could not be taken (OOM) while there was text to save,
+     * the edit still proceeds but is not undoable; remember so edit_commit can
+     * still fire on_changed. */
+    tb->pending_failed = (tb->pending == NULL && tb->len > 0);
     tb->pending_cursor = tb->cursor;
     tb->pending_anchor = tb->anchor;
 }
@@ -809,8 +815,14 @@ static bool edit_commit(cl_textbox_t *tb, tb_edit_kind_t kind)
     const cl_allocator_t *a = cl_application_allocator(tb->base.app);
     bool changed;
 
-    if (!tb->pending)
-        return false;
+    if (!tb->pending) {
+        /* Snapshot failed at edit_begin: we cannot push undo, but if the edit
+         * still ran we must report the change so observers stay in sync. */
+        bool failed = tb->pending_failed;
+
+        tb->pending_failed = false;
+        return failed;
+    }
     changed = cl_strcmp(tb->pending, tb->buf) != 0;
     if (!changed || (kind == tb->coalesce && kind != TB_EDIT_OTHER)) {
         cl_free(a, tb->pending);
