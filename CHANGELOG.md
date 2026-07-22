@@ -12,7 +12,31 @@ every 0.x version.
 
 ## [Unreleased]
 
-## [0.3.2] — 2026-07-22
+## [0.4.0] — 2026-07-23
+
+### Changed
+
+- `cl_application_create` now validates, once both backends are resolved, that
+  the platform and renderer expose every op the library calls unconditionally.
+  A platform missing `create_window`, `drawable_size`, `scale`, `poll`,
+  `present` or `destroy` (plus `lock_framebuffer`/`unlock_framebuffer` for the
+  software renderer and `gl_get_proc` for the GL one), or a renderer missing
+  `begin_frame`, `end_frame`, `fill_rect`, `fill_round_rect`,
+  `stroke_round_rect`, `draw_text`, `push_clip` or `pop_clip`, now fails create
+  with a named `CL_ERROR_INVALID_ARGUMENT` (`platform op '…' is required`)
+  instead of faulting on the first frame. The conditional ops `wait` and
+  `now_ms` only warn when NULL — the loop and the timer subsystem degrade
+  gracefully without them.
+
+### Fixed
+
+- The conditional `wait` op is now NULL-guarded in `cl_application_run` and
+  `cl_application_step(wait)`: a backend that leaves it NULL falls through to
+  polling instead of faulting (as the create-time warning flags).
+- The software renderer no longer drops frames silently. A framebuffer it
+  cannot use — a failed lock, or a base/pitch that is not 4-byte aligned — now
+  produces exactly one ERROR line per renderer instead of a black screen; an
+  all-zero R/G/B mask surface also warns once.
 
 ### Fixed
 
