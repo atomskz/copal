@@ -400,7 +400,8 @@ static glyph_t *get_glyph(gl_renderer_t *r, cl_font_t *font, uint32_t cp,
     g->xoff = xoff;                   /* bitmap geometry is in device px */
     g->yoff = yoff;
 
-    if (bmp && w > 0 && h > 0 && r->pen_y + h + 1 <= ATLAS_H) {
+    if (bmp && w > 0 && h > 0 && r->pen_x + w + 1 <= ATLAS_W &&
+        r->pen_y + h + 1 <= ATLAS_H) {
         gl->BindTexture(GL_TEXTURE_2D, r->atlas);
         gl->TexSubImage2D(GL_TEXTURE_2D, 0, r->pen_x, r->pen_y, w, h,
                           GL_RED, GL_UNSIGNED_BYTE, bmp);
@@ -421,6 +422,10 @@ static glyph_t *get_glyph(gl_renderer_t *r, cl_font_t *font, uint32_t cp,
 
 static void set_proj(gl_renderer_t *r, float w, float h)
 {
+    if (w <= 0.0f) /* a zero-size frame would divide by zero into +/-inf */
+        w = 1.0f;
+    if (h <= 0.0f)
+        h = 1.0f;
     memset(r->proj, 0, sizeof(r->proj));
     r->proj[0] = 2.0f / w;
     r->proj[5] = -2.0f / h;
@@ -644,12 +649,13 @@ static void gl_push_clip(cl_renderer_t *rr, cl_rect_t rect)
     /* Clip rects transform like geometry. */
     merged = rect_intersect(gl_clip_cur(r), gl_tf_rect(r, rect));
     idx = r->clip_depth++; /* always advance so a later pop stays balanced */
-    if (idx < CL_GL_CLIP_STACK) {
+    if (idx < CL_GL_CLIP_STACK)
         r->clip_stack[idx] = merged;
-        r->gl.Enable(GL_SCISSOR_TEST);
-        gl_apply_scissor(r, merged);
-    }
-    /* Past capacity: keep the current (tighter-or-equal) scissor in force. */
+    /* Apply the tightened scissor even past capacity, so over-capacity draws
+     * are still clipped; only the stack storage (for exact pop restore) is
+     * capped. */
+    r->gl.Enable(GL_SCISSOR_TEST);
+    gl_apply_scissor(r, merged);
 }
 
 static void gl_pop_clip(cl_renderer_t *rr)
