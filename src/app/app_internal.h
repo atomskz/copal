@@ -70,6 +70,7 @@ struct cl_window {
     cl_widget_host_t host;
     cl_application_t *app;      /* weak */
     cl_platform_window_t *native; /* backend window handle (create_window) */
+    char *title;                /* owned copy of the last set title, or NULL */
     cl_widget_t *content;       /* owned */
     /*
      * Overlay stack: popups/menus/dialogs painted over the content, index 0

@@ -174,6 +174,7 @@ cl_window_t *cl_window_create(cl_application_t *app, const cl_window_desc_t *des
     win->host.ops = &window_host_ops;
     win->app = app;
     win->native = native;
+    win->title = cl_strdup(&app->alloc, desc->title); /* NULL title -> NULL */
     /* Ask the platform for the size it actually created: the SDL backends
      * default width/height <= 0 to 640x480, and layout must agree with the
      * real surface (SDL sends no initial RESIZE to correct a stale 0x0). */
@@ -203,6 +204,7 @@ void cl_window_destroy(cl_window_t *win)
     app = win->app;
     if (app->window == win)
         app->window = NULL;
+    cl_free(&app->alloc, win->title);
     cl_free(&app->alloc, win);
 }
 
@@ -243,7 +245,16 @@ cl_widget_t *cl_window_content(cl_window_t *win)
 
 void cl_window_set_title(cl_window_t *win, const char *utf8)
 {
+    if (!win)
+        return;
+    cl_free(&win->app->alloc, win->title);
+    win->title = cl_strdup(&win->app->alloc, utf8);
     win->app->platform->ops->set_title(win->app->platform, win->native, utf8);
+}
+
+const char *cl_window_title(cl_window_t *win)
+{
+    return win ? win->title : NULL;
 }
 
 cl_size_t cl_window_size(cl_window_t *win)
