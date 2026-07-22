@@ -3,6 +3,8 @@
 #include <copal/widget_impl.h>
 #include <copal/application.h>
 
+#include <float.h>
+
 #include "widget/widget_internal.h"
 #include "theme/theme_internal.h"
 
@@ -50,6 +52,11 @@ static const cl_widget_class_t cl_slider_class = {
     .vtable = &slider_vtable,
     .vtable_size = sizeof(cl_widget_vtable_t),
 };
+
+static bool finitef(float v)
+{
+    return v == v && v <= FLT_MAX && v >= -FLT_MAX; /* rules out NaN and +-Inf */
+}
 
 static float clampf(float v, float lo, float hi)
 {
@@ -210,13 +217,14 @@ static void slider_focus_changed(cl_widget_t *w)
 
 static void apply_range(cl_slider_t *s, float min, float max, float step)
 {
-    if (max <= min) {
+    if (!finitef(min) || !finitef(max) || max <= min) {
         min = 0.0f;
         max = 1.0f;
     }
     s->min = min;
     s->max = max;
-    s->auto_step = step <= 0.0f;
+    /* Auto step for a non-positive, NaN or infinite step keeps s->step finite. */
+    s->auto_step = !(step > 0.0f) || !finitef(step);
     s->step = s->auto_step ? (max - min) / 20.0f : step;
     s->value = clampf(s->value, min, max);
 }
