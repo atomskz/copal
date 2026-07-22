@@ -105,9 +105,90 @@ static bool scenario(int budget)
         cl_widget_add_child(box, tb);
         cl_window_set_content(win, box);
         if (cl_application_step(app, false)) {
+            /* Sweep the other widgets' own allocation sites (item arrays, undo
+             * history, popup menus). Each widget is parented as soon as it is
+             * created, so a mid-sequence failure never leaks; complete stays
+             * false unless every allocation in the scenario succeeded. */
+            cl_list_desc_t ld = { CL_LIST_DESC_INIT_FIELDS };
+            cl_combobox_desc_t cd = { CL_COMBOBOX_DESC_INIT_FIELDS };
+            cl_scrollview_desc_t sd = { CL_SCROLLVIEW_DESC_INIT_FIELDS };
+            cl_label_desc_t lbd = { CL_LABEL_DESC_INIT_FIELDS, .text = "x" };
+            cl_menu_desc_t md = { CL_MENU_DESC_INIT_FIELDS };
+            cl_widget_t *list;
+            cl_widget_t *combo;
+            cl_widget_t *scroll;
+            cl_widget_t *menu;
+            bool all_ok = true;
+            int k;
+
             cl_textbox_set_text(tb, "a longer replacement text");
+
+            list = cl_list_create(app, &ld);
+            if (list) {
+                cl_widget_add_child(box, list);
+                for (k = 0; k < 4; k++)
+                    if (cl_list_add_item(list, "row") != CL_OK)
+                        all_ok = false;
+            } else {
+                all_ok = false;
+            }
+
+            combo = cl_combobox_create(app, &cd);
+            if (combo) {
+                cl_widget_add_child(box, combo);
+                for (k = 0; k < 4; k++)
+                    if (cl_combobox_add_item(combo, "opt") != CL_OK)
+                        all_ok = false;
+            } else {
+                all_ok = false;
+            }
+
+            scroll = cl_scrollview_create(app, &sd);
+            if (scroll) {
+                cl_widget_t *inner = cl_label_create(app, &lbd);
+
+                cl_widget_add_child(box, scroll);
+                if (inner)
+                    cl_scrollview_set_content(scroll, inner);
+                else
+                    all_ok = false;
+            } else {
+                all_ok = false;
+            }
+
+            /* A standalone popup menu (owned by us): items plus a submenu. */
+            menu = cl_menu_create(app, &md);
+            if (menu) {
+                cl_widget_t *sub;
+
+                for (k = 0; k < 3; k++)
+                    if (cl_menu_add_item(menu, "item", NULL, NULL) != CL_OK)
+                        all_ok = false;
+                sub = cl_menu_create(app, &md);
+                if (sub) {
+                    if (cl_menu_add_submenu(menu, "more", sub) != CL_OK) {
+                        cl_widget_destroy(sub); /* not adopted: free it */
+                        all_ok = false;
+                    }
+                } else {
+                    all_ok = false;
+                }
+                cl_widget_destroy(menu);
+            } else {
+                all_ok = false;
+            }
+
+            /* Grow the textbox undo history via a few inserted characters. */
+            if (cl_widget_focus(tb)) {
+                cl_platform_event_t ev = { 0 };
+
+                ev.kind = CL_PEV_TEXT_INPUT;
+                memcpy(ev.text, "z", 2);
+                for (k = 0; k < 3; k++)
+                    cl_platform_mock_push(plat, ev);
+            }
             cl_application_step(app, false);
-            complete = true; /* every step ran within the budget */
+            complete = all_ok; /* true only if no allocation failed */
         }
     } else {
         CHECK(cl_last_error() == CL_ERROR_OUT_OF_MEMORY);
@@ -129,7 +210,7 @@ static void test_oom_sweep(void)
     /* Unlimited first: sanity that the scenario itself is green. */
     CHECK(scenario(-1));
 
-    for (n = 0; n < 300 && !completed; n++)
+    for (n = 0; n < 600 && !completed; n++)
         completed = scenario(n);
     CHECK(completed); /* the sweep must eventually run the whole scenario */
 }
