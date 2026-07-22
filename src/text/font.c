@@ -167,6 +167,35 @@ cl_font_t *cl_font_load_memory(cl_application_t *app, const void *data,
 }
 
 #ifdef CL_HOSTED
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
+/* The path is UTF-8 (copal's string contract), but the CRT fopen decodes it in
+ * the active ANSI code page, so a non-ASCII path fails. Open through the wide
+ * API instead. */
+static FILE *open_font_file(const char *path)
+{
+    wchar_t wpath[1024];
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath,
+                                (int)(sizeof(wpath) / sizeof(wpath[0])));
+
+    if (n <= 0)
+        return NULL; /* invalid UTF-8, or longer than the buffer */
+    return _wfopen(wpath, L"rb");
+}
+#else
+static FILE *open_font_file(const char *path)
+{
+    return fopen(path, "rb");
+}
+#endif
+
 cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
                              float size_px)
 {
@@ -181,7 +210,7 @@ cl_font_t *cl_font_load_file(cl_application_t *app, const char *path,
         return NULL;
     }
     a = cl_application_allocator(app);
-    fp = fopen(path, "rb");
+    fp = open_font_file(path);
     if (!fp) {
         /* INFO, not WARN: probing a candidate list is a legitimate pattern
          * (the caller still sees NULL + CL_ERROR_FONT). */
