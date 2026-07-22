@@ -26,8 +26,8 @@ CPU-растеризатор (software), выбирается на этапе с
 - **Темы**: светлая/тёмная палитра, переключение в рантайме.
 - Кастомные виджеты и контейнеры — через устанавливаемый `widget_impl.h`.
 
-Ограничения: одно окно, нет shaping/bidi (1 кодовая точка = 1 глиф).
-Планы: см. [docs/ru/ARCHITECTURE.md](ARCHITECTURE.md).
+Ограничения: одно окно, нет shaping/bidi (1 кодовая точка = 1 глиф); описание
+устройства и его обоснование — в [docs/architecture.md](../architecture.md).
 
 ## Сборка
 
@@ -148,11 +148,15 @@ target_link_libraries(app PRIVATE copal::copal)
 
 ## Документация
 
-- [docs/ru/ARCHITECTURE.md](ARCHITECTURE.md) — архитектура, слои, ADR.
-- [docs/ru/API.md](API.md) — обзор публичного API и сигнатуры по модулям.
-- [docs/ru/STRUCTURE.md](STRUCTURE.md) — дерево репозитория и сборка.
-- [docs/ru/PERFORMANCE.md](PERFORMANCE.md) — бенчмарки и измеренные числа.
-- [docs/ru/CODESTYLE.md](CODESTYLE.md) — стиль кода.
+Полная документация (на английском) — в **[docs/](../README.md)**:
+
+- [Building](../building.md) — сборка, установка и использование как зависимости.
+- [API reference](../api.md) — публичный API фреймворка.
+- [Widgets](../widgets.md) — каталог встроенных виджетов.
+- [Architecture](../architecture.md) — устройство и проектные решения.
+- [Extending](../extending.md) — свои виджеты и бэкенды.
+- [Performance](../performance.md) — бенчмарки.
+- [Code style](../code-style.md) — для контрибьюторов.
 
 ## Лицензия
 

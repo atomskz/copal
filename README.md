@@ -27,8 +27,8 @@ built-in CPU rasterizer (software), chosen at build time and at runtime.
 - **Themes**: light/dark palette, switchable at runtime.
 - Custom widgets and containers — through the installed `widget_impl.h`.
 
-Limitations: a single window, no shaping/bidi (1 code point = 1 glyph).
-Roadmap: see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Limitations: a single window, no shaping/bidi (1 code point = 1 glyph); see
+[docs/architecture.md](docs/architecture.md) for the design and its rationale.
 
 ## Build
 
@@ -151,11 +151,15 @@ automatically), or pkg-config: `pkg-config --cflags --libs copal`.
 
 ## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — architecture, layers, ADRs.
-- [docs/API.md](docs/API.md) — public API overview and signatures by module.
-- [docs/STRUCTURE.md](docs/STRUCTURE.md) — repository tree and build.
-- [docs/PERFORMANCE.md](docs/PERFORMANCE.md) — benchmarks and measured numbers.
-- [docs/CODESTYLE.md](docs/CODESTYLE.md) — code style.
+Full documentation is in **[docs/](docs/README.md)**:
+
+- [Building](docs/building.md) — build, install, and use copal as a dependency.
+- [API reference](docs/api.md) — the core framework API.
+- [Widgets](docs/widgets.md) — the built-in widget catalog.
+- [Architecture](docs/architecture.md) — how it works, and the design decisions.
+- [Extending](docs/extending.md) — custom widgets and backends.
+- [Performance](docs/performance.md) — benchmarks.
+- [Code style](docs/code-style.md) — for contributors.
 
 ## License
 
