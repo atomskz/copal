@@ -47,6 +47,11 @@ typedef enum cl_align {
     CL_ALIGN_AUTO /* per-child value: defer to the container's alignment */
 } cl_align_t;
 
+/*
+ * Reserved: no public API consumes an orientation yet (boxes are the separate
+ * cl_vbox/cl_hbox creators and the slider is horizontal). Kept for a future
+ * orientation-taking API; do not infer that an orientation knob already exists.
+ */
 typedef enum cl_orientation {
     CL_ORIENT_HORIZONTAL,
     CL_ORIENT_VERTICAL
