@@ -204,6 +204,8 @@ static void mock_push_clip(cl_renderer_t *r, cl_rect_t rect)
     c.clip = mock_clip_top(m); /* effective clip now in force */
     if (m->count < CL_MOCK_MAX_COMMANDS)
         m->cmds[m->count++] = c;
+    else
+        m->dropped++; /* count it, like every other command kind */
 }
 
 static void mock_pop_clip(cl_renderer_t *r)
@@ -217,6 +219,8 @@ static void mock_pop_clip(cl_renderer_t *r)
     c.clip = mock_clip_top(m);
     if (m->count < CL_MOCK_MAX_COMMANDS)
         m->cmds[m->count++] = c;
+    else
+        m->dropped++; /* count it, like every other command kind */
 }
 
 static void mock_push_transform(cl_renderer_t *r, cl_point_t offset,
