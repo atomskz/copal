@@ -243,6 +243,14 @@ void cl_widget_destroy(cl_widget_t *w)
     if (!w || (w->flags & CL_WF_DEAD))
         return; /* already queued */
     host = cl_widget_host(w); /* before detach clears the window back-ref */
+    /*
+     * Flag the root dead up front, before the detach below can run user
+     * callbacks (cl_widget_remove_child fires focus_lost). If such a callback
+     * re-enters cl_widget_destroy on this same widget, the guard above now
+     * trips and the nested call is a no-op, so the node is queued for free
+     * exactly once instead of twice.
+     */
+    w->flags |= CL_WF_DEAD;
     if (w->parent)
         cl_widget_remove_child(w->parent, w); /* fires focus_lost via detach */
     widget_mark_dead(w);

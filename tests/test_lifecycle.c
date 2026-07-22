@@ -262,6 +262,28 @@ static void click_at(cl_platform_t *plat, cl_point_t pos)
     cl_platform_mock_push(plat, pe);
 }
 
+/* A focusable widget whose focus_lost destroys itself: destroying it while it
+ * holds focus re-enters cl_widget_destroy from inside the detach. */
+typedef struct cl_selfkill {
+    cl_widget_t base;
+} cl_selfkill_t;
+
+static void selfkill_focus_lost(cl_widget_t *w)
+{
+    cl_widget_destroy(w);
+}
+
+static const cl_widget_vtable_t selfkill_vtable = {
+    .focus_lost = selfkill_focus_lost,
+};
+
+static const cl_widget_class_t cl_selfkill_class = {
+    .name = "cl_selfkill",
+    .instance_size = sizeof(cl_selfkill_t),
+    .vtable = &selfkill_vtable,
+    .vtable_size = sizeof(cl_widget_vtable_t),
+};
+
 static void test_destroy_from_callback(void)
 {
     cl_application_desc_t ad = { CL_APPLICATION_DESC_INIT_FIELDS };
@@ -316,6 +338,21 @@ static void test_destroy_from_callback(void)
         cl_widget_destroy(loner);
         CHECK(cl_widget_add_child(box, loner) == CL_ERROR_INVALID_ARGUMENT);
         cl_application_step(app, false); /* reap */
+    }
+
+    /* destroying a FOCUSED widget whose focus_lost destroys itself: the detach
+     * fires focus_lost before the node is queued, so the nested destroy must be
+     * a no-op rather than queuing (and later double-freeing) the same node. */
+    {
+        cl_widget_t *sk = cl_widget_alloc(app, &cl_selfkill_class);
+
+        cl_widget_set_focusable(sk, true);
+        cl_widget_add_child(box, sk);
+        cl_application_step(app, false);
+        CHECK(cl_widget_focus(sk));
+        CHECK(cl_widget_has_focus(sk));
+        cl_widget_destroy(sk);           /* detach -> focus_lost -> destroy(sk) */
+        cl_application_step(app, false);  /* reap: exactly one free, no crash */
     }
 
     cl_application_destroy(app);
