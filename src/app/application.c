@@ -279,7 +279,8 @@ static void process_events(cl_application_t *app)
             case CL_PEV_KEY_DOWN:
             case CL_PEV_KEY_UP:
                 if (app->window)
-                    cl_window_handle_key(app->window, ev.kind, ev.key, ev.mods);
+                    cl_window_handle_key(app->window, ev.kind, ev.key, ev.mods,
+                                         ev.repeat);
                 break;
 
             case CL_PEV_TEXT_INPUT:

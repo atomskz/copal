@@ -69,6 +69,7 @@ typedef struct cl_platform_event {
     cl_key_mods_t mods;       /* key and mouse events */
     char text[32];            /* CL_PEV_TEXT_INPUT / _EDIT (NUL-term UTF-8) */
     int edit_cursor;          /* CL_PEV_TEXT_EDIT: caret pos (codepoints) */
+    bool repeat;              /* CL_PEV_KEY_DOWN/_UP: synthetic auto-repeat */
 } cl_platform_event_t;
 
 /*

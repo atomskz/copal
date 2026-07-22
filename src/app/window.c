@@ -1015,7 +1015,7 @@ void cl_window_set_focus(cl_window_t *win, cl_widget_t *w)
 }
 
 void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
-                          cl_key_t key, cl_key_mods_t mods)
+                          cl_key_t key, cl_key_mods_t mods, bool repeat)
 {
     cl_event_t ev;
     bool handled = false;
@@ -1024,6 +1024,7 @@ void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
     ev.type = kind == CL_PEV_KEY_DOWN ? CL_EVENT_KEY_DOWN : CL_EVENT_KEY_UP;
     ev.mods = mods;
     ev.data.key.key = key;
+    ev.data.key.repeat = repeat;
 
     /* An open popup captures the keyboard (menu navigation, Escape). */
     if (win->overlay_count > 0) {

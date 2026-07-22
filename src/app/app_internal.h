@@ -121,7 +121,7 @@ void cl_window_handle_mouse(cl_window_t *win, cl_platform_event_kind_t kind,
 void cl_window_handle_wheel(cl_window_t *win, cl_point_t pos, float dx,
                             float dy, cl_key_mods_t mods);
 void cl_window_handle_key(cl_window_t *win, cl_platform_event_kind_t kind,
-                          cl_key_t key, cl_key_mods_t mods);
+                          cl_key_t key, cl_key_mods_t mods, bool repeat);
 void cl_window_handle_text(cl_window_t *win, const char *utf8);
 void cl_window_handle_text_edit(cl_window_t *win, const char *utf8, int cursor);
 void cl_window_set_focus(cl_window_t *win, cl_widget_t *w);

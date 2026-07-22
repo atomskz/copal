@@ -288,6 +288,7 @@ static bool sdl_poll(cl_platform_t *p, cl_platform_event_t *out)
                 out->window_id = e.key.windowID;
                 out->key = map_key(e.key.keysym.sym);
                 out->mods = map_mods(e.key.keysym.mod);
+                out->repeat = e.key.repeat != 0;
                 return true;
 
             case SDL_TEXTINPUT:
