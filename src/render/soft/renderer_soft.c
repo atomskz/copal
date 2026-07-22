@@ -474,6 +474,7 @@ static soft_glyph_t *soft_get_glyph(soft_renderer_t *r, cl_font_t *font,
     const stbtt_fontinfo *info = cl_font_info(font);
     float scale = cl_font_pixel_scale(font);
     unsigned char *bmp;
+    unsigned char *cov = NULL;
     soft_glyph_t *g;
     unsigned slot;
     int w = 0, h = 0, xoff = 0, yoff = 0, adv = 0, lsb = 0;
@@ -492,6 +493,21 @@ static soft_glyph_t *soft_get_glyph(soft_renderer_t *r, cl_font_t *font,
     bmp = stbtt_GetCodepointBitmap(info, 0, scale, (int)cp, &w, &h, &xoff,
                                    &yoff);
     stbtt_GetCodepointHMetrics(info, (int)cp, &adv, &lsb);
+
+    /* Allocate the coverage BEFORE committing a cache entry: a transient
+     * allocation failure must not leave a permanently blank glyph cached that
+     * every later draw of this codepoint would reuse. */
+    if (bmp && w > 0 && h > 0) {
+        cov = cl_alloc(r->a, (size_t)w * (size_t)h);
+        if (!cov) {
+            stbtt_FreeBitmap(bmp, info->userdata);
+            return NULL; /* skip this frame; retry when memory is available */
+        }
+        memcpy(cov, bmp, (size_t)w * (size_t)h);
+    }
+    if (bmp)
+        stbtt_FreeBitmap(bmp, info->userdata);
+
     g = &r->glyphs[r->glyph_count++];
     r->glyph_hash[slot] = (uint16_t)r->glyph_count; /* index + 1 */
     memset(g, 0, sizeof(*g));
@@ -500,16 +516,11 @@ static soft_glyph_t *soft_get_glyph(soft_renderer_t *r, cl_font_t *font,
     g->advance = (float)adv * scale;
     g->xoff = xoff;
     g->yoff = yoff;
-    if (bmp && w > 0 && h > 0) {
-        g->cov = cl_alloc(r->a, (size_t)w * (size_t)h);
-        if (g->cov) {
-            memcpy(g->cov, bmp, (size_t)w * (size_t)h);
-            g->w = w;
-            g->h = h;
-        }
+    if (cov) {
+        g->cov = cov;
+        g->w = w;
+        g->h = h;
     }
-    if (bmp)
-        stbtt_FreeBitmap(bmp, info->userdata);
     return g;
 }
 
