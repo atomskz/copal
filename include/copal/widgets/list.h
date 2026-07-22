@@ -54,10 +54,11 @@ CL_API const char *cl_list_item_text(cl_widget_t *list, size_t index);
 /** cl_list_selected() - selected index, or -1. */
 CL_API int cl_list_selected(cl_widget_t *list);
 
-/** cl_list_set_selected() - select an index (-1 clears); fires on_select. */
+/** cl_list_set_selected() - select an index (-1 clears); does NOT fire
+ *  on_select. */
 CL_API void cl_list_set_selected(cl_widget_t *list, int index);
 
-/** cl_list_set_on_select() - selection changed (click, keys, setter). */
+/** cl_list_set_on_select() - selection changed by the user (click, keys). */
 CL_API void cl_list_set_on_select(cl_widget_t *list, cl_list_fn fn,
                                   void *user);
 

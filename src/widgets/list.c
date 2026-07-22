@@ -367,7 +367,7 @@ void cl_list_set_selected(cl_widget_t *list, int index)
     cl_list_t *l = CL_WIDGET_CAST(cl_list, list);
 
     if (l)
-        select_index(l, index, true);
+        select_index(l, index, false); /* programmatic: does not fire on_select */
 }
 
 void cl_list_set_on_select(cl_widget_t *list, cl_list_fn fn, void *user)
