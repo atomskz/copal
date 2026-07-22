@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <copal/application.h>
 
-#include <stdlib.h>
 #include <string.h>
+#if defined(CL_ENABLE_SDL)
+#include <stdlib.h> /* getenv for the COPAL_RENDER override (SDL path only) */
+#endif
 
 #include "app/app_internal.h"
 #include "theme/theme_internal.h"

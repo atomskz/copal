@@ -4,7 +4,6 @@
 #include <copal/application.h>
 #include <copal/allocator.h>
 
-#include <stdio.h>
 #include <string.h>
 
 #include "widget/widget_host.h"
