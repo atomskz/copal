@@ -104,7 +104,10 @@ cl_widget_t *cl_label_create(cl_application_t *app, const cl_label_desc_t *desc)
         if (desc->style) {
             self->font = desc->style->font;
             self->color = desc->style->color;
-            self->has_color = true;
+            /* A zero-alpha colour is the zeroed default of a partial style
+             * (e.g. one that only sets .font): fall back to the theme text
+             * colour rather than painting the label invisibly. */
+            self->has_color = desc->style->color.a != 0;
         }
     }
     return w;
