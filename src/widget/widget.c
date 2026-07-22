@@ -565,7 +565,10 @@ static bool widget_handle(cl_widget_t *w, const cl_event_t *ev)
 {
     const cl_widget_vtable_t *vt = w->cls->vtable;
 
-    if (!(w->flags & CL_WF_ENABLED) || !vt)
+    /* A widget destroyed mid-dispatch (e.g. a handler that closed its own
+     * dialog) is flagged dead but stays linked until the deferred reap; the
+     * event bubble must not keep delivering to it or its dead ancestors. */
+    if ((w->flags & CL_WF_DEAD) || !(w->flags & CL_WF_ENABLED) || !vt)
         return false;
     if (vt->on_event)
         return vt->on_event(w, ev);
