@@ -10,7 +10,14 @@
 
 #include "foundation_internal.h"
 
-#if defined(_MSC_VER)
+#if !defined(CL_HOSTED)
+/*
+ * Freestanding (UEFI/bare-metal) is single-threaded and has no runtime to set
+ * up a thread-local storage block or a thread pointer, so thread-local storage
+ * would fault at access time. The last error is a plain global there.
+ */
+#  define CL_THREAD_LOCAL
+#elif defined(_MSC_VER)
 #  define CL_THREAD_LOCAL __declspec(thread)
 #else
 #  define CL_THREAD_LOCAL _Thread_local
