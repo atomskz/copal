@@ -32,6 +32,10 @@ typedef struct soft_renderer {
     int w, h, pitch;
     int rsh, gsh, bsh, ash; /* channel shifts derived from the surface masks */
     bool has_alpha;
+    /* One-shot diagnostics: a bad framebuffer would otherwise drop every frame
+     * silently (a black screen). Warn once, not per frame. */
+    bool frame_drop_warned; /* lock failure / misaligned base or pitch */
+    bool mask_warned;       /* degenerate (all-zero) R/G/B masks */
     float scale; /* logical -> physical pixel scale */
     /* Damage region for the next frame (set_damage): only this part of the
      * persistent surface is cleared and drawn; the rest survives. */
@@ -205,6 +209,16 @@ static void blend_px(soft_renderer_t *r, int ix, int iy, cl_color_t color,
 
 /* ---- frame --------------------------------------------------------------- */
 
+/* Report a dropped frame once per renderer lifetime, then stay silent: the same
+ * bad framebuffer recurs every frame, so per-frame logging would flood. */
+static void soft_warn_drop_once(soft_renderer_t *r, const char *msg)
+{
+    if (r->frame_drop_warned)
+        return;
+    r->frame_drop_warned = true;
+    cl_log(CL_LOG_ERROR, "%s", msg);
+}
+
 static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
                              cl_color_t clear)
 {
@@ -220,8 +234,11 @@ static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
     r->px = NULL;
     r->clip_depth = 0;
     if (!r->platform->ops->lock_framebuffer ||
-        !r->platform->ops->lock_framebuffer(r->platform, NULL, &pm))
+        !r->platform->ops->lock_framebuffer(r->platform, NULL, &pm)) {
+        soft_warn_drop_once(r, "software renderer: could not lock the "
+                               "framebuffer; frames dropped");
         return;
+    }
     r->px = pm.pixels;
     r->w = pm.w;
     r->h = pm.h;
@@ -234,6 +251,8 @@ static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
         if (r->platform->ops->unlock_framebuffer)
             r->platform->ops->unlock_framebuffer(r->platform, NULL);
         r->px = NULL;
+        soft_warn_drop_once(r, "software renderer: framebuffer base/pitch not "
+                               "4-byte aligned; frames dropped");
         return;
     }
     r->rsh = mask_shift(pm.r_mask);
@@ -241,6 +260,13 @@ static void soft_begin_frame(cl_renderer_t *rr, cl_size_t size, float scale,
     r->bsh = mask_shift(pm.b_mask);
     r->ash = mask_shift(pm.a_mask);
     r->has_alpha = pm.a_mask != 0;
+    /* Degenerate masks map every channel to bit 0: the surface would render
+     * near-black. Not fatal (still drawable), so warn once and carry on. */
+    if (!(pm.r_mask | pm.g_mask | pm.b_mask) && !r->mask_warned) {
+        r->mask_warned = true;
+        cl_log(CL_LOG_ERROR, "software renderer: framebuffer R/G/B masks are "
+                             "all zero; colours will render as black");
+    }
     r->scale = scale > 0.0f ? scale : 1.0f;
 
     /* Damage-clipped frame: the surface persists between frames, so only
