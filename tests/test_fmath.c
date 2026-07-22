@@ -73,6 +73,27 @@ int main(void)
                pow(x, 1.0 / 3.0) * 1e-6 + 1e-9);
     }
 
+    /* pow with a small base and a positive exponent drives the internal exp
+     * strongly negative, exercising the underflow guard (some of these
+     * underflow to 0, some land just above it). */
+    {
+        static const double px[] = { 1e-3, 1e-4, 0.01, 0.1,
+                                     1e-50, 1e-100, 1e-300 };
+        static const double py[] = { 3.0, 5.0, 8.0, 20.0 };
+        int bi;
+        int ei;
+
+        for (bi = 0; bi < (int)(sizeof px / sizeof px[0]); bi++)
+            for (ei = 0; ei < (int)(sizeof py / sizeof py[0]); ei++) {
+                double x = px[bi];
+                double y = py[ei];
+                double want = pow(x, y);
+
+                near_d("pow-underflow", x, cl_pow(x, y), want,
+                       want * 1e-4 + 1e-30);
+            }
+    }
+
     if (!failures)
         printf("fmath matches libm within tolerance\n");
     return failures ? 1 : 0;
