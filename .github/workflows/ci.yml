@@ -247,12 +247,16 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Build and install copal
+        # Set the prefix at CONFIGURE time (not via --install --prefix): the
+        # pkg-config file bakes its prefix from CMAKE_INSTALL_PREFIX, so an
+        # install-time override would leave copal.pc pointing at /usr/local.
         run: >
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_INSTALL_PREFIX="$PWD/stage"
           -DCOPAL_BUILD_SHARED=${{ matrix.shared }}
           -DCOPAL_BUILD_EXAMPLES=OFF -DCOPAL_BUILD_TESTS=OFF &&
           cmake --build build -j &&
-          cmake --install build --prefix "$PWD/stage"
+          cmake --install build
 
       - name: Write a tiny consumer
         run: |
