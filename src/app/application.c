@@ -436,8 +436,10 @@ int cl_application_run(cl_application_t *app)
 {
     while (!app->quit) {
         /* Block only until the next timer is due, so timers fire on time even
-         * without input events. */
-        app->platform->ops->wait(app->platform, cl_app_timers_timeout(app));
+         * without input events. wait is conditional (create warns when it is
+         * NULL): without it the loop cannot block and simply spins polling. */
+        if (app->platform->ops->wait)
+            app->platform->ops->wait(app->platform, cl_app_timers_timeout(app));
         process_events(app);
         cl_app_run_tasks(app);
         cl_app_timers_poll(app);
@@ -474,11 +476,12 @@ void cl_app_reap_dead(cl_application_t *app)
 
 bool cl_application_step(cl_application_t *app, bool wait)
 {
-    if (wait) {
+    if (wait && app->platform->ops->wait) {
         /* Bound the wait by the next timer, but never block indefinitely: a
          * single step must return to its caller (unlike run()'s own loop).
          * With no timer armed, wait a bounded slice instead of 0 - a plain
-         * while (step(app, true)) embedding loop must not spin a core. */
+         * while (step(app, true)) embedding loop must not spin a core.
+         * The wait op is conditional; without it the step cannot block. */
         int timeout = cl_app_timers_timeout(app);
 
         app->platform->ops->wait(app->platform, timeout < 0 ? 100 : timeout);
