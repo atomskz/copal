@@ -79,7 +79,9 @@ endif()
 # Core sources: foundation + widget/layout/event/theme/text. The SDL2 platform
 # and OpenGL renderer backends are added when their options are enabled (they
 # require SDL2/OpenGL); the mock backends live in the separate copal_mocks
-# test-support library below.
+# test-support library below. The linear-framebuffer platform
+# (src/platform/fb) is software-only and freestanding-safe, so it is always
+# built (the freestanding/UEFI reference backend).
 set(COPAL_SOURCES
     src/core/foundation/version.c
     src/core/foundation/error.c
@@ -96,6 +98,7 @@ set(COPAL_SOURCES
     src/render/paint_context.c
     src/render/image.c
     src/render/soft/renderer_soft.c
+    src/platform/fb/platform_fb.c
     src/widget/widget.c
     src/layout/vbox.c
     src/layout/hbox.c
