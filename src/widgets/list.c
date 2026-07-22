@@ -218,10 +218,13 @@ static bool list_key_down(cl_widget_t *w, const cl_event_t *ev)
             select_index(l, n - 1, true);
             return true;
 
-        case CL_KEY_PAGE_DOWN:
-            select_index(l, idx + PAGE_ROWS < n ? idx + PAGE_ROWS : n - 1,
+        case CL_KEY_PAGE_DOWN: {
+            int base = idx < 0 ? 0 : idx; /* from no selection, start at the top */
+
+            select_index(l, base + PAGE_ROWS < n ? base + PAGE_ROWS : n - 1,
                          true);
             return true;
+        }
 
         case CL_KEY_PAGE_UP:
             select_index(l, idx > PAGE_ROWS ? idx - PAGE_ROWS : 0, true);
