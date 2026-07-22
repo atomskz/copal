@@ -43,12 +43,14 @@ void cl_mutex_destroy(cl_mutex_t *m)
 
 void cl_mutex_lock(cl_mutex_t *m)
 {
-    EnterCriticalSection(&m->cs);
+    if (m)
+        EnterCriticalSection(&m->cs);
 }
 
 void cl_mutex_unlock(cl_mutex_t *m)
 {
-    LeaveCriticalSection(&m->cs);
+    if (m)
+        LeaveCriticalSection(&m->cs);
 }
 
 #else /* POSIX */
@@ -90,12 +92,14 @@ void cl_mutex_destroy(cl_mutex_t *m)
 
 void cl_mutex_lock(cl_mutex_t *m)
 {
-    pthread_mutex_lock(&m->m);
+    if (m)
+        pthread_mutex_lock(&m->m);
 }
 
 void cl_mutex_unlock(cl_mutex_t *m)
 {
-    pthread_mutex_unlock(&m->m);
+    if (m)
+        pthread_mutex_unlock(&m->m);
 }
 
 #endif /* _WIN32 / POSIX */
