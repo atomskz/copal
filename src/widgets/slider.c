@@ -277,6 +277,27 @@ void cl_slider_set_range(cl_widget_t *slider, float min, float max)
     cl_widget_invalidate(slider);
 }
 
+float cl_slider_min(cl_widget_t *slider)
+{
+    cl_slider_t *s = CL_WIDGET_CAST(cl_slider, slider);
+
+    return s ? s->min : 0.0f;
+}
+
+float cl_slider_max(cl_widget_t *slider)
+{
+    cl_slider_t *s = CL_WIDGET_CAST(cl_slider, slider);
+
+    return s ? s->max : 0.0f;
+}
+
+float cl_slider_step(cl_widget_t *slider)
+{
+    cl_slider_t *s = CL_WIDGET_CAST(cl_slider, slider);
+
+    return s ? s->step : 0.0f;
+}
+
 void cl_slider_set_on_change(cl_widget_t *slider, cl_value_fn fn, void *user)
 {
     cl_slider_t *s = CL_WIDGET_CAST(cl_slider, slider);

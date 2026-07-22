@@ -44,6 +44,12 @@ CL_API void cl_slider_set_value(cl_widget_t *slider, float value);
 /** cl_slider_value() - current value. */
 CL_API float cl_slider_value(cl_widget_t *slider);
 
+/** cl_slider_min() / cl_slider_max() / cl_slider_step() - read the range and
+ *  the effective step (the resolved step when the desc requested an auto one). */
+CL_API float cl_slider_min(cl_widget_t *slider);
+CL_API float cl_slider_max(cl_widget_t *slider);
+CL_API float cl_slider_step(cl_widget_t *slider);
+
 /** cl_slider_set_range() - set [min, max]; the value is re-clamped. Does NOT
  *  fire on_change. */
 CL_API void cl_slider_set_range(cl_widget_t *slider, float min, float max);
