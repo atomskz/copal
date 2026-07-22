@@ -113,6 +113,41 @@ cl_widget_t *counter_create(cl_application_t *app)
 
 `CL_WIDGET_CAST(counter, w)` expands to a checked downcast against `counter_class`; it returns `NULL` on a type mismatch (and records `CL_ERROR_INVALID_ARGUMENT` for a live widget of the wrong class). `cl_widget_alloc` zeroes the whole instance, so `count` starts at 0 without extra initialisation. Add the widget to a window's tree with `cl_widget_add_child`; the framework owns it from then on and calls `destroy` (if set) when the subtree is torn down.
 
+### Flags and cast helpers
+
+`w->flags` carries the base state bits. Read them directly; change them through the `cl_widget_set_*` API in [api.md](./api.md), not by writing the bits.
+
+```c
+enum cl_widget_flags {          /* <copal/widget_impl.h> */
+    CL_WF_VISIBLE   = 1u << 0,
+    CL_WF_ENABLED   = 1u << 1,
+    CL_WF_FOCUSABLE = 1u << 2,
+    CL_WF_CLIP      = 1u << 5,   /* clip children to this widget's rect when painting */
+    /* CL_WF_DEAD is internal (the deferred-free marker) — never set or clear it. */
+};
+```
+
+Beyond `cl_widget_alloc` and `CL_WIDGET_CAST`, the author surface includes:
+
+```c
+void  cl_widget_init_base(cl_widget_t *w, cl_application_t *app,
+                          const cl_widget_class_t *cls); /* init a base you allocated yourself */
+void *cl_widget_check_cast(cl_widget_t *w, const cl_widget_class_t *cls); /* CL_WIDGET_CAST wraps this */
+bool  cl_widget_is_a(cl_widget_t *w, const cl_widget_class_t *cls);       /* silent type probe, records no error */
+```
+
+`CL_WIDGET_CAST_UNCHECKED(name, w)` is a raw downcast with no type check — use it only where the type is already certain.
+
+### Writing a container
+
+A container overrides `measure` and `arrange`. Lay out children through the plumbing wrappers rather than calling a child's vtable directly — they apply the NULL-slot defaults, honour the child's preferred size, and write `child->measured` / `child->rect`:
+
+```c
+cl_size_t cl_widget_do_measure(cl_widget_t *child, cl_constraints_t c);
+void      cl_widget_do_arrange(cl_widget_t *child, cl_rect_t rect);
+void      cl_widget_reveal(cl_widget_t *w);  /* scroll scrollable ancestors until w is visible */
+```
+
 ## Custom backends
 
 The backend SPI lives in `<copal/backend/platform.h>` and `<copal/backend/renderer.h>` — public **installed** headers, but deliberately outside the `<copal/copal.h>` umbrella. Backends replace how copal talks to the OS (windows, input, present) and how it rasterises.
@@ -139,6 +174,42 @@ Each backend:
 | Software FB | `lock_framebuffer` / `unlock_framebuffer` (NULL for GPU backends) |
 
 Optional ops are documented as NULL-able in the header; e.g. a single-window backend may ignore the `cl_platform_window_t*` handle and accept `NULL` as "the only window".
+
+`poll`/`wait` produce a **`cl_platform_event_t`** — a neutral event the app layer turns into widget events:
+
+```c
+typedef enum cl_platform_event_kind {
+    CL_PEV_NONE, CL_PEV_QUIT, CL_PEV_RESIZE, CL_PEV_EXPOSE,
+    CL_PEV_MOUSE_DOWN, CL_PEV_MOUSE_UP, CL_PEV_MOUSE_MOVE, CL_PEV_MOUSE_WHEEL,
+    CL_PEV_KEY_DOWN, CL_PEV_KEY_UP, CL_PEV_TEXT_INPUT, CL_PEV_TEXT_EDIT
+} cl_platform_event_kind_t;
+
+typedef struct cl_platform_event {
+    cl_platform_event_kind_t kind;
+    uint32_t      window_id;
+    cl_size_t     size;             /* RESIZE */
+    cl_point_t    pos;              /* mouse events */
+    cl_mouse_button_t button;
+    int           clicks;           /* consecutive presses */
+    float         wheel_x, wheel_y; /* MOUSE_WHEEL */
+    cl_key_t      key;
+    cl_key_mods_t mods;
+    char          text[32];         /* TEXT_INPUT / _EDIT (NUL-terminated UTF-8) */
+    int           edit_cursor;      /* TEXT_EDIT caret, in codepoints */
+    bool          repeat;           /* KEY_DOWN/_UP synthetic auto-repeat */
+} cl_platform_event_t;
+```
+
+A software platform also fills a **`cl_pixmap_t`** in `lock_framebuffer`, describing the CPU buffer so the software renderer can pack colours without knowing the native format:
+
+```c
+typedef struct cl_pixmap {
+    void    *pixels;
+    int      w, h;      /* framebuffer size in physical pixels */
+    int      pitch;     /* bytes per row */
+    uint32_t r_mask, g_mask, b_mask, a_mask;  /* a_mask == 0 -> opaque surface */
+} cl_pixmap_t;
+```
 
 ### `cl_renderer_ops_t` — drawing
 

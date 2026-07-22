@@ -106,7 +106,8 @@ The project is **GPL-3.0-or-later**. The first line of every `.c`/`.h` file (and
 ## Tooling
 
 - **`.clang-format`** (repo root) — the formatting arbiter: `IndentWidth: 4`, `UseTab: Never`, `ColumnLimit: 80`, `IndentCaseLabels: true`, `BreakBeforeBraces: Linux`, `PointerAlignment: Right`, `SpaceAfterCStyleCast: false`, `SortIncludes: false`.
-- **`.editorconfig`** — space indent, size 4, UTF-8, LF, trim trailing whitespace, final newline, `max_line_length = 80`.
+- **`.editorconfig`** — space indent, size 4, UTF-8, trim trailing whitespace, final newline, `max_line_length = 80`.
+- **`.gitattributes`** — normalizes line endings to LF (`* text=auto eol=lf`), including on Windows.
 - **`.githooks/pre-commit`** (mandatory) — runs `clang-format --dry-run --Werror` on changed `.c`/`.h` files (excluding `third_party/`) and blocks the commit on any discrepancy. Activate once per clone:
 
 ```sh

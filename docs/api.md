@@ -236,6 +236,30 @@ const char  *cl_version_string(void);   /* e.g. "0.3.0" */
 
 Pre-1.0 the ABI is not frozen: a minor bump may break it, and `abi_version` in every desc is the guard (`CL_ERROR_ABI_MISMATCH`). Compare `cl_version_runtime()` against the compile-time `COPAL_VERSION` to catch a header/binary skew.
 
+## Allocator
+
+Every allocation in the library goes through a `cl_allocator_t`, set once on the application descriptor (`NULL` selects a built-in malloc-based default). From `<copal/allocator.h>`.
+
+```c
+typedef struct cl_allocator {
+    void *userdata;
+    void *(*alloc)(void *userdata, size_t size);
+    void *(*realloc)(void *userdata, void *ptr, size_t size);
+    void  (*free)(void *userdata, void *ptr);
+} cl_allocator_t;
+
+const cl_allocator_t *cl_allocator_default(void);  /* the built-in malloc allocator */
+
+/* Thin wrappers over an allocator; a NULL allocator uses the default. A zero
+ * size is normalized to 1, so NULL always means out of memory (recorded as
+ * CL_ERROR_OUT_OF_MEMORY). */
+void *cl_alloc(const cl_allocator_t *a, size_t size);
+void *cl_realloc(const cl_allocator_t *a, void *ptr, size_t size);
+void  cl_free(const cl_allocator_t *a, void *ptr);
+```
+
+All three function pointers are required (the library calls them without NULL checks) and follow malloc-family semantics: `realloc(userdata, NULL, size)` acts like `alloc`, and `free(userdata, NULL)` is a no-op. Reach the application's active allocator with `cl_application_allocator()`. For a thread-safe `cl_application_post`, the allocator must be thread-safe (the default is). Injecting a custom allocator is covered in [extending.md](./extending.md).
+
 ## Application
 
 The root object and event loop. From `<copal/application.h>`.
