@@ -34,7 +34,7 @@ static const cl_widget_class_t cl_progressbar_class = {
 
 static float pb_clamp(float v)
 {
-    if (v < 0.0f)
+    if (!(v > 0.0f)) /* v <= 0, or NaN */
         return 0.0f;
     return v > 1.0f ? 1.0f : v;
 }
