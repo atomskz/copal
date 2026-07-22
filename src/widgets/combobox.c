@@ -28,6 +28,7 @@ typedef struct cl_combobox {
     size_t count;
     size_t cap;
     int selected;
+    bool open; /* dropdown currently shown (its items are baked into a menu) */
     char *placeholder;
     cl_selection_fn on_change;
     void *user;
@@ -88,9 +89,26 @@ static void select_index(cl_widget_t *w, int index, bool notify)
 static void combo_item_chosen(cl_widget_t *menu_w, void *user)
 {
     cl_widget_t *combo = cl_widget_userdata(menu_w);
+    cl_combobox_t *cb = combo ? CL_WIDGET_CAST(cl_combobox, combo) : NULL;
 
+    if (cb)
+        cb->open = false; /* choosing an item closes the dropdown */
     if (combo)
         select_index(combo, (int)(intptr_t)user, true);
+}
+
+/* Tear down the dropdown so its baked item indices cannot go stale under a
+ * later mutation of the combobox's item list. */
+static void combo_close_dropdown(cl_combobox_t *cb)
+{
+    cl_widget_host_t *h;
+
+    if (!cb->open)
+        return;
+    cb->open = false;
+    h = cl_widget_host(&cb->base);
+    if (h)
+        h->ops->close_popup(h);
 }
 
 static void open_dropdown(cl_widget_t *w)
@@ -113,6 +131,7 @@ static void open_dropdown(cl_widget_t *w)
      * while the dropdown is open, the host tears the popup down. */
     h->ops->open_popup(h, w, menu,
                        (cl_point_t){ w->rect.x, w->rect.y + w->rect.h });
+    cb->open = true;
 }
 
 static cl_size_t combo_measure(cl_widget_t *w, cl_constraints_t c)
@@ -295,6 +314,7 @@ cl_result_t cl_combobox_remove(cl_widget_t *combo, size_t index)
 
     if (!cb || index >= cb->count)
         return CL_ERROR_INVALID_ARGUMENT;
+    combo_close_dropdown(cb); /* stale baked indices otherwise */
     cl_free(cl_application_allocator(combo->app), cb->items[index]);
     for (i = index; i + 1 < cb->count; i++)
         cb->items[i] = cb->items[i + 1];
@@ -317,6 +337,7 @@ void cl_combobox_clear(cl_widget_t *combo)
 
     if (!cb)
         return;
+    combo_close_dropdown(cb); /* stale baked indices otherwise */
     a = cl_application_allocator(combo->app);
     for (i = 0; i < cb->count; i++)
         cl_free(a, cb->items[i]);
