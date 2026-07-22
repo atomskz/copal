@@ -453,15 +453,16 @@ void cl_window_open_popup(cl_window_t *win, cl_widget_t *popup, cl_point_t at)
     overlay_push(win, NULL, popup, at, true, false, false);
 }
 
-void cl_window_open_modal(cl_window_t *win, cl_widget_t *dialog)
+bool cl_window_open_modal(cl_window_t *win, cl_widget_t *dialog)
 {
     int i;
 
     if (!win || !dialog)
-        return;
+        return false;
     for (i = win->overlay_count - 1; i >= 0; i--)
         overlay_drop(win, i);
-    overlay_push(win, NULL, dialog, (cl_point_t){ 0, 0 }, true, true, true);
+    return overlay_push(win, NULL, dialog, (cl_point_t){ 0, 0 }, true, true,
+                        true);
 }
 
 void cl_window_push_popup(cl_window_t *win, cl_widget_t *owner,

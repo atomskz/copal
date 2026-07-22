@@ -86,9 +86,10 @@ CL_API cl_widget_t *cl_window_popup(cl_window_t *win);
  * any open popups; ownership transfers to the window. Outside clicks are
  * swallowed instead of dismissing: close explicitly with
  * cl_window_close_popup() (e.g. from a dialog button). Building block for
- * message boxes and custom dialogs.
+ * message boxes and custom dialogs. Returns true when shown; false (and the
+ * owned dialog is destroyed) if the overlay stack is full.
  */
-CL_API void cl_window_open_modal(cl_window_t *win, cl_widget_t *dialog);
+CL_API bool cl_window_open_modal(cl_window_t *win, cl_widget_t *dialog);
 
 /* The tooltip bubble currently shown by the hover layer, or NULL. Ownership
  * stays with the window; mainly useful for introspection and testing. */

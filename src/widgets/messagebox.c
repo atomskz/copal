@@ -199,6 +199,7 @@ cl_widget_t *cl_messagebox_show(cl_window_t *win, const char *title,
     cl_widget_add_child(col, row);
     cl_widget_add_child(w, col);
 
-    cl_window_open_modal(win, w);
+    if (!cl_window_open_modal(win, w))
+        return NULL; /* stack full: open_modal already destroyed the dialog */
     return w;
 }
