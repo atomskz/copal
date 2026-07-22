@@ -53,7 +53,7 @@ static const cl_widget_class_t cl_slider_class = {
 
 static float clampf(float v, float lo, float hi)
 {
-    if (v < lo)
+    if (!(v > lo)) /* v <= lo, or v is NaN */
         return lo;
     if (v > hi)
         return hi;
