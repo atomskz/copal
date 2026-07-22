@@ -202,6 +202,17 @@ bool cl_radiobutton_is_selected(cl_widget_t *rb_w)
     return self ? self->selected : false;
 }
 
+void cl_radiobutton_set_text(cl_widget_t *rb_w, const char *utf8)
+{
+    cl_radiobutton_t *self = CL_WIDGET_CAST(cl_radiobutton, rb_w);
+
+    if (!self)
+        return;
+    cl_free(cl_application_allocator(rb_w->app), self->text);
+    self->text = cl_strdup(cl_application_allocator(rb_w->app), utf8);
+    cl_widget_invalidate_layout(rb_w);
+}
+
 void cl_radiobutton_set_on_select(cl_widget_t *rb_w, cl_toggled_fn fn,
                                   void *user)
 {

@@ -51,6 +51,9 @@ CL_API void cl_radiobutton_set_selected(cl_widget_t *rb, bool selected);
 /** cl_radiobutton_is_selected() - current state. */
 CL_API bool cl_radiobutton_is_selected(cl_widget_t *rb);
 
+/** cl_radiobutton_set_text() - replace the label text (UTF-8; copied). */
+CL_API void cl_radiobutton_set_text(cl_widget_t *rb, const char *utf8);
+
 /** cl_radiobutton_set_on_select() - called only when a user selection makes
  *  this radio the active one (not for programmatic changes). */
 CL_API void cl_radiobutton_set_on_select(cl_widget_t *rb, cl_toggled_fn fn,
