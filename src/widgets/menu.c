@@ -397,6 +397,11 @@ cl_result_t cl_menu_remove(cl_widget_t *menu, size_t index)
     for (i = index; i + 1 < m->count; i++)
         m->items[i] = m->items[i + 1];
     m->count--;
+    /* Keep the hovered highlight on the same item after the shift. */
+    if (m->hovered == (int)index)
+        m->hovered = -1;
+    else if (m->hovered > (int)index)
+        m->hovered--;
     if (m->hovered >= 0 && (size_t)m->hovered >= m->count)
         m->hovered = -1;
     cl_widget_invalidate_layout(menu);
