@@ -12,6 +12,19 @@ every 0.x version.
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-07-22
+
+### Fixed
+
+- Backend SPI robustness for minimal/out-of-tree (e.g. UEFI) platforms:
+  `cl_window_create` and `cl_window_set_title` no longer call the optional
+  `start_text_input`/`set_title` ops without a NULL check, so a backend that
+  leaves them NULL no longer crashes; both ops are now documented as optional.
+- The platform event is zero-initialised before each `poll`, so a backend that
+  fills only the fields relevant to the event kind no longer feeds stale/garbage
+  data (e.g. random key/mouse modifiers) into the widgets. The `poll` contract
+  is documented accordingly. The in-tree SDL/mock backends were unaffected.
+
 ## [0.3.1] — 2026-07-22
 
 ### Fixed

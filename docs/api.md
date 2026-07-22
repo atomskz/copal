@@ -221,17 +221,17 @@ void         cl_set_assert_handler(cl_assert_fn fn);          /* NULL removes */
 
 ## Versioning
 
-From `<copal/version.h>`. Current version **0.3.1**.
+From `<copal/version.h>`. Current version **0.3.2**.
 
 ```c
 #define COPAL_VERSION_MAJOR 0
 #define COPAL_VERSION_MINOR 3
-#define COPAL_VERSION_PATCH 1
+#define COPAL_VERSION_PATCH 2
 #define COPAL_VERSION_ENCODE(major, minor, patch)  /* -> 0x00MMmmpp */
-#define COPAL_VERSION  COPAL_VERSION_ENCODE(0, 3, 1)
+#define COPAL_VERSION  COPAL_VERSION_ENCODE(0, 3, 2)
 
 uint32_t     cl_version_runtime(void);  /* linked library version; compare to COPAL_VERSION */
-const char  *cl_version_string(void);   /* e.g. "0.3.1" */
+const char  *cl_version_string(void);   /* e.g. "0.3.2" */
 ```
 
 Pre-1.0 the ABI is not frozen: a minor bump may break it, and `abi_version` in every desc is the guard (`CL_ERROR_ABI_MISMATCH`). Compare `cl_version_runtime()` against the compile-time `COPAL_VERSION` to catch a header/binary skew.
