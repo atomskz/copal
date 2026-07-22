@@ -365,8 +365,9 @@ static void theme_toggle(void)
 
 /* --- quitting (close veto + confirmation) ------------------------------------ */
 
-static void quit_confirmed(int index, void *user)
+static void quit_confirmed(cl_widget_t *dialog, int index, void *user)
 {
+    (void)dialog;
     (void)user;
     if (index == 0)
         cl_application_quit(demo.app, 0);
